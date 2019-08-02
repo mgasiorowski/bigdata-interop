@@ -1,0 +1,2053 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GoogleHadoopFileSystemBase.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcs-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.fs.gcs</a> &gt; <span class="el_source">GoogleHadoopFileSystemBase.java</span></div><h1>GoogleHadoopFileSystemBase.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.fs.gcs;
+
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.BLOCK_SIZE;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_CONCURRENT_GLOB_ENABLE;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_CONFIG_OVERRIDE_FILE;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_FILE_CHECKSUM_TYPE;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_FLAT_GLOB_ENABLE;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_LAZY_INITIALIZATION_ENABLE;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_OUTPUT_STREAM_TYPE;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_ENABLE;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_WORKING_DIRECTORY;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.PATH_CODEC;
+import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.PERMISSIONS_TO_REPORT;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableList.toImmutableList;
+import static com.google.common.flogger.LazyArgs.lazy;
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import com.google.api.client.auth.oauth2.Credential;
+import com.google.cloud.hadoop.fs.gcs.auth.GcsDelegationTokens;
+import com.google.cloud.hadoop.gcsio.CreateFileOptions;
+import com.google.cloud.hadoop.gcsio.FileInfo;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorage;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorage.ListPage;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystem;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageItemInfo;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
+import com.google.cloud.hadoop.gcsio.PathCodec;
+import com.google.cloud.hadoop.gcsio.StorageResourceId;
+import com.google.cloud.hadoop.gcsio.UpdatableItemInfo;
+import com.google.cloud.hadoop.util.AccessTokenProvider;
+import com.google.cloud.hadoop.util.AccessTokenProviderClassFromConfigFactory;
+import com.google.cloud.hadoop.util.CredentialFactory;
+import com.google.cloud.hadoop.util.CredentialFromAccessTokenProviderClassFactory;
+import com.google.cloud.hadoop.util.HadoopCredentialConfiguration;
+import com.google.cloud.hadoop.util.PropertyUtil;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Ascii;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.base.Suppliers;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+import com.google.common.flogger.GoogleLogger;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URI;
+import java.nio.file.DirectoryNotEmptyException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import org.apache.commons.codec.binary.Hex;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.ContentSummary;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileAlreadyExistsException;
+import org.apache.hadoop.fs.FileChecksum;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.GlobPattern;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.fs.XAttrSetFlag;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.util.Progressable;
+
+/**
+ * This class provides a Hadoop compatible File System on top of Google Cloud Storage (GCS).
+ *
+ * &lt;p&gt;It is implemented as a thin abstraction layer on top of GCS. The layer hides any specific
+ * characteristics of the underlying store and exposes FileSystem interface understood by the Hadoop
+ * engine.
+ *
+ * &lt;p&gt;Users interact with the files in the storage using fully qualified URIs. The file system
+ * exposed by this class is identified using the 'gs' scheme. For example, {@code
+ * gs://dir1/dir2/file1.txt}.
+ *
+ * &lt;p&gt;This implementation translates paths between hadoop Path and GCS URI with the convention that
+ * the Hadoop root directly corresponds to the GCS &quot;root&quot;, e.g. gs:/. This is convenient for many
+ * reasons, such as data portability and close equivalence to gsutil paths, but imposes certain
+ * inherited constraints, such as files not being allowed in root (only 'directories' can be placed
+ * in root), and directory names inside root have a more limited set of allowed characters.
+ *
+ * &lt;p&gt;One of the main goals of this implementation is to maintain compatibility with behavior of
+ * HDFS implementation when accessed through FileSystem interface. HDFS implementation is not very
+ * consistent about the cases when it throws versus the cases when methods return false. We run GHFS
+ * tests and HDFS tests against the same test data and use that as a guide to decide whether to
+ * throw or to return false.
+ */
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">public abstract class GoogleHadoopFileSystemBase extends FileSystem</span>
+    implements FileSystemDescriptor {
+
+<span class="fc" id="L147">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  /**
+   * Available types for use with {@link
+   * GoogleHadoopFileSystemConfiguration#GCS_OUTPUT_STREAM_TYPE}.
+   */
+<span class="fc" id="L153">  public enum OutputStreamType {</span>
+<span class="fc" id="L154">    BASIC,</span>
+<span class="fc" id="L155">    SYNCABLE_COMPOSITE</span>
+  }
+
+  /**
+   * Available GCS checksum types for use with {@link
+   * GoogleHadoopFileSystemConfiguration#GCS_FILE_CHECKSUM_TYPE}.
+   */
+<span class="fc" id="L162">  public static enum GcsFileChecksumType {</span>
+<span class="fc" id="L163">    NONE(null, 0),</span>
+<span class="fc" id="L164">    CRC32C(&quot;COMPOSITE-CRC32C&quot;, 4),</span>
+<span class="fc" id="L165">    MD5(&quot;MD5&quot;, 16);</span>
+
+    private final String algorithmName;
+    private final int byteLength;
+
+<span class="fc" id="L170">    GcsFileChecksumType(String algorithmName, int byteLength) {</span>
+<span class="fc" id="L171">      this.algorithmName = algorithmName;</span>
+<span class="fc" id="L172">      this.byteLength = byteLength;</span>
+<span class="fc" id="L173">    }</span>
+
+    public String getAlgorithmName() {
+<span class="fc" id="L176">      return algorithmName;</span>
+    }
+
+    public int getByteLength() {
+<span class="fc" id="L180">      return byteLength;</span>
+    }
+  }
+
+  /** Use new URI_ENCODED_PATH_CODEC. */
+  public static final String PATH_CODEC_USE_URI_ENCODING = &quot;uri-path&quot;;
+  /** Use LEGACY_PATH_CODEC. */
+  public static final String PATH_CODEC_USE_LEGACY_ENCODING = &quot;legacy&quot;;
+
+  /** Default value of replication factor. */
+  public static final short REPLICATION_FACTOR_DEFAULT = 3;
+
+  /** Default PathFilter that accepts all paths. */
+<span class="fc" id="L193">  public static final PathFilter DEFAULT_FILTER = path -&gt; true;</span>
+
+  /** Prefix to use for common authentication keys. */
+  public static final String AUTHENTICATION_PREFIX = &quot;fs.gs&quot;;
+
+  /** A resource file containing GCS related build properties. */
+  public static final String PROPERTIES_FILE = &quot;gcs.properties&quot;;
+
+  /** The key in the PROPERTIES_FILE that contains the version built. */
+  public static final String VERSION_PROPERTY = &quot;gcs.connector.version&quot;;
+
+  /** The version returned when one cannot be found in properties. */
+  public static final String UNKNOWN_VERSION = &quot;0.0.0&quot;;
+
+  /** Current version. */
+  public static final String VERSION;
+
+  /** Identifies this version of the GoogleHadoopFileSystemBase library. */
+  public static final String GHFS_ID;
+
+  static {
+<span class="fc" id="L214">    VERSION =</span>
+<span class="fc" id="L215">        PropertyUtil.getPropertyOrDefault(</span>
+            GoogleHadoopFileSystemBase.class, PROPERTIES_FILE, VERSION_PROPERTY, UNKNOWN_VERSION);
+<span class="fc" id="L217">    logger.atFine().log(&quot;GHFS version: %s&quot;, VERSION);</span>
+<span class="fc" id="L218">    GHFS_ID = String.format(&quot;GHFS/%s&quot;, VERSION);</span>
+  }
+
+  private static final String XATTR_KEY_PREFIX = &quot;GHFS_XATTR_&quot;;
+
+  // Use empty array as null value because GCS API already uses null value to remove metadata key
+<span class="fc" id="L224">  private static final byte[] XATTR_NULL_VALUE = new byte[0];</span>
+
+<span class="fc" id="L226">  private static final ThreadFactory DAEMON_THREAD_FACTORY =</span>
+<span class="fc" id="L227">      new ThreadFactoryBuilder().setNameFormat(&quot;ghfs-thread-%d&quot;).setDaemon(true).build();</span>
+
+<span class="fc" id="L229">  @VisibleForTesting</span>
+<span class="fc" id="L230">  boolean enableFlatGlob = GCS_FLAT_GLOB_ENABLE.getDefault();</span>
+
+<span class="fc" id="L232">  @VisibleForTesting</span>
+<span class="fc" id="L233">  boolean enableConcurrentGlob = GCS_CONCURRENT_GLOB_ENABLE.getDefault();</span>
+
+<span class="fc" id="L235">  private GcsFileChecksumType checksumType = GCS_FILE_CHECKSUM_TYPE.getDefault();</span>
+
+  /** The URI the File System is passed in initialize. */
+  protected URI initUri;
+
+  /** Delegation token support */
+<span class="fc" id="L241">  protected GcsDelegationTokens delegationTokens = null;</span>
+
+  /** Underlying GCS file system object. */
+  private Supplier&lt;GoogleCloudStorageFileSystem&gt; gcsFsSupplier;
+
+<span class="fc" id="L246">  private boolean gcsFsInitialized = false;</span>
+  protected PathCodec pathCodec;
+
+  /**
+   * Current working directory; overridden in initialize() if {@link
+   * GoogleHadoopFileSystemConfiguration#GCS_WORKING_DIRECTORY} is set.
+   */
+  private Path workingDirectory;
+
+  /**
+   * Default block size. Note that this is the size that is reported to Hadoop FS clients. It does
+   * not modify the actual block size of an underlying GCS object, because GCS JSON API does not
+   * allow modifying or querying the value. Modifying this value allows one to control how many
+   * mappers are used to process a given file.
+   */
+<span class="fc" id="L261">  protected long defaultBlockSize = BLOCK_SIZE.getDefault();</span>
+
+  /** The fixed reported permission of all files. */
+  private FsPermission reportedPermissions;
+
+  /** Map of counter values */
+<span class="fc" id="L267">  protected final ImmutableMap&lt;Counter, AtomicLong&gt; counters = createCounterMap();</span>
+
+  protected ImmutableMap&lt;Counter, AtomicLong&gt; createCounterMap() {
+<span class="fc" id="L270">    EnumMap&lt;Counter, AtomicLong&gt; countersMap = new EnumMap&lt;&gt;(Counter.class);</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">    for (Counter counter : ALL_COUNTERS) {</span>
+<span class="fc" id="L272">      countersMap.put(counter, new AtomicLong());</span>
+<span class="fc" id="L273">    }</span>
+<span class="fc" id="L274">    return Maps.immutableEnumMap(countersMap);</span>
+  }
+
+  /**
+   * Defines names of counters we track for each operation.
+   *
+   * There are two types of counters:
+   * -- METHOD_NAME      : Number of successful invocations of method METHOD.
+   * -- METHOD_NAME_TIME : Total inclusive time spent in method METHOD.
+   */
+<span class="fc" id="L284">  public enum Counter {</span>
+<span class="fc" id="L285">    APPEND,</span>
+<span class="fc" id="L286">    APPEND_TIME,</span>
+<span class="fc" id="L287">    CREATE,</span>
+<span class="fc" id="L288">    CREATE_TIME,</span>
+<span class="fc" id="L289">    DELETE,</span>
+<span class="fc" id="L290">    DELETE_TIME,</span>
+<span class="fc" id="L291">    GET_FILE_CHECKSUM,</span>
+<span class="fc" id="L292">    GET_FILE_CHECKSUM_TIME,</span>
+<span class="fc" id="L293">    GET_FILE_STATUS,</span>
+<span class="fc" id="L294">    GET_FILE_STATUS_TIME,</span>
+<span class="fc" id="L295">    INIT,</span>
+<span class="fc" id="L296">    INIT_TIME,</span>
+<span class="fc" id="L297">    INPUT_STREAM,</span>
+<span class="fc" id="L298">    INPUT_STREAM_TIME,</span>
+<span class="fc" id="L299">    LIST_STATUS,</span>
+<span class="fc" id="L300">    LIST_STATUS_TIME,</span>
+<span class="fc" id="L301">    MKDIRS,</span>
+<span class="fc" id="L302">    MKDIRS_TIME,</span>
+<span class="fc" id="L303">    OPEN,</span>
+<span class="fc" id="L304">    OPEN_TIME,</span>
+<span class="fc" id="L305">    OUTPUT_STREAM,</span>
+<span class="fc" id="L306">    OUTPUT_STREAM_TIME,</span>
+<span class="fc" id="L307">    READ1,</span>
+<span class="fc" id="L308">    READ1_TIME,</span>
+<span class="fc" id="L309">    READ,</span>
+<span class="fc" id="L310">    READ_TIME,</span>
+<span class="fc" id="L311">    READ_FROM_CHANNEL,</span>
+<span class="fc" id="L312">    READ_FROM_CHANNEL_TIME,</span>
+<span class="fc" id="L313">    READ_CLOSE,</span>
+<span class="fc" id="L314">    READ_CLOSE_TIME,</span>
+<span class="fc" id="L315">    READ_POS,</span>
+<span class="fc" id="L316">    READ_POS_TIME,</span>
+<span class="fc" id="L317">    RENAME,</span>
+<span class="fc" id="L318">    RENAME_TIME,</span>
+<span class="fc" id="L319">    SEEK,</span>
+<span class="fc" id="L320">    SEEK_TIME,</span>
+<span class="fc" id="L321">    SET_WD,</span>
+<span class="fc" id="L322">    SET_WD_TIME,</span>
+<span class="fc" id="L323">    WRITE1,</span>
+<span class="fc" id="L324">    WRITE1_TIME,</span>
+<span class="fc" id="L325">    WRITE,</span>
+<span class="fc" id="L326">    WRITE_TIME,</span>
+<span class="fc" id="L327">    WRITE_CLOSE,</span>
+<span class="fc" id="L328">    WRITE_CLOSE_TIME,</span>
+  }
+
+  /**
+   * Set of all counters.
+   *
+   * &lt;p&gt;It is used for performance optimization instead of `Counter.values`, because
+   * `Counter.values` returns new array on each invocation.
+   */
+<span class="fc" id="L337">  private static final ImmutableSet&lt;Counter&gt; ALL_COUNTERS =</span>
+<span class="fc" id="L338">      Sets.immutableEnumSet(EnumSet.allOf(Counter.class));</span>
+
+  /**
+   * GCS {@link FileChecksum} which takes constructor parameters to define the return values of the
+   * various abstract methods of {@link FileChecksum}.
+   */
+  private static class GcsFileChecksum extends FileChecksum {
+    private final GcsFileChecksumType checksumType;
+    private final byte[] bytes;
+
+<span class="fc" id="L348">    public GcsFileChecksum(GcsFileChecksumType checksumType, byte[] bytes) {</span>
+<span class="fc" id="L349">      this.checksumType = checksumType;</span>
+<span class="fc" id="L350">      this.bytes = bytes;</span>
+<span class="pc bpc" id="L351" title="1 of 2 branches missed.">      checkState(</span>
+<span class="pc bpc" id="L352" title="1 of 2 branches missed.">          bytes == null || bytes.length == checksumType.getByteLength(),</span>
+          &quot;Checksum value length (%s) should be equal to the algorithm byte length (%s)&quot;,
+<span class="fc" id="L354">          checksumType.getByteLength(), bytes.length);</span>
+<span class="fc" id="L355">    }</span>
+
+    @Override
+    public String getAlgorithmName() {
+<span class="fc" id="L359">      return checksumType.getAlgorithmName();</span>
+    }
+
+    @Override
+    public int getLength() {
+<span class="fc" id="L364">      return checksumType.getByteLength();</span>
+    }
+
+    @Override
+    public byte[] getBytes() {
+<span class="fc" id="L369">      return bytes;</span>
+    }
+
+    @Override
+    public void readFields(DataInput in) throws IOException {
+<span class="nc" id="L374">      in.readFully(bytes);</span>
+<span class="nc" id="L375">    }</span>
+
+    @Override
+    public void write(DataOutput out) throws IOException {
+<span class="nc" id="L379">      out.write(bytes);</span>
+<span class="nc" id="L380">    }</span>
+
+    @Override
+    public String toString() {
+<span class="pc bpc" id="L384" title="1 of 2 branches missed.">      return getAlgorithmName() + &quot;: &quot; + (bytes == null ? null : new String(Hex.encodeHex(bytes)));</span>
+    }
+  }
+
+  /**
+   * A predicate that processes individual directory paths and evaluates the conditions set in
+   * fs.gs.parent.timestamp.update.enable, fs.gs.parent.timestamp.update.substrings.include and
+   * fs.gs.parent.timestamp.update.substrings.exclude to determine if a path should be ignored when
+   * running directory timestamp updates. If no match is found in either include or exclude and
+   * updates are enabled, the directory timestamp will be updated.
+   */
+  public static class ParentTimestampUpdateIncludePredicate implements Predicate&lt;URI&gt; {
+
+    /**
+     * Create a new ParentTimestampUpdateIncludePredicate from the passed Hadoop configuration
+     * object.
+     */
+    public static ParentTimestampUpdateIncludePredicate create(Configuration config) {
+<span class="fc" id="L402">      return new ParentTimestampUpdateIncludePredicate(</span>
+<span class="fc" id="L403">          GCS_PARENT_TIMESTAMP_UPDATE_ENABLE.get(config, config::getBoolean),</span>
+<span class="fc" id="L404">          GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getStringCollection(config),</span>
+<span class="fc" id="L405">          GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES.getStringCollection(config));</span>
+    }
+
+    // Include and exclude lists are intended to be small N and checked relatively
+    // infrequently. If that becomes not that case, consider Aho-Corasick or similar matching
+    // algorithms.
+    private final Collection&lt;String&gt; includeSubstrings;
+    private final Collection&lt;String&gt; excludeSubstrings;
+    private final boolean enableTimestampUpdates;
+
+    public ParentTimestampUpdateIncludePredicate(
+        boolean enableTimestampUpdates,
+        Collection&lt;String&gt; includeSubstrings,
+<span class="fc" id="L418">        Collection&lt;String&gt; excludeSubstrings) {</span>
+<span class="fc" id="L419">      this.includeSubstrings = includeSubstrings;</span>
+<span class="fc" id="L420">      this.excludeSubstrings = excludeSubstrings;</span>
+<span class="fc" id="L421">      this.enableTimestampUpdates = enableTimestampUpdates;</span>
+<span class="fc" id="L422">    }</span>
+
+    /**
+     * Determine if updating directory timestamps should be ignored.
+     *
+     * @return True if the directory timestamp should not be updated. False to indicate it should be
+     *     updated.
+     */
+    @Override
+    public boolean test(URI uri) {
+<span class="fc bfc" id="L432" title="All 2 branches covered.">      if (!enableTimestampUpdates) {</span>
+<span class="fc" id="L433">        logger.atFine().log(&quot;Timestamp updating disabled. Not updating uri %s&quot;, uri);</span>
+<span class="fc" id="L434">        return false;</span>
+      }
+
+<span class="fc bfc" id="L437" title="All 2 branches covered.">      for (String include : includeSubstrings) {</span>
+<span class="fc bfc" id="L438" title="All 2 branches covered.">        if (uri.toString().contains(include)) {</span>
+<span class="fc" id="L439">          logger.atFine().log(</span>
+              &quot;Path %s matched included path %s. Updating timestamps.&quot;, uri, include);
+<span class="fc" id="L441">          return true;</span>
+        }
+<span class="fc" id="L443">      }</span>
+
+<span class="fc bfc" id="L445" title="All 2 branches covered.">      for (String exclude : excludeSubstrings) {</span>
+<span class="fc bfc" id="L446" title="All 2 branches covered.">        if (uri.toString().contains(exclude)) {</span>
+<span class="fc" id="L447">          logger.atFine().log(</span>
+              &quot;Path %s matched excluded path %s. Not updating timestamps.&quot;, uri, exclude);
+<span class="fc" id="L449">          return false;</span>
+        }
+<span class="fc" id="L451">      }</span>
+
+<span class="fc" id="L453">      return true;</span>
+    }
+  }
+
+  /**
+   * Constructs an instance of GoogleHadoopFileSystemBase; the internal {@link
+   * GoogleCloudStorageFileSystem} will be set up with config settings when initialize() is called.
+   */
+<span class="fc" id="L461">  public GoogleHadoopFileSystemBase() {}</span>
+
+  /**
+   * Constructs an instance of {@link GoogleHadoopFileSystemBase} using the provided
+   * GoogleCloudStorageFileSystem; initialize() will not re-initialize it.
+   */
+  // TODO(b/120887495): This @VisibleForTesting annotation was being ignored by prod code.
+  // Please check that removing it is correct, and remove this comment along with it.
+  // @VisibleForTesting
+<span class="fc" id="L470">  GoogleHadoopFileSystemBase(GoogleCloudStorageFileSystem gcsFs) {</span>
+<span class="fc" id="L471">    checkNotNull(gcsFs, &quot;gcsFs must not be null&quot;);</span>
+<span class="fc" id="L472">    setGcsFs(gcsFs);</span>
+<span class="fc" id="L473">  }</span>
+
+  private void setGcsFs(GoogleCloudStorageFileSystem gcsFs) {
+<span class="fc" id="L476">    this.gcsFsSupplier = Suppliers.ofInstance(gcsFs);</span>
+<span class="fc" id="L477">    this.gcsFsInitialized = true;</span>
+<span class="fc" id="L478">    this.pathCodec = gcsFs.getPathCodec();</span>
+<span class="fc" id="L479">  }</span>
+
+  /**
+   * Returns an unqualified path without any leading slash, relative to the filesystem root,
+   * which serves as the home directory of the current user; see {@code getHomeDirectory} for
+   * a description of what the home directory means.
+   */
+  protected abstract String getHomeDirectorySubpath();
+
+  /**
+   * Gets Hadoop path corresponding to the given GCS path.
+   *
+   * @param gcsPath Fully-qualified GCS path, of the form gs://&lt;bucket&gt;/&lt;object&gt;.
+   */
+  public abstract Path getHadoopPath(URI gcsPath);
+
+  /**
+   * Gets GCS path corresponding to the given Hadoop path, which can be relative or absolute, and
+   * can have either gs://&lt;path&gt; or gs:/&lt;path&gt; forms.
+   *
+   * @param hadoopPath Hadoop path.
+   */
+  public abstract URI getGcsPath(Path hadoopPath);
+
+  /**
+   * Gets the default value of working directory.
+   */
+  public abstract Path getDefaultWorkingDirectory();
+
+  // =================================================================
+  // Methods implementing FileSystemDescriptor interface; these define the way
+  // paths are translated between Hadoop and GCS.
+  // =================================================================
+
+  @Override
+  public abstract Path getFileSystemRoot();
+
+  @Override
+  public abstract String getScheme();
+
+  /**
+   *
+   * &lt;p&gt; Overridden to make root it's own parent. This is POSIX compliant, but more importantly
+   * guards against poor directory accounting in the PathData class of Hadoop 2's FsShell.
+   */
+  @Override
+  public Path makeQualified(Path path) {
+<span class="fc" id="L526">    logger.atFine().log(&quot;GHFS.makeQualified: path: %s&quot;, path);</span>
+<span class="fc" id="L527">    Path qualifiedPath = super.makeQualified(path);</span>
+
+<span class="fc" id="L529">    URI uri = qualifiedPath.toUri();</span>
+
+<span class="fc" id="L531">    checkState(</span>
+<span class="pc bpc" id="L532" title="1 of 4 branches missed.">        &quot;&quot;.equals(uri.getPath()) || qualifiedPath.isAbsolute(),</span>
+        &quot;Path '%s' must be fully qualified.&quot;,
+        qualifiedPath);
+
+    // Strip initial '..'s to make root is its own parent.
+<span class="fc" id="L537">    StringBuilder sb = new StringBuilder(uri.getPath());</span>
+<span class="fc bfc" id="L538" title="All 2 branches covered.">    while (sb.indexOf(&quot;/../&quot;) == 0) {</span>
+      // Leave a preceding slash, so path is still absolute.
+<span class="fc" id="L540">      sb.delete(0, 3);</span>
+    }
+
+<span class="fc" id="L543">    String strippedPath = sb.toString();</span>
+
+    // Allow a Path of gs://someBucket to map to gs://someBucket/
+<span class="fc bfc" id="L546" title="All 4 branches covered.">    if (strippedPath.equals(&quot;/..&quot;) || strippedPath.equals(&quot;&quot;)) {</span>
+<span class="fc" id="L547">      strippedPath = &quot;/&quot;;</span>
+    }
+
+<span class="fc" id="L550">    Path result = new Path(uri.getScheme(), uri.getAuthority(), strippedPath);</span>
+<span class="fc" id="L551">    logger.atFine().log(&quot;GHFS.makeQualified:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L552">    return result;</span>
+  }
+
+  @Override
+  protected void checkPath(Path path) {
+<span class="fc" id="L557">    URI uri = path.toUri();</span>
+<span class="fc" id="L558">    String scheme = uri.getScheme();</span>
+    // Only check that the scheme matches. The authority and path will be
+    // validated later.
+<span class="fc bfc" id="L561" title="All 4 branches covered.">    if (scheme == null || scheme.equalsIgnoreCase(getScheme())) {</span>
+<span class="fc" id="L562">      return;</span>
+    }
+<span class="fc" id="L564">    String msg = String.format(</span>
+        &quot;Wrong FS scheme: %s, in path: %s, expected scheme: %s&quot;,
+<span class="fc" id="L566">        scheme, path, getScheme());</span>
+<span class="fc" id="L567">    throw new IllegalArgumentException(msg);</span>
+  }
+
+  /**
+   * See {@link #initialize(URI, Configuration, boolean)} for details; calls with third arg
+   * defaulting to 'true' for initializing the superclass.
+   *
+   * @param path URI of a file/directory within this file system.
+   * @param config Hadoop configuration.
+   */
+  @Override
+  public void initialize(URI path, Configuration config) throws IOException {
+<span class="fc" id="L579">    initialize(path, config, /* initSuperclass= */ true);</span>
+<span class="fc" id="L580">  }</span>
+
+  /**
+   * Initializes this file system instance.
+   *
+   * Note:
+   * The path passed to this method could be path of any file/directory.
+   * It does not matter because the only thing we check is whether
+   * it uses 'gs' scheme. The rest is ignored.
+   *
+   * @param path URI of a file/directory within this file system.
+   * @param config Hadoop configuration.
+   * @param initSuperclass if false, doesn't call super.initialize(path, config); avoids
+   *     registering a global Statistics object for this instance.
+   */
+  public void initialize(URI path, Configuration config, boolean initSuperclass)
+      throws IOException {
+<span class="fc" id="L597">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L598" title="All 2 branches covered.">    Preconditions.checkArgument(path != null, &quot;path must not be null&quot;);</span>
+<span class="fc bfc" id="L599" title="All 2 branches covered.">    Preconditions.checkArgument(config != null, &quot;config must not be null&quot;);</span>
+<span class="fc bfc" id="L600" title="All 2 branches covered.">    Preconditions.checkArgument(path.getScheme() != null, &quot;scheme of path must not be null&quot;);</span>
+<span class="fc bfc" id="L601" title="All 2 branches covered.">    if (!path.getScheme().equals(getScheme())) {</span>
+<span class="fc" id="L602">      throw new IllegalArgumentException(&quot;URI scheme not supported: &quot; + path);</span>
+    }
+<span class="fc" id="L604">    initUri = path;</span>
+<span class="fc" id="L605">    logger.atFine().log(&quot;GHFS.initialize: %s&quot;, path);</span>
+
+<span class="pc bpc" id="L607" title="1 of 2 branches missed.">    if (initSuperclass) {</span>
+<span class="fc" id="L608">      super.initialize(path, config);</span>
+    } else {
+<span class="nc" id="L610">      logger.atFine().log(</span>
+          &quot;Initializing 'statistics' as an instance not attached to the static FileSystem map&quot;);
+      // Provide an ephemeral Statistics object to avoid NPE, but still avoid registering a global
+      // statistics object.
+<span class="nc" id="L614">      statistics = new Statistics(getScheme());</span>
+    }
+
+    // Set this configuration as the default config for this instance; configure()
+    // will perform some file-system-specific adjustments, but the original should
+    // be sufficient (and is required) for the delegation token binding initialization.
+<span class="fc" id="L620">    setConf(config);</span>
+
+    // Initialize the delegation token support, if it is configured
+<span class="fc" id="L623">    initializeDelegationTokenSupport(config, path);</span>
+
+<span class="fc" id="L625">    configure(config);</span>
+
+<span class="fc" id="L627">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L628">    increment(Counter.INIT);</span>
+<span class="fc" id="L629">    increment(Counter.INIT_TIME, duration);</span>
+<span class="fc" id="L630">  }</span>
+
+  /**
+   * Initialize the delegation token support for this filesystem.
+   *
+   * @param config The filesystem configuration
+   * @param path The filesystem path
+   * @throws IOException
+   */
+  private void initializeDelegationTokenSupport(Configuration config, URI path) throws IOException {
+<span class="fc" id="L640">    logger.atFine().log(&quot;GHFS.initializeDelegationTokenSupport&quot;);</span>
+    // Load delegation token binding, if support is configured
+<span class="fc" id="L642">    GcsDelegationTokens dts = new GcsDelegationTokens();</span>
+<span class="fc" id="L643">    Text service = new Text(getScheme() + &quot;://&quot; + path.getAuthority());</span>
+<span class="fc" id="L644">    dts.bindToFileSystem(this, service);</span>
+    try {
+<span class="fc" id="L646">      dts.init(config);</span>
+<span class="fc" id="L647">      delegationTokens = dts;</span>
+<span class="pc bpc" id="L648" title="1 of 2 branches missed.">      if (delegationTokens.isBoundToDT()) {</span>
+<span class="nc" id="L649">        logger.atFine().log(</span>
+            &quot;GHFS.initializeDelegationTokenSupport: Using existing delegation token.&quot;);
+      }
+<span class="fc" id="L652">    } catch (IllegalStateException e) {</span>
+<span class="fc" id="L653">      logger.atFine().log(&quot;GHFS.initializeDelegationTokenSupport: %s&quot;, e.getMessage());</span>
+<span class="fc" id="L654">    }</span>
+<span class="fc" id="L655">  }</span>
+
+  /**
+   * Returns a URI of the root of this FileSystem.
+   */
+  @Override
+  public URI getUri() {
+<span class="fc" id="L662">    return getFileSystemRoot().toUri();</span>
+  }
+
+  /**
+   * The default port is listed as -1 as an indication that ports are not used.
+   */
+  @Override
+  protected int getDefaultPort() {
+<span class="fc" id="L670">    logger.atFine().log(&quot;GHFS.getDefaultPort:&quot;);</span>
+<span class="fc" id="L671">    int result = -1;</span>
+<span class="fc" id="L672">    logger.atFine().log(&quot;GHFS.getDefaultPort:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L673">    return result;</span>
+  }
+
+  // TODO(user): Improve conversion of exceptions to 'false'.
+  // Hadoop is inconsistent about when methods are expected to throw
+  // and when they should return false. The FileSystem documentation
+  // is unclear on this and many other aspects. For now, we convert
+  // all IOExceptions to false which is not the right thing to do.
+  // We need to find a way to only convert known cases to 'false'
+  // and let the other exceptions bubble up.
+
+  /**
+   * Opens the given file for reading.
+   *
+   * &lt;p&gt;Note: This function overrides the given bufferSize value with a higher number unless further
+   * overridden using configuration parameter {@code fs.gs.inputstream.buffer.size}.
+   *
+   * @param hadoopPath File to open.
+   * @param bufferSize Size of buffer to use for IO.
+   * @return A readable stream.
+   * @throws FileNotFoundException if the given path does not exist.
+   * @throws IOException if an error occurs.
+   */
+  @Override
+  public FSDataInputStream open(Path hadoopPath, int bufferSize) throws IOException {
+<span class="fc" id="L698">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L699" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+
+<span class="fc" id="L701">    checkOpen();</span>
+
+<span class="fc" id="L703">    logger.atFine().log(&quot;GHFS.open: %s, bufferSize: %d (ignored)&quot;, hadoopPath, bufferSize);</span>
+<span class="fc" id="L704">    URI gcsPath = getGcsPath(hadoopPath);</span>
+<span class="fc" id="L705">    GoogleCloudStorageReadOptions readChannelOptions =</span>
+<span class="fc" id="L706">        getGcsFs().getOptions().getCloudStorageOptions().getReadChannelOptions();</span>
+<span class="fc" id="L707">    GoogleHadoopFSInputStream in =</span>
+        new GoogleHadoopFSInputStream(this, gcsPath, readChannelOptions, statistics);
+
+<span class="fc" id="L710">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L711">    increment(Counter.OPEN);</span>
+<span class="fc" id="L712">    increment(Counter.OPEN_TIME, duration);</span>
+<span class="fc" id="L713">    return new FSDataInputStream(in);</span>
+  }
+
+  /**
+   * Opens the given file for writing.
+   *
+   * &lt;p&gt;Note: This function overrides the given bufferSize value with a higher number unless further
+   * overridden using configuration parameter {@code fs.gs.outputstream.buffer.size}.
+   *
+   * @param hadoopPath The file to open.
+   * @param permission Permissions to set on the new file. Ignored.
+   * @param overwrite If a file with this name already exists, then if true, the file will be
+   *     overwritten, and if false an error will be thrown.
+   * @param bufferSize The size of the buffer to use.
+   * @param replication Required block replication for the file. Ignored.
+   * @param blockSize The block-size to be used for the new file. Ignored.
+   * @param progress Progress is reported through this. Ignored.
+   * @return A writable stream.
+   * @throws IOException if an error occurs.
+   * @see #setPermission(Path, FsPermission)
+   */
+  @Override
+  public FSDataOutputStream create(
+      Path hadoopPath,
+      FsPermission permission,
+      boolean overwrite,
+      int bufferSize,
+      short replication,
+      long blockSize,
+      Progressable progress)
+      throws IOException {
+
+<span class="fc" id="L745">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L746" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+<span class="fc bfc" id="L747" title="All 2 branches covered.">    Preconditions.checkArgument(</span>
+        replication &gt; 0, &quot;replication must be a positive integer: %s&quot;, replication);
+<span class="fc bfc" id="L749" title="All 2 branches covered.">    Preconditions.checkArgument(</span>
+        blockSize &gt; 0, &quot;blockSize must be a positive integer: %s&quot;, blockSize);
+
+<span class="fc" id="L752">    checkOpen();</span>
+
+<span class="fc" id="L754">    logger.atFine().log(</span>
+        &quot;GHFS.create: %s, overwrite: %s, bufferSize: %d (ignored)&quot;,
+<span class="fc" id="L756">        hadoopPath, overwrite, bufferSize);</span>
+
+<span class="fc" id="L758">    URI gcsPath = getGcsPath(hadoopPath);</span>
+
+<span class="fc" id="L760">    OutputStreamType type = GCS_OUTPUT_STREAM_TYPE.get(getConf(), getConf()::getEnum);</span>
+    OutputStream out;
+<span class="pc bpc" id="L762" title="1 of 3 branches missed.">    switch (type) {</span>
+      case BASIC:
+<span class="fc" id="L764">        out =</span>
+            new GoogleHadoopOutputStream(
+                this, gcsPath, statistics, new CreateFileOptions(overwrite));
+<span class="fc" id="L767">        break;</span>
+      case SYNCABLE_COMPOSITE:
+<span class="fc" id="L769">        out =</span>
+            new GoogleHadoopSyncableOutputStream(
+                this, gcsPath, statistics, new CreateFileOptions(overwrite));
+<span class="fc" id="L772">        break;</span>
+      default:
+<span class="nc" id="L774">        throw new IOException(</span>
+<span class="nc" id="L775">            String.format(</span>
+                &quot;Unsupported output stream type given for key '%s': '%s'&quot;,
+<span class="nc" id="L777">                GCS_OUTPUT_STREAM_TYPE.getKey(), type));</span>
+    }
+
+<span class="fc" id="L780">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L781">    increment(Counter.CREATE);</span>
+<span class="fc" id="L782">    increment(Counter.CREATE_TIME, duration);</span>
+<span class="fc" id="L783">    return new FSDataOutputStream(out, null);</span>
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public FSDataOutputStream createNonRecursive(
+      Path hadoopPath,
+      FsPermission permission,
+      EnumSet&lt;org.apache.hadoop.fs.CreateFlag&gt; flags,
+      int bufferSize,
+      short replication,
+      long blockSize,
+      Progressable progress)
+      throws IOException {
+<span class="fc" id="L797">    URI gcsPath = getGcsPath(checkNotNull(hadoopPath, &quot;hadoopPath must not be null&quot;));</span>
+<span class="fc" id="L798">    URI parentGcsPath = getGcsFs().getParentPath(gcsPath);</span>
+<span class="fc" id="L799">    GoogleCloudStorageItemInfo parentInfo = getGcsFs().getFileInfo(parentGcsPath).getItemInfo();</span>
+<span class="pc bpc" id="L800" title="2 of 6 branches missed.">    if (!parentInfo.isRoot() &amp;&amp; !parentInfo.isBucket() &amp;&amp; !parentInfo.exists()) {</span>
+<span class="fc" id="L801">      throw new FileNotFoundException(</span>
+<span class="fc" id="L802">          String.format(</span>
+              &quot;Can not create '%s' file, because parent folder does not exist: %s&quot;,
+              gcsPath, parentGcsPath));
+    }
+<span class="fc" id="L806">    return create(</span>
+        hadoopPath,
+        permission,
+<span class="fc" id="L809">        flags.contains(org.apache.hadoop.fs.CreateFlag.OVERWRITE),</span>
+        bufferSize,
+        replication,
+        blockSize,
+        progress);
+  }
+
+  /**
+   * Appends to an existing file (optional operation). Not supported.
+   *
+   * @param hadoopPath The existing file to be appended.
+   * @param bufferSize The size of the buffer to be used.
+   * @param progress For reporting progress if it is not null.
+   * @return A writable stream.
+   * @throws IOException if an error occurs.
+   */
+  @Override
+  public FSDataOutputStream append(Path hadoopPath, int bufferSize, Progressable progress)
+      throws IOException {
+
+<span class="fc" id="L829">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L830" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+
+<span class="fc" id="L832">    logger.atFine().log(&quot;GHFS.append: %s, bufferSize: %d (ignored)&quot;, hadoopPath, bufferSize);</span>
+
+<span class="fc" id="L834">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L835">    increment(Counter.APPEND);</span>
+<span class="fc" id="L836">    increment(Counter.APPEND_TIME, duration);</span>
+<span class="fc" id="L837">    throw new IOException(&quot;The append operation is not supported.&quot;);</span>
+  }
+
+  /**
+   * Concat existing files into one file.
+   *
+   * @param trg the path to the target destination.
+   * @param psrcs the paths to the sources to use for the concatenation.
+   * @throws IOException IO failure
+   */
+  @Override
+  public void concat(Path trg, Path[] psrcs) throws IOException {
+<span class="pc" id="L849">    logger.atFine().log(&quot;GHFS.concat: %s, %s&quot;, trg, lazy(() -&gt; Arrays.toString(psrcs)));</span>
+
+<span class="fc bfc" id="L851" title="All 2 branches covered.">    checkArgument(psrcs.length &gt; 0, &quot;psrcs must have at least one source&quot;);</span>
+
+<span class="fc" id="L853">    URI trgPath = getGcsPath(trg);</span>
+<span class="fc" id="L854">    List&lt;URI&gt; srcPaths = Arrays.stream(psrcs).map(this::getGcsPath).collect(toImmutableList());</span>
+
+<span class="fc bfc" id="L856" title="All 2 branches covered.">    checkArgument(!srcPaths.contains(trgPath), &quot;target must not be contained in sources&quot;);</span>
+
+<span class="fc" id="L858">    List&lt;List&lt;URI&gt;&gt; partitions =</span>
+<span class="fc" id="L859">        Lists.partition(srcPaths, GoogleCloudStorage.MAX_COMPOSE_OBJECTS - 1);</span>
+<span class="fc" id="L860">    logger.atFine().log(&quot;GHFS.concat: %s, %d partitions&quot;, trg, partitions.size());</span>
+<span class="fc bfc" id="L861" title="All 2 branches covered.">    for (List&lt;URI&gt; partition : partitions) {</span>
+      // We need to include the target in the list of sources to compose since
+      // the GCS FS compose operation will overwrite the target, whereas the Hadoop
+      // concat operation appends to the target.
+<span class="fc" id="L865">      List&lt;URI&gt; sources = Lists.newArrayList(trgPath);</span>
+<span class="fc" id="L866">      sources.addAll(partition);</span>
+<span class="fc" id="L867">      logger.atFine().log(&quot;GHFS.concat compose: %s, %s&quot;, trgPath, sources);</span>
+<span class="fc" id="L868">      getGcsFs().compose(sources, trgPath, CreateFileOptions.DEFAULT_CONTENT_TYPE);</span>
+<span class="fc" id="L869">    }</span>
+<span class="fc" id="L870">    logger.atFine().log(&quot;GHFS.concat:=&gt; &quot;);</span>
+<span class="fc" id="L871">  }</span>
+
+  /**
+   * Renames src to dst. Src must not be equal to the filesystem root.
+   *
+   * @param src Source path.
+   * @param dst Destination path.
+   * @return true if rename succeeds.
+   * @throws FileNotFoundException if src does not exist.
+   * @throws IOException if an error occurs.
+   */
+  @Override
+  public boolean rename(Path src, Path dst) throws IOException {
+<span class="fc bfc" id="L884" title="All 2 branches covered.">    Preconditions.checkArgument(src != null, &quot;src must not be null&quot;);</span>
+<span class="fc bfc" id="L885" title="All 2 branches covered.">    Preconditions.checkArgument(dst != null, &quot;dst must not be null&quot;);</span>
+
+    // Even though the underlying GCSFS will also throw an IAE if src is root, since our filesystem
+    // root happens to equal the global root, we want to explicitly check it here since derived
+    // classes may not have filesystem roots equal to the global root.
+<span class="fc bfc" id="L890" title="All 2 branches covered.">    if (src.makeQualified(this).equals(getFileSystemRoot())) {</span>
+<span class="fc" id="L891">      logger.atFine().log(&quot;GHFS.rename: src is root: '%s'&quot;, src);</span>
+<span class="fc" id="L892">      return false;</span>
+    }
+
+<span class="fc" id="L895">    long startTime = System.nanoTime();</span>
+
+<span class="fc" id="L897">    checkOpen();</span>
+
+<span class="fc" id="L899">    URI srcPath = getGcsPath(src);</span>
+<span class="fc" id="L900">    URI dstPath = getGcsPath(dst);</span>
+<span class="fc" id="L901">    logger.atFine().log(&quot;GHFS.rename: %s -&gt; %s&quot;, src, dst);</span>
+
+    try {
+<span class="fc" id="L904">      getGcsFs().rename(srcPath, dstPath);</span>
+<span class="fc" id="L905">    } catch (IOException e) {</span>
+      // Occasionally log exceptions that have a cause at info level,
+      // because they could surface real issues and help with troubleshooting
+<span class="pc bpc" id="L908" title="2 of 4 branches missed.">      (logger.atFine().isEnabled() || e.getCause() == null</span>
+<span class="pc" id="L909">              ? logger.atFine()</span>
+<span class="pc" id="L910">              : logger.atInfo().atMostEvery(5, TimeUnit.MINUTES))</span>
+<span class="fc" id="L911">          .withCause(e)</span>
+<span class="fc" id="L912">          .log(&quot;Failed GHFS.rename: %s -&gt; %s&quot;, src, dst);</span>
+<span class="fc" id="L913">      return false;</span>
+<span class="fc" id="L914">    }</span>
+
+<span class="fc" id="L916">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L917">    increment(Counter.RENAME);</span>
+<span class="fc" id="L918">    increment(Counter.RENAME_TIME, duration);</span>
+<span class="fc" id="L919">    return true;</span>
+  }
+
+  /**
+   * Deletes the given file or directory.
+   *
+   * @param hadoopPath The path to delete.
+   * @param recursive If path is a directory and set to
+   * true, the directory is deleted, else throws an exception.
+   * In case of a file, the recursive parameter is ignored.
+   * @return  true if delete is successful else false.
+   * @throws IOException if an error occurs.
+   */
+  @Override
+  public boolean delete(Path hadoopPath, boolean recursive) throws IOException {
+<span class="fc" id="L934">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L935" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+
+<span class="fc" id="L937">    checkOpen();</span>
+
+<span class="fc" id="L939">    logger.atFine().log(&quot;GHFS.delete: %s, recursive: %s&quot;, hadoopPath, recursive);</span>
+<span class="fc" id="L940">    URI gcsPath = getGcsPath(hadoopPath);</span>
+    try {
+<span class="fc" id="L942">      getGcsFs().delete(gcsPath, recursive);</span>
+<span class="fc" id="L943">    } catch (DirectoryNotEmptyException e) {</span>
+<span class="fc" id="L944">      throw e;</span>
+<span class="fc" id="L945">    } catch (IOException e) {</span>
+      // Occasionally log exceptions that have a cause at info level,
+      // because they could surface real issues and help with troubleshooting
+<span class="pc bpc" id="L948" title="2 of 4 branches missed.">      (logger.atFine().isEnabled() || e.getCause() == null</span>
+<span class="pc" id="L949">          ? logger.atFine()</span>
+<span class="pc" id="L950">          : logger.atInfo().atMostEvery(5, TimeUnit.MINUTES))</span>
+<span class="fc" id="L951">          .withCause(e)</span>
+<span class="fc" id="L952">          .log(&quot;Failed GHFS.delete: %s, recursive: %s&quot;, hadoopPath, recursive);</span>
+<span class="fc" id="L953">      return false;</span>
+<span class="fc" id="L954">    }</span>
+
+<span class="fc" id="L956">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L957">    increment(Counter.DELETE);</span>
+<span class="fc" id="L958">    increment(Counter.DELETE_TIME, duration);</span>
+<span class="fc" id="L959">    return true;</span>
+  }
+
+  /**
+   * Lists file status. If the given path points to a directory then the status
+   * of children is returned, otherwise the status of the given file is returned.
+   *
+   * @param hadoopPath Given path.
+   * @return File status list or null if path does not exist.
+   * @throws IOException if an error occurs.
+   */
+  @Override
+  public FileStatus[] listStatus(Path hadoopPath)
+      throws IOException {
+<span class="fc" id="L973">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L974" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+
+<span class="fc" id="L976">    checkOpen();</span>
+
+<span class="fc" id="L978">    logger.atFine().log(&quot;GHFS.listStatus: %s&quot;, hadoopPath);</span>
+
+<span class="fc" id="L980">    URI gcsPath = getGcsPath(hadoopPath);</span>
+    List&lt;FileStatus&gt; status;
+
+    try {
+<span class="fc" id="L984">      List&lt;FileInfo&gt; fileInfos = getGcsFs().listFileInfo(gcsPath);</span>
+<span class="fc" id="L985">      status = new ArrayList&lt;&gt;(fileInfos.size());</span>
+<span class="fc" id="L986">      String userName = getUgiUserName();</span>
+<span class="fc bfc" id="L987" title="All 2 branches covered.">      for (FileInfo fileInfo : fileInfos) {</span>
+<span class="fc" id="L988">        status.add(getFileStatus(fileInfo, userName));</span>
+<span class="fc" id="L989">      }</span>
+<span class="fc" id="L990">    } catch (FileNotFoundException fnfe) {</span>
+<span class="fc" id="L991">      logger.atFine().withCause(fnfe).log(&quot;Got fnfe: &quot;);</span>
+<span class="fc" id="L992">      throw new FileNotFoundException(String.format(&quot;Path '%s' does not exist.&quot;, gcsPath));</span>
+<span class="fc" id="L993">    }</span>
+
+<span class="fc" id="L995">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L996">    increment(Counter.LIST_STATUS);</span>
+<span class="fc" id="L997">    increment(Counter.LIST_STATUS_TIME, duration);</span>
+<span class="fc" id="L998">    return status.toArray(new FileStatus[0]);</span>
+  }
+
+  /**
+   * Sets the current working directory to the given path.
+   *
+   * @param hadoopPath New working directory.
+   */
+  @Override
+  public void setWorkingDirectory(Path hadoopPath) {
+<span class="fc" id="L1008">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L1009" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+
+<span class="fc" id="L1011">    logger.atFine().log(&quot;GHFS.setWorkingDirectory: %s&quot;, hadoopPath);</span>
+<span class="fc" id="L1012">    URI gcsPath = FileInfo.convertToDirectoryPath(pathCodec, getGcsPath(hadoopPath));</span>
+<span class="fc" id="L1013">    Path newPath = getHadoopPath(gcsPath);</span>
+
+    // Ideally we should check (as we did earlier) if the given path really points to an existing
+    // directory. However, it takes considerable amount of time for that check which hurts perf.
+    // Given that HDFS code does not do such checks either, we choose to not do them in favor of
+    // better performance.
+
+<span class="fc" id="L1020">    workingDirectory = newPath;</span>
+<span class="fc" id="L1021">    logger.atFine().log(&quot;GHFS.setWorkingDirectory: =&gt; %s&quot;, workingDirectory);</span>
+
+<span class="fc" id="L1023">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L1024">    increment(Counter.SET_WD);</span>
+<span class="fc" id="L1025">    increment(Counter.SET_WD_TIME, duration);</span>
+<span class="fc" id="L1026">  }</span>
+
+  /**
+   * Gets the current working directory.
+   *
+   * @return The current working directory.
+   */
+  @Override
+  public Path getWorkingDirectory() {
+<span class="fc" id="L1035">    logger.atFine().log(&quot;GHFS.getWorkingDirectory: %s&quot;, workingDirectory);</span>
+<span class="fc" id="L1036">    return workingDirectory;</span>
+  }
+
+  /**
+   * Makes the given path and all non-existent parents directories.
+   * Has the semantics of Unix 'mkdir -p'.
+   *
+   * @param hadoopPath Given path.
+   * @param permission Permissions to set on the given directory.
+   * @return true on success, false otherwise.
+   * @throws IOException if an error occurs.
+   */
+  @Override
+  public boolean mkdirs(Path hadoopPath, FsPermission permission)
+      throws IOException {
+
+<span class="fc" id="L1052">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L1053" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+
+<span class="fc" id="L1055">    checkOpen();</span>
+
+<span class="fc" id="L1057">    logger.atFine().log(&quot;GHFS.mkdirs: %s, perm: %s&quot;, hadoopPath, permission);</span>
+<span class="fc" id="L1058">    URI gcsPath = getGcsPath(hadoopPath);</span>
+    try {
+<span class="fc" id="L1060">      getGcsFs().mkdirs(gcsPath);</span>
+<span class="fc" id="L1061">    } catch (java.nio.file.FileAlreadyExistsException faee) {</span>
+      // Need to convert to the Hadoop flavor of FileAlreadyExistsException.
+<span class="fc" id="L1063">      throw (FileAlreadyExistsException)</span>
+<span class="fc" id="L1064">          new FileAlreadyExistsException(faee.getMessage()).initCause(faee);</span>
+<span class="fc" id="L1065">    }</span>
+
+<span class="fc" id="L1067">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L1068">    increment(Counter.MKDIRS);</span>
+<span class="fc" id="L1069">    increment(Counter.MKDIRS_TIME, duration);</span>
+
+<span class="fc" id="L1071">    return true;</span>
+  }
+
+  /**
+   * Gets the default replication factor.
+   */
+  @Override
+  public short getDefaultReplication() {
+<span class="fc" id="L1079">    return REPLICATION_FACTOR_DEFAULT;</span>
+  }
+
+  /**
+   * Gets status of the given path item.
+   *
+   * @param hadoopPath The path we want information about.
+   * @return A FileStatus object for the given path.
+   * @throws FileNotFoundException when the path does not exist;
+   * @throws IOException on other errors.
+   */
+  @Override
+  public FileStatus getFileStatus(Path hadoopPath)
+      throws IOException {
+
+<span class="fc" id="L1094">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L1095" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+
+<span class="fc" id="L1097">    checkOpen();</span>
+
+<span class="fc" id="L1099">    logger.atFine().log(&quot;GHFS.getFileStatus: %s&quot;, hadoopPath);</span>
+<span class="fc" id="L1100">    URI gcsPath = getGcsPath(hadoopPath);</span>
+<span class="fc" id="L1101">    FileInfo fileInfo = getGcsFs().getFileInfo(gcsPath);</span>
+<span class="fc bfc" id="L1102" title="All 2 branches covered.">    if (!fileInfo.exists()) {</span>
+<span class="fc" id="L1103">      logger.atFine().log(&quot;GHFS.getFileStatus: not found: %s&quot;, gcsPath);</span>
+<span class="fc" id="L1104">      throw new FileNotFoundException(</span>
+<span class="fc bfc" id="L1105" title="All 2 branches covered.">          (fileInfo.isDirectory() ? &quot;Directory not found : &quot; : &quot;File not found : &quot;) + hadoopPath);</span>
+    }
+<span class="fc" id="L1107">    String userName = getUgiUserName();</span>
+<span class="fc" id="L1108">    FileStatus status = getFileStatus(fileInfo, userName);</span>
+
+<span class="fc" id="L1110">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L1111">    increment(Counter.GET_FILE_STATUS);</span>
+<span class="fc" id="L1112">    increment(Counter.GET_FILE_STATUS_TIME, duration);</span>
+<span class="fc" id="L1113">    return status;</span>
+  }
+
+  /** Gets FileStatus corresponding to the given FileInfo value. */
+  private FileStatus getFileStatus(FileInfo fileInfo, String userName) throws IOException {
+    // GCS does not provide modification time. It only provides creation time.
+    // It works for objects because they are immutable once created.
+<span class="fc" id="L1120">    FileStatus status =</span>
+        new FileStatus(
+<span class="fc" id="L1122">            fileInfo.getSize(),</span>
+<span class="fc" id="L1123">            fileInfo.isDirectory(),</span>
+            REPLICATION_FACTOR_DEFAULT,
+            defaultBlockSize,
+<span class="fc" id="L1126">            /* modificationTime= */ fileInfo.getModificationTime(),</span>
+<span class="fc" id="L1127">            /* accessTime= */ fileInfo.getModificationTime(),</span>
+            reportedPermissions,
+            /* owner= */ userName,
+            /* group= */ userName,
+<span class="fc" id="L1131">            getHadoopPath(fileInfo.getPath()));</span>
+<span class="fc" id="L1132">    logger.atFine().log(</span>
+<span class="pc" id="L1133">        &quot;GHFS.getFileStatus: %s =&gt; %s&quot;, fileInfo.getPath(), lazy(() -&gt; fileStatusToString(status)));</span>
+<span class="fc" id="L1134">    return status;</span>
+  }
+
+  /**
+   * Determines based on suitability of {@code fixedPath} whether to use flat globbing logic where
+   * we use a single large listing during globStatus to then perform the core globbing logic
+   * in-memory.
+   */
+  @VisibleForTesting
+  boolean couldUseFlatGlob(Path fixedPath) {
+    // Only works for filesystems where the base Hadoop Path scheme matches the underlying URI
+    // scheme for GCS.
+<span class="pc bpc" id="L1146" title="1 of 2 branches missed.">    if (!getUri().getScheme().equals(GoogleCloudStorageFileSystem.SCHEME)) {</span>
+<span class="nc" id="L1147">      logger.atFine().log(</span>
+          &quot;Flat glob is on, but doesn't work for scheme '%s'; using default behavior.&quot;,
+<span class="nc" id="L1149">          getUri().getScheme());</span>
+<span class="nc" id="L1150">      return false;</span>
+    }
+
+    // The full pattern should have a wildcard, otherwise there's no point doing the flat glob.
+<span class="fc" id="L1154">    GlobPattern fullPattern = new GlobPattern(fixedPath.toString());</span>
+<span class="fc bfc" id="L1155" title="All 2 branches covered.">    if (!fullPattern.hasWildcard()) {</span>
+<span class="fc" id="L1156">      logger.atFine().log(</span>
+          &quot;Flat glob is on, but Path '%s' has no wildcard; using default behavior.&quot;, fixedPath);
+<span class="fc" id="L1158">      return false;</span>
+    }
+
+    // To use a flat glob, there must be an authority defined.
+<span class="pc bpc" id="L1162" title="1 of 2 branches missed.">    if (Strings.isNullOrEmpty(fixedPath.toUri().getAuthority())) {</span>
+<span class="nc" id="L1163">      logger.atInfo().log(</span>
+          &quot;Flat glob is on, but Path '%s' has a empty authority, using default behavior.&quot;,
+          fixedPath);
+<span class="nc" id="L1166">      return false;</span>
+    }
+
+    // And the authority must not contain a wildcard.
+<span class="fc" id="L1170">    GlobPattern authorityPattern = new GlobPattern(fixedPath.toUri().getAuthority());</span>
+<span class="fc bfc" id="L1171" title="All 2 branches covered.">    if (authorityPattern.hasWildcard()) {</span>
+<span class="fc" id="L1172">      logger.atInfo().log(</span>
+          &quot;Flat glob is on, but Path '%s' has a wildcard authority, using default behavior.&quot;,
+          fixedPath);
+<span class="fc" id="L1175">      return false;</span>
+    }
+
+<span class="fc" id="L1178">    return true;</span>
+  }
+
+  @VisibleForTesting
+  String trimToPrefixWithoutGlob(String path) {
+<span class="fc" id="L1183">    char[] wildcardChars = &quot;*?{[&quot;.toCharArray();</span>
+<span class="fc" id="L1184">    int trimIndex = path.length();</span>
+
+    // Find the first occurrence of any one of the wildcard characters, or just path.length()
+    // if none are found.
+<span class="fc bfc" id="L1188" title="All 2 branches covered.">    for (char wildcard : wildcardChars) {</span>
+<span class="fc" id="L1189">      int wildcardIndex = path.indexOf(wildcard);</span>
+<span class="fc bfc" id="L1190" title="All 4 branches covered.">      if (wildcardIndex &gt;= 0 &amp;&amp; wildcardIndex &lt; trimIndex) {</span>
+<span class="fc" id="L1191">        trimIndex = wildcardIndex;</span>
+      }
+    }
+<span class="fc" id="L1194">    return path.substring(0, trimIndex);</span>
+  }
+
+  /**
+   * Returns an array of FileStatus objects whose path names match pathPattern.
+   *
+   * Return null if pathPattern has no glob and the path does not exist.
+   * Return an empty array if pathPattern has a glob and no path matches it.
+   *
+   * @param pathPattern A regular expression specifying the path pattern.
+   * @return An array of FileStatus objects.
+   * @throws IOException if an error occurs.
+   */
+  @Override
+  public FileStatus[] globStatus(Path pathPattern) throws IOException {
+<span class="fc" id="L1209">    return globStatus(pathPattern, DEFAULT_FILTER);</span>
+  }
+
+  /**
+   * Returns an array of FileStatus objects whose path names match pathPattern and is accepted by
+   * the user-supplied path filter. Results are sorted by their path names.
+   *
+   * &lt;p&gt;Return null if pathPattern has no glob and the path does not exist. Return an empty array if
+   * pathPattern has a glob and no path matches it.
+   *
+   * @param pathPattern A regular expression specifying the path pattern.
+   * @param filter A user-supplied path filter.
+   * @return An array of FileStatus objects.
+   * @throws IOException if an error occurs.
+   */
+  @Override
+  public FileStatus[] globStatus(Path pathPattern, PathFilter filter) throws IOException {
+<span class="fc" id="L1226">    checkOpen();</span>
+
+<span class="fc" id="L1228">    logger.atFine().log(&quot;GHFS.globStatus: %s&quot;, pathPattern);</span>
+    // URI does not handle glob expressions nicely, for the purpose of
+    // fully-qualifying a path we can URI-encode them.
+    // Using toString() to avoid Path(URI) constructor.
+<span class="fc" id="L1232">    Path encodedPath = new Path(pathPattern.toUri().toString());</span>
+    // We convert pathPattern to GCS path and then to Hadoop path to ensure that it ends up in
+    // the correct format. See note in getHadoopPath for more information.
+<span class="fc" id="L1235">    Path encodedFixedPath = getHadoopPath(getGcsPath(encodedPath));</span>
+    // Decode URI-encoded path back into a glob path.
+<span class="fc" id="L1237">    Path fixedPath = new Path(URI.create(encodedFixedPath.toString()));</span>
+<span class="fc" id="L1238">    logger.atFine().log(&quot;GHFS.globStatus fixedPath: %s =&gt; %s&quot;, pathPattern, fixedPath);</span>
+
+<span class="fc bfc" id="L1240" title="All 4 branches covered.">    if (enableConcurrentGlob &amp;&amp; couldUseFlatGlob(fixedPath)) {</span>
+<span class="fc" id="L1241">      return concurrentGlobInternal(fixedPath, filter);</span>
+    }
+
+<span class="fc bfc" id="L1244" title="All 4 branches covered.">    if (enableFlatGlob &amp;&amp; couldUseFlatGlob(fixedPath)) {</span>
+<span class="fc" id="L1245">      return flatGlobInternal(fixedPath, filter);</span>
+    }
+
+<span class="fc" id="L1248">    return super.globStatus(fixedPath, filter);</span>
+  }
+
+  /**
+   * Use 2 glob algorithms that return the same result but one of them could be significantly faster
+   * than another one depending on directory layout.
+   */
+  private FileStatus[] concurrentGlobInternal(Path fixedPath, PathFilter filter)
+      throws IOException {
+<span class="fc" id="L1257">    ExecutorService executorService = Executors.newFixedThreadPool(2, DAEMON_THREAD_FACTORY);</span>
+<span class="fc" id="L1258">    Callable&lt;FileStatus[]&gt; flatGlobTask = () -&gt; flatGlobInternal(fixedPath, filter);</span>
+<span class="fc" id="L1259">    Callable&lt;FileStatus[]&gt; nonFlatGlobTask = () -&gt; super.globStatus(fixedPath, filter);</span>
+
+    try {
+<span class="fc" id="L1262">      return executorService.invokeAny(Arrays.asList(flatGlobTask, nonFlatGlobTask));</span>
+<span class="nc" id="L1263">    } catch (InterruptedException | ExecutionException e) {</span>
+<span class="nc bnc" id="L1264" title="All 2 branches missed.">      throw (e.getCause() instanceof IOException) ? (IOException) e.getCause() : new IOException(e);</span>
+    } finally {
+<span class="fc" id="L1266">      executorService.shutdownNow();</span>
+    }
+  }
+
+  private FileStatus[] flatGlobInternal(Path fixedPath, PathFilter filter) throws IOException {
+<span class="fc" id="L1271">    String pathString = fixedPath.toString();</span>
+<span class="fc" id="L1272">    String prefixString = trimToPrefixWithoutGlob(pathString);</span>
+<span class="fc" id="L1273">    Path prefixPath = new Path(prefixString);</span>
+<span class="fc" id="L1274">    URI prefixUri = getGcsPath(prefixPath);</span>
+
+<span class="pc bpc" id="L1276" title="1 of 4 branches missed.">    if (prefixString.endsWith(&quot;/&quot;) &amp;&amp; !prefixPath.toString().endsWith(&quot;/&quot;)) {</span>
+      // Path strips a trailing slash unless it's the 'root' path. We want to keep the trailing
+      // slash so that we don't wastefully list sibling files which may match the directory-name
+      // as a strict prefix but would've been omitted due to not containing the '/' at the end.
+<span class="fc" id="L1280">      prefixUri = FileInfo.convertToDirectoryPath(pathCodec, prefixUri);</span>
+    }
+
+    // Get everything matching the non-glob prefix.
+<span class="fc" id="L1284">    logger.atFine().log(&quot;Listing everything with prefix '%s'&quot;, prefixUri);</span>
+<span class="fc" id="L1285">    List&lt;FileStatus&gt; matchedStatuses = null;</span>
+<span class="fc" id="L1286">    String pageToken = null;</span>
+    do {
+<span class="fc" id="L1288">      ListPage&lt;FileInfo&gt; infoPage = getGcsFs().listAllFileInfoForPrefixPage(prefixUri, pageToken);</span>
+
+      // TODO: Are implicit directories really always needed for globbing?
+      //  Probably they should be inferred only when fs.gs.implicit.dir.infer.enable is true.
+<span class="fc" id="L1292">      Collection&lt;FileStatus&gt; statusPage =</span>
+<span class="fc" id="L1293">          toFileStatusesWithImplicitDirectories(infoPage.getItems());</span>
+
+      // TODO: refactor to use GlobPattern and PathFilter directly without helper FS
+<span class="fc" id="L1296">      FileSystem helperFileSystem =</span>
+<span class="fc" id="L1297">          InMemoryGlobberFileSystem.createInstance(getConf(), getWorkingDirectory(), statusPage);</span>
+<span class="fc" id="L1298">      FileStatus[] matchedStatusPage = helperFileSystem.globStatus(fixedPath, filter);</span>
+<span class="pc bpc" id="L1299" title="1 of 2 branches missed.">      if (matchedStatusPage != null) {</span>
+<span class="pc bpc" id="L1300" title="1 of 2 branches missed.">        Collections.addAll(</span>
+            (matchedStatuses == null ? matchedStatuses = new ArrayList&lt;&gt;() : matchedStatuses),
+            matchedStatusPage);
+      }
+
+<span class="fc" id="L1305">      pageToken = infoPage.getNextPageToken();</span>
+<span class="pc bpc" id="L1306" title="1 of 2 branches missed.">    } while (pageToken != null);</span>
+
+<span class="pc bpc" id="L1308" title="1 of 4 branches missed.">    if (matchedStatuses == null || matchedStatuses.isEmpty()) {</span>
+<span class="pc bpc" id="L1309" title="1 of 2 branches missed.">      return matchedStatuses == null ? null : new FileStatus[0];</span>
+    }
+
+<span class="fc" id="L1312">    matchedStatuses.sort(</span>
+<span class="fc" id="L1313">        ((Comparator&lt;FileStatus&gt;) Comparator.&lt;FileStatus&gt;naturalOrder())</span>
+            // Place duplicate implicit directories after real directory
+<span class="pc bnc" id="L1315" title="All 2 branches missed.">            .thenComparingInt((FileStatus f) -&gt; isImplicitDirectory(f) ? 1 : 0));</span>
+
+    // Remove duplicate file statuses that could be in the matchedStatuses
+    // because of pagination and implicit directories
+<span class="fc" id="L1319">    List&lt;FileStatus&gt; filteredStatuses = new ArrayList&lt;&gt;(matchedStatuses.size());</span>
+<span class="fc" id="L1320">    FileStatus lastAdded = null;</span>
+<span class="fc bfc" id="L1321" title="All 2 branches covered.">    for (FileStatus fileStatus : matchedStatuses) {</span>
+<span class="pc bpc" id="L1322" title="1 of 4 branches missed.">      if (lastAdded == null || lastAdded.compareTo(fileStatus) != 0) {</span>
+<span class="fc" id="L1323">        filteredStatuses.add(fileStatus);</span>
+<span class="fc" id="L1324">        lastAdded = fileStatus;</span>
+      }
+<span class="fc" id="L1326">    }</span>
+
+<span class="fc" id="L1328">    return filteredStatuses.toArray(new FileStatus[0]);</span>
+  }
+
+  private static boolean isImplicitDirectory(FileStatus curr) {
+    // Modification time of 0 indicates implicit directory.
+<span class="nc bnc" id="L1333" title="All 4 branches missed.">    return curr.isDir() &amp;&amp; curr.getModificationTime() == 0;</span>
+  }
+
+  /** Helper method that converts {@link FileInfo} collection to {@link FileStatus} collection. */
+  private Collection&lt;FileStatus&gt; toFileStatusesWithImplicitDirectories(
+      Collection&lt;FileInfo&gt; fileInfos) throws IOException {
+<span class="fc" id="L1339">    List&lt;FileStatus&gt; fileStatuses = new ArrayList&lt;&gt;(fileInfos.size());</span>
+<span class="fc" id="L1340">    Set&lt;URI&gt; filePaths = Sets.newHashSetWithExpectedSize(fileInfos.size());</span>
+<span class="fc" id="L1341">    String userName = getUgiUserName();</span>
+<span class="fc bfc" id="L1342" title="All 2 branches covered.">    for (FileInfo fileInfo : fileInfos) {</span>
+<span class="fc" id="L1343">      filePaths.add(fileInfo.getPath());</span>
+<span class="fc" id="L1344">      fileStatuses.add(getFileStatus(fileInfo, userName));</span>
+<span class="fc" id="L1345">    }</span>
+
+    // The flow for populating this doesn't bother to populate metadata entries for parent
+    // directories but we know the parent directories are expected to exist, so we'll just
+    // populate the missing entries explicitly here. Necessary for getFileStatus(parentOfInfo)
+    // to work when using an instance of this class.
+<span class="fc bfc" id="L1351" title="All 2 branches covered.">    for (FileInfo fileInfo : fileInfos) {</span>
+<span class="fc" id="L1352">      URI parentPath = getGcsFs().getParentPath(fileInfo.getPath());</span>
+<span class="pc bpc" id="L1353" title="1 of 4 branches missed.">      while (parentPath != null &amp;&amp; !parentPath.equals(GoogleCloudStorageFileSystem.GCS_ROOT)) {</span>
+<span class="fc bfc" id="L1354" title="All 2 branches covered.">        if (!filePaths.contains(parentPath)) {</span>
+<span class="fc" id="L1355">          logger.atFine().log(&quot;Adding fake entry for missing parent path '%s'&quot;, parentPath);</span>
+<span class="fc" id="L1356">          StorageResourceId id = pathCodec.validatePathAndGetId(parentPath, true);</span>
+
+<span class="fc" id="L1358">          GoogleCloudStorageItemInfo fakeItemInfo =</span>
+<span class="fc" id="L1359">              GoogleCloudStorageItemInfo.createInferredDirectory(id);</span>
+<span class="fc" id="L1360">          FileInfo fakeFileInfo = FileInfo.fromItemInfo(pathCodec, fakeItemInfo);</span>
+
+<span class="fc" id="L1362">          filePaths.add(parentPath);</span>
+<span class="fc" id="L1363">          fileStatuses.add(getFileStatus(fakeFileInfo, userName));</span>
+        }
+<span class="fc" id="L1365">        parentPath = getGcsFs().getParentPath(parentPath);</span>
+      }
+<span class="fc" id="L1367">    }</span>
+
+<span class="fc" id="L1369">    return fileStatuses;</span>
+  }
+
+  /** Helper method to get the UGI short user name */
+  private static String getUgiUserName() throws IOException {
+<span class="fc" id="L1374">    UserGroupInformation ugi = UserGroupInformation.getCurrentUser();</span>
+<span class="fc" id="L1375">    return ugi.getShortUserName();</span>
+  }
+
+  /**
+   * Returns home directory of the current user.
+   *
+   * Note: This directory is only used for Hadoop purposes.
+   *       It is not the same as a user's OS home directory.
+   */
+  @Override
+  public Path getHomeDirectory() {
+<span class="fc" id="L1386">    Path result = new Path(getFileSystemRoot(), getHomeDirectorySubpath());</span>
+<span class="fc" id="L1387">    logger.atFine().log(&quot;GHFS.getHomeDirectory:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L1388">    return result;</span>
+  }
+
+  /**
+   * Converts the given FileStatus to its string representation.
+   *
+   * @param stat FileStatus to convert.
+   * @return String representation of the given FileStatus.
+   */
+  private static String fileStatusToString(FileStatus stat) {
+<span class="nc bnc" id="L1398" title="All 4 branches missed.">    assert stat != null;</span>
+
+<span class="nc" id="L1400">    return String.format(</span>
+        &quot;path: %s, isDir: %s, len: %d, owner: %s&quot;,
+<span class="nc" id="L1402">        stat.getPath().toString(),</span>
+<span class="nc" id="L1403">        stat.isDir(),</span>
+<span class="nc" id="L1404">        stat.getLen(),</span>
+<span class="nc" id="L1405">        stat.getOwner());</span>
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * &lt;p&gt;Returns the service if delegation tokens are configured, otherwise, null.
+   */
+  @Override
+  public String getCanonicalServiceName() {
+<span class="fc" id="L1415">    String service = null;</span>
+<span class="fc bfc" id="L1416" title="All 2 branches covered.">    if (delegationTokens != null) {</span>
+<span class="fc" id="L1417">      service = delegationTokens.getService().toString();</span>
+    }
+<span class="fc" id="L1419">    logger.atFine().log(&quot;GHFS.getCanonicalServiceName:=&gt; %s&quot;, service);</span>
+<span class="fc" id="L1420">    return service;</span>
+  }
+
+  /** Gets GCS FS instance. */
+  public GoogleCloudStorageFileSystem getGcsFs() {
+<span class="fc" id="L1425">    return gcsFsSupplier.get();</span>
+  }
+
+  /**
+   * Increments by 1 the counter indicated by key.
+   */
+  void increment(Counter key) {
+<span class="fc" id="L1432">    increment(key, 1);</span>
+<span class="fc" id="L1433">  }</span>
+
+  /**
+   * Adds value to the counter indicated by key.
+   */
+  void increment(Counter key, long value) {
+<span class="fc" id="L1439">    counters.get(key).addAndGet(value);</span>
+<span class="fc" id="L1440">  }</span>
+
+  /**
+   * Gets value of all counters as a formatted string.
+   */
+  @VisibleForTesting
+  String countersToString() {
+<span class="fc" id="L1447">    StringBuilder sb = new StringBuilder();</span>
+<span class="fc" id="L1448">    sb.append(&quot;\n&quot;);</span>
+<span class="fc" id="L1449">    double numNanoSecPerSec = TimeUnit.SECONDS.toNanos(1);</span>
+<span class="fc" id="L1450">    String timeSuffix = &quot;_TIME&quot;;</span>
+<span class="fc bfc" id="L1451" title="All 2 branches covered.">    for (Counter c : Counter.values()) {</span>
+<span class="fc" id="L1452">      String name = c.toString();</span>
+<span class="fc bfc" id="L1453" title="All 2 branches covered.">      if (!name.endsWith(timeSuffix)) {</span>
+        // Log invocation counter.
+<span class="fc" id="L1455">        long count = counters.get(c).get();</span>
+<span class="fc" id="L1456">        sb.append(String.format(&quot;%20s = %d calls\n&quot;, name, count));</span>
+
+        // Log duration counter.
+<span class="fc" id="L1459">        String timeCounterName = name + timeSuffix;</span>
+<span class="fc" id="L1460">        double totalTime =</span>
+<span class="fc" id="L1461">            counters.get(Enum.valueOf(Counter.class, timeCounterName)).get()</span>
+                / numNanoSecPerSec;
+<span class="fc" id="L1463">        sb.append(String.format(&quot;%20s = %.2f sec\n&quot;, timeCounterName, totalTime));</span>
+
+        // Compute and log average duration per call (== total duration / num invocations).
+<span class="fc" id="L1466">        String avgName = name + &quot; avg.&quot;;</span>
+<span class="fc" id="L1467">        double avg = totalTime / count;</span>
+<span class="fc" id="L1468">        sb.append(String.format(&quot;%20s = %.2f sec / call\n\n&quot;, avgName, avg));</span>
+      }
+    }
+<span class="fc" id="L1471">    return sb.toString();</span>
+  }
+
+  /**
+   * Logs values of all counters.
+   */
+  private void logCounters() {
+<span class="fc" id="L1478">    logger.atFine().log(&quot;%s&quot;, lazy(this::countersToString));</span>
+<span class="fc" id="L1479">  }</span>
+
+  /**
+   * Copy the value of the deprecated key to the new key if a value is present for the deprecated
+   * key, but not the new key.
+   */
+  private static void copyIfNotPresent(Configuration config, String deprecatedKey, String newKey) {
+<span class="fc" id="L1486">    String deprecatedValue = config.get(deprecatedKey);</span>
+<span class="fc bfc" id="L1487" title="All 4 branches covered.">    if (config.get(newKey) == null &amp;&amp; deprecatedValue != null) {</span>
+<span class="fc" id="L1488">      logger.atWarning().log(</span>
+          &quot;Key %s is deprecated. Copying the value of key %s to new key %s&quot;,
+          deprecatedKey, deprecatedKey, newKey);
+<span class="fc" id="L1491">      config.set(newKey, deprecatedValue);</span>
+    }
+<span class="fc" id="L1493">  }</span>
+
+  /**
+   * Copy deprecated configuration options to new keys, if present.
+   */
+  private static void copyDeprecatedConfigurationOptions(Configuration config) {
+<span class="fc" id="L1499">    copyIfNotPresent(</span>
+        config,
+<span class="fc" id="L1501">        GoogleHadoopFileSystemConfiguration.AUTH_SERVICE_ACCOUNT_ENABLE.getKey(),</span>
+        AUTHENTICATION_PREFIX + HadoopCredentialConfiguration.ENABLE_SERVICE_ACCOUNTS_SUFFIX);
+<span class="fc" id="L1503">    copyIfNotPresent(</span>
+        config,
+<span class="fc" id="L1505">        GoogleHadoopFileSystemConfiguration.AUTH_SERVICE_ACCOUNT_KEY_FILE.getKey(),</span>
+        AUTHENTICATION_PREFIX + HadoopCredentialConfiguration.SERVICE_ACCOUNT_KEYFILE_SUFFIX);
+<span class="fc" id="L1507">    copyIfNotPresent(</span>
+        config,
+<span class="fc" id="L1509">        GoogleHadoopFileSystemConfiguration.AUTH_SERVICE_ACCOUNT_EMAIL.getKey(),</span>
+        AUTHENTICATION_PREFIX + HadoopCredentialConfiguration.SERVICE_ACCOUNT_EMAIL_SUFFIX);
+<span class="fc" id="L1511">    copyIfNotPresent(</span>
+        config,
+<span class="fc" id="L1513">        GoogleHadoopFileSystemConfiguration.AUTH_CLIENT_ID.getKey(),</span>
+        AUTHENTICATION_PREFIX + HadoopCredentialConfiguration.CLIENT_ID_SUFFIX);
+<span class="fc" id="L1515">    copyIfNotPresent(</span>
+        config,
+<span class="fc" id="L1517">        GoogleHadoopFileSystemConfiguration.AUTH_CLIENT_SECRET.getKey(),</span>
+        AUTHENTICATION_PREFIX + HadoopCredentialConfiguration.CLIENT_SECRET_SUFFIX);
+
+<span class="fc" id="L1520">    String oauthClientFileKey =</span>
+        AUTHENTICATION_PREFIX + HadoopCredentialConfiguration.OAUTH_CLIENT_FILE_SUFFIX;
+<span class="fc bfc" id="L1522" title="All 2 branches covered.">    if (config.get(oauthClientFileKey) == null) {</span>
+      // No property to copy, but we can set this fairly safely (it's only invoked if client ID,
+      // client secret are set and we're not using service accounts).
+<span class="fc" id="L1525">      config.set(</span>
+<span class="fc" id="L1526">          oauthClientFileKey, System.getProperty(&quot;user.home&quot;) + &quot;/.credentials/storage.json&quot;);</span>
+    }
+<span class="fc" id="L1528">  }</span>
+
+  /**
+   * Retrieve user's Credential. If user implemented {@link AccessTokenProvider} and provided the
+   * class name (See {@link AccessTokenProviderClassFromConfigFactory} then build a credential with
+   * access token provided by this provider; Otherwise obtain credential through {@link
+   * HadoopCredentialConfiguration#getCredential(List)}.
+   */
+  private Credential getCredential(
+      AccessTokenProviderClassFromConfigFactory providerClassFactory, Configuration config)
+      throws IOException, GeneralSecurityException {
+<span class="fc" id="L1539">    Credential credential = null;</span>
+
+    // Check if delegation token support is configured
+<span class="fc bfc" id="L1542" title="All 2 branches covered.">    if (delegationTokens != null) {</span>
+      // If so, use the delegation token to acquire the Google credentials
+<span class="fc" id="L1544">      AccessTokenProvider atp = delegationTokens.getAccessTokenProvider();</span>
+<span class="pc bpc" id="L1545" title="1 of 2 branches missed.">      if (atp != null) {</span>
+<span class="fc" id="L1546">        atp.setConf(config);</span>
+<span class="fc" id="L1547">        credential =</span>
+<span class="fc" id="L1548">            CredentialFromAccessTokenProviderClassFactory.credential(</span>
+                atp, CredentialFactory.GCS_SCOPES);
+      }
+<span class="fc" id="L1551">    } else {</span>
+      // If delegation token support is not configured, check if a
+      // custom AccessTokenProvider implementation is configured, and attempt
+      // to acquire the Google credentials using it
+<span class="fc" id="L1555">      credential =</span>
+<span class="fc" id="L1556">          CredentialFromAccessTokenProviderClassFactory.credential(</span>
+              providerClassFactory, config, CredentialFactory.GCS_SCOPES);
+
+<span class="fc bfc" id="L1559" title="All 2 branches covered.">      if (credential == null) {</span>
+        // Finally, if no credentials have been acquired at this point, employ
+        // the default mechanism.
+        credential =
+<span class="fc" id="L1563">            HadoopCredentialConfiguration.newBuilder()</span>
+<span class="fc" id="L1564">                .withConfiguration(config)</span>
+<span class="fc" id="L1565">                .withOverridePrefix(AUTHENTICATION_PREFIX)</span>
+<span class="fc" id="L1566">                .build()</span>
+<span class="fc" id="L1567">                .getCredential(CredentialFactory.GCS_SCOPES);</span>
+      }
+    }
+
+<span class="fc" id="L1571">    return credential;</span>
+  }
+
+  /**
+   * Configures GHFS using the supplied configuration.
+   *
+   * @param config Hadoop configuration object.
+   */
+  private synchronized void configure(Configuration config) throws IOException {
+<span class="fc" id="L1580">    logger.atFine().log(&quot;GHFS.configure&quot;);</span>
+<span class="fc" id="L1581">    logger.atFine().log(&quot;GHFS_ID = %s&quot;, GHFS_ID);</span>
+
+<span class="fc" id="L1583">    overrideConfigFromFile(config);</span>
+<span class="fc" id="L1584">    copyDeprecatedConfigurationOptions(config);</span>
+    // Set this configuration as the default config for this instance.
+<span class="fc" id="L1586">    setConf(config);</span>
+
+<span class="fc" id="L1588">    enableFlatGlob = GCS_FLAT_GLOB_ENABLE.get(config, config::getBoolean);</span>
+<span class="fc" id="L1589">    enableConcurrentGlob = GCS_CONCURRENT_GLOB_ENABLE.get(config, config::getBoolean);</span>
+<span class="fc" id="L1590">    checksumType = GCS_FILE_CHECKSUM_TYPE.get(config, config::getEnum);</span>
+<span class="fc" id="L1591">    defaultBlockSize = BLOCK_SIZE.get(config, config::getLong);</span>
+<span class="fc" id="L1592">    reportedPermissions = new FsPermission(PERMISSIONS_TO_REPORT.get(config, config::get));</span>
+
+<span class="fc bfc" id="L1594" title="All 2 branches covered.">    if (gcsFsSupplier == null) {</span>
+<span class="fc bfc" id="L1595" title="All 2 branches covered.">      if (GCS_LAZY_INITIALIZATION_ENABLE.get(config, config::getBoolean)) {</span>
+<span class="fc" id="L1596">        gcsFsSupplier =</span>
+<span class="fc" id="L1597">            Suppliers.memoize(</span>
+                () -&gt; {
+                  try {
+<span class="fc" id="L1600">                    GoogleCloudStorageFileSystem gcsFs = createGcsFs(config);</span>
+
+<span class="fc" id="L1602">                    pathCodec = gcsFs.getPathCodec();</span>
+<span class="fc" id="L1603">                    configureBuckets(gcsFs);</span>
+<span class="fc" id="L1604">                    configureWorkingDirectory(config);</span>
+<span class="fc" id="L1605">                    gcsFsInitialized = true;</span>
+
+<span class="fc" id="L1607">                    return gcsFs;</span>
+<span class="fc" id="L1608">                  } catch (IOException e) {</span>
+<span class="fc" id="L1609">                    throw new RuntimeException(&quot;Failed to create GCS FS&quot;, e);</span>
+                  }
+                });
+<span class="fc" id="L1612">        pathCodec = getPathCodec(config);</span>
+      } else {
+<span class="fc" id="L1614">        setGcsFs(createGcsFs(config));</span>
+<span class="fc" id="L1615">        configureBuckets(getGcsFs());</span>
+<span class="fc" id="L1616">        configureWorkingDirectory(config);</span>
+      }
+    } else {
+<span class="fc" id="L1619">      configureBuckets(getGcsFs());</span>
+<span class="fc" id="L1620">      configureWorkingDirectory(config);</span>
+    }
+
+<span class="fc" id="L1623">    logger.atFine().log(&quot;GHFS.configure: done&quot;);</span>
+<span class="fc" id="L1624">  }</span>
+
+  /**
+   * If overrides file configured, update properties from override file into {@link Configuration}
+   * object
+   */
+  private void overrideConfigFromFile(Configuration config) throws IOException {
+<span class="fc" id="L1631">    String configFile = GCS_CONFIG_OVERRIDE_FILE.get(config, config::get);</span>
+<span class="pc bpc" id="L1632" title="1 of 2 branches missed.">    if (configFile != null) {</span>
+<span class="nc" id="L1633">      config.addResource(new FileInputStream(configFile));</span>
+    }
+<span class="fc" id="L1635">  }</span>
+
+  private static PathCodec getPathCodec(Configuration config) {
+<span class="fc" id="L1638">    String specifiedPathCodec = Ascii.toLowerCase(PATH_CODEC.get(config, config::get));</span>
+<span class="fc bfc" id="L1639" title="All 3 branches covered.">    switch (specifiedPathCodec) {</span>
+      case PATH_CODEC_USE_LEGACY_ENCODING:
+<span class="fc" id="L1641">        return GoogleCloudStorageFileSystem.LEGACY_PATH_CODEC;</span>
+      case PATH_CODEC_USE_URI_ENCODING:
+<span class="fc" id="L1643">        return GoogleCloudStorageFileSystem.URI_ENCODED_PATH_CODEC;</span>
+      default:
+<span class="fc" id="L1645">        logger.atWarning().log(</span>
+            &quot;Unknown path codec specified %s. Using default / legacy.&quot;, specifiedPathCodec);
+<span class="fc" id="L1647">        return GoogleCloudStorageFileSystem.LEGACY_PATH_CODEC;</span>
+    }
+  }
+
+  private GoogleCloudStorageFileSystem createGcsFs(Configuration config) throws IOException {
+    Credential credential;
+    try {
+<span class="fc" id="L1654">      credential =</span>
+<span class="fc" id="L1655">          getCredential(</span>
+<span class="fc" id="L1656">              new AccessTokenProviderClassFromConfigFactory().withOverridePrefix(&quot;fs.gs&quot;), config);</span>
+<span class="nc" id="L1657">    } catch (GeneralSecurityException e) {</span>
+<span class="nc" id="L1658">      throw new RuntimeException(e);</span>
+<span class="fc" id="L1659">    }</span>
+
+<span class="fc" id="L1661">    GoogleCloudStorageFileSystemOptions gcsFsOptions =</span>
+<span class="fc" id="L1662">        GoogleHadoopFileSystemConfiguration.getGcsFsOptionsBuilder(config)</span>
+<span class="fc" id="L1663">            .setPathCodec(getPathCodec(config))</span>
+<span class="fc" id="L1664">            .build();</span>
+
+<span class="fc" id="L1666">    return new GoogleCloudStorageFileSystem(credential, gcsFsOptions);</span>
+  }
+
+  /**
+   * Validates and possibly creates buckets needed by subclass.
+   *
+   * @param gcsFs {@link GoogleCloudStorageFileSystem} to configure buckets
+   * @throws IOException if bucket name is invalid or cannot be found.
+   */
+  @VisibleForTesting
+  protected abstract void configureBuckets(GoogleCloudStorageFileSystem gcsFs) throws IOException;
+
+  private void configureWorkingDirectory(Configuration config) {
+    // Set initial working directory to root so that any configured value gets resolved
+    // against file system root.
+<span class="fc" id="L1681">    workingDirectory = getFileSystemRoot();</span>
+
+    Path newWorkingDirectory;
+<span class="fc" id="L1684">    String configWorkingDirectory = GCS_WORKING_DIRECTORY.get(config, config::get);</span>
+<span class="pc bpc" id="L1685" title="1 of 2 branches missed.">    if (Strings.isNullOrEmpty(configWorkingDirectory)) {</span>
+<span class="nc" id="L1686">      newWorkingDirectory = getDefaultWorkingDirectory();</span>
+<span class="nc" id="L1687">      logger.atWarning().log(</span>
+          &quot;No working directory configured, using default: '%s'&quot;, newWorkingDirectory);
+    } else {
+<span class="fc" id="L1690">      newWorkingDirectory = new Path(configWorkingDirectory);</span>
+    }
+
+    // Use the public method to ensure proper behavior of normalizing and resolving the new
+    // working directory relative to the initial filesystem-root directory.
+<span class="fc" id="L1695">    setWorkingDirectory(newWorkingDirectory);</span>
+<span class="fc" id="L1696">    logger.atFine().log(&quot;%s = %s&quot;, GCS_WORKING_DIRECTORY.getKey(), getWorkingDirectory());</span>
+<span class="fc" id="L1697">  }</span>
+
+  /**
+   * Assert that the FileSystem has been initialized and not close()d.
+   */
+  private void checkOpen() throws IOException {
+<span class="fc bfc" id="L1703" title="All 2 branches covered.">    if (isClosed()) {</span>
+<span class="fc" id="L1704">      throw new IOException(&quot;GoogleHadoopFileSystem has been closed or not initialized.&quot;);</span>
+    }
+<span class="fc" id="L1706">  }</span>
+
+  private boolean isClosed() {
+<span class="pc bpc" id="L1709" title="1 of 4 branches missed.">    return gcsFsSupplier == null || gcsFsSupplier.get() == null;</span>
+  }
+
+  // =================================================================
+  // Overridden functions for debug tracing. The following functions
+  // do not change functionality. They just log parameters and call base
+  // class' function.
+  // =================================================================
+
+  @Override
+  public boolean deleteOnExit(Path f)
+      throws IOException {
+
+<span class="fc" id="L1722">    checkOpen();</span>
+
+<span class="fc" id="L1724">    logger.atFine().log(&quot;GHFS.deleteOnExit: %s&quot;, f);</span>
+<span class="fc" id="L1725">    boolean result = super.deleteOnExit(f);</span>
+<span class="fc" id="L1726">    logger.atFine().log(&quot;GHFS.deleteOnExit:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L1727">    return result;</span>
+  }
+
+  @Override
+  protected void processDeleteOnExit() {
+<span class="fc" id="L1732">    logger.atFine().log(&quot;GHFS.processDeleteOnExit:&quot;);</span>
+<span class="fc" id="L1733">    super.processDeleteOnExit();</span>
+<span class="fc" id="L1734">  }</span>
+
+  @Override
+  public ContentSummary getContentSummary(Path f)
+      throws IOException {
+<span class="fc" id="L1739">    logger.atFine().log(&quot;GHFS.getContentSummary: %s&quot;, f);</span>
+<span class="fc" id="L1740">    ContentSummary result = super.getContentSummary(f);</span>
+<span class="fc" id="L1741">    logger.atFine().log(&quot;GHFS.getContentSummary:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L1742">    return result;</span>
+  }
+
+  @Override
+  public Token&lt;?&gt; getDelegationToken(String renewer)
+      throws IOException {
+<span class="fc" id="L1748">    logger.atFine().log(&quot;GHFS.getDelegationToken: renewer: %s&quot;, renewer);</span>
+
+<span class="fc" id="L1750">    Token&lt;?&gt; result = null;</span>
+
+<span class="fc bfc" id="L1752" title="All 2 branches covered.">    if (delegationTokens != null) {</span>
+<span class="fc" id="L1753">      result = delegationTokens.getBoundOrNewDT(renewer);</span>
+    }
+
+<span class="fc" id="L1756">    logger.atFine().log(&quot;GHFS.getDelegationToken:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L1757">    return result;</span>
+  }
+
+  @Override
+  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
+      Path[] srcs, Path dst)
+      throws IOException {
+<span class="fc" id="L1764">    logger.atFine().log(</span>
+        &quot;GHFS.copyFromLocalFile: delSrc: %s, overwrite: %s, #srcs: %s, dst: %s&quot;,
+<span class="fc" id="L1766">        delSrc, overwrite, srcs.length, dst);</span>
+<span class="fc" id="L1767">    super.copyFromLocalFile(delSrc, overwrite, srcs, dst);</span>
+<span class="fc" id="L1768">    logger.atFine().log(&quot;GHFS.copyFromLocalFile:=&gt; &quot;);</span>
+<span class="fc" id="L1769">  }</span>
+
+  @Override
+  public void copyFromLocalFile(boolean delSrc, boolean overwrite,
+      Path src, Path dst)
+      throws IOException {
+<span class="fc" id="L1775">    logger.atFine().log(</span>
+        &quot;GHFS.copyFromLocalFile: delSrc: %s, overwrite: %s, src: %s, dst: %s&quot;,
+<span class="fc" id="L1777">        delSrc, overwrite, src, dst);</span>
+<span class="fc" id="L1778">    super.copyFromLocalFile(delSrc, overwrite, src, dst);</span>
+<span class="fc" id="L1779">    logger.atFine().log(&quot;GHFS.copyFromLocalFile:=&gt; &quot;);</span>
+<span class="fc" id="L1780">  }</span>
+
+  @Override
+  public void copyToLocalFile(boolean delSrc, Path src, Path dst)
+      throws IOException {
+<span class="fc" id="L1785">    logger.atFine().log(&quot;GHFS.copyToLocalFile: delSrc: %s, src: %s, dst: %s&quot;, delSrc, src, dst);</span>
+<span class="fc" id="L1786">    super.copyToLocalFile(delSrc, src, dst);</span>
+<span class="fc" id="L1787">    logger.atFine().log(&quot;GHFS.copyToLocalFile:=&gt; &quot;);</span>
+<span class="fc" id="L1788">  }</span>
+
+  @Override
+  public Path startLocalOutput(Path fsOutputFile, Path tmpLocalFile)
+      throws IOException {
+<span class="fc" id="L1793">    logger.atFine().log(&quot;GHFS.startLocalOutput: out: %s, tmp: %s&quot;, fsOutputFile, tmpLocalFile);</span>
+<span class="fc" id="L1794">    Path result = super.startLocalOutput(fsOutputFile, tmpLocalFile);</span>
+<span class="fc" id="L1795">    logger.atFine().log(&quot;GHFS.startLocalOutput:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L1796">    return result;</span>
+  }
+
+  @Override
+  public void completeLocalOutput(Path fsOutputFile, Path tmpLocalFile)
+      throws IOException {
+<span class="fc" id="L1802">    logger.atFine().log(&quot;GHFS.startLocalOutput: out: %s, tmp: %s&quot;, fsOutputFile, tmpLocalFile);</span>
+<span class="fc" id="L1803">    super.completeLocalOutput(fsOutputFile, tmpLocalFile);</span>
+<span class="fc" id="L1804">    logger.atFine().log(&quot;GHFS.completeLocalOutput:=&gt; &quot;);</span>
+<span class="fc" id="L1805">  }</span>
+
+  @Override
+  public void close() throws IOException {
+<span class="fc" id="L1809">    logger.atFine().log(&quot;GHFS.close:&quot;);</span>
+<span class="fc" id="L1810">    super.close();</span>
+
+    // NB: We must *first* have the superclass close() before we close the underlying gcsFsSupplier
+    // since the superclass may decide to perform various heavyweight cleanup operations (such as
+    // deleteOnExit).
+<span class="fc bfc" id="L1815" title="All 2 branches covered.">    if (gcsFsSupplier != null) {</span>
+<span class="fc bfc" id="L1816" title="All 2 branches covered.">      if (gcsFsInitialized) {</span>
+<span class="fc" id="L1817">        getGcsFs().close();</span>
+      }
+<span class="fc" id="L1819">      gcsFsSupplier = null;</span>
+    }
+<span class="fc" id="L1821">    logCounters();</span>
+<span class="fc" id="L1822">    logger.atFine().log(&quot;GHFS.close:=&gt; &quot;);</span>
+<span class="fc" id="L1823">  }</span>
+
+  @Override
+  public long getUsed()
+      throws IOException{
+<span class="fc" id="L1828">    logger.atFine().log(&quot;GHFS.getUsed:&quot;);</span>
+<span class="fc" id="L1829">    long result = super.getUsed();</span>
+<span class="fc" id="L1830">    logger.atFine().log(&quot;GHFS.getUsed:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L1831">    return result;</span>
+  }
+
+  @Override
+  public long getDefaultBlockSize() {
+<span class="fc" id="L1836">    logger.atFine().log(&quot;GHFS.getDefaultBlockSize:&quot;);</span>
+<span class="fc" id="L1837">    long result = defaultBlockSize;</span>
+<span class="fc" id="L1838">    logger.atFine().log(&quot;GHFS.getDefaultBlockSize:=&gt; %s&quot;, result);</span>
+<span class="fc" id="L1839">    return result;</span>
+  }
+
+  @Override
+  public FileChecksum getFileChecksum(Path hadoopPath) throws IOException {
+<span class="fc" id="L1844">    long startTime = System.nanoTime();</span>
+<span class="fc bfc" id="L1845" title="All 2 branches covered.">    Preconditions.checkArgument(hadoopPath != null, &quot;hadoopPath must not be null&quot;);</span>
+
+<span class="fc" id="L1847">    checkOpen();</span>
+
+<span class="fc" id="L1849">    URI gcsPath = getGcsPath(hadoopPath);</span>
+<span class="fc" id="L1850">    final FileInfo fileInfo = getGcsFs().getFileInfo(gcsPath);</span>
+<span class="fc bfc" id="L1851" title="All 2 branches covered.">    if (!fileInfo.exists()) {</span>
+<span class="fc" id="L1852">      logger.atFine().log(&quot;GHFS.getFileStatus: not found: %s&quot;, gcsPath);</span>
+<span class="fc" id="L1853">      throw new FileNotFoundException(</span>
+<span class="pc bpc" id="L1854" title="1 of 2 branches missed.">          (fileInfo.isDirectory() ? &quot;Directory not found : &quot; : &quot;File not found : &quot;) + hadoopPath);</span>
+    }
+<span class="fc" id="L1856">    FileChecksum checksum = getFileChecksum(checksumType, fileInfo);</span>
+<span class="fc" id="L1857">    logger.atFine().log(&quot;GHFS.getFileChecksum:=&gt; %s&quot;, checksum);</span>
+
+<span class="fc" id="L1859">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L1860">    increment(Counter.GET_FILE_CHECKSUM);</span>
+<span class="fc" id="L1861">    increment(Counter.GET_FILE_CHECKSUM_TIME, duration);</span>
+<span class="fc" id="L1862">    return checksum;</span>
+  }
+
+  private static FileChecksum getFileChecksum(GcsFileChecksumType type, FileInfo fileInfo)
+      throws IOException {
+<span class="pc bpc" id="L1867" title="1 of 4 branches missed.">    switch (type) {</span>
+      case NONE:
+<span class="fc" id="L1869">        return null;</span>
+      case CRC32C:
+<span class="fc" id="L1871">        return new GcsFileChecksum(</span>
+<span class="fc" id="L1872">            type, fileInfo.getItemInfo().getVerificationAttributes().getCrc32c());</span>
+      case MD5:
+<span class="fc" id="L1874">        return new GcsFileChecksum(</span>
+<span class="fc" id="L1875">            type, fileInfo.getItemInfo().getVerificationAttributes().getMd5hash());</span>
+    }
+<span class="nc" id="L1877">    throw new IOException(&quot;Unrecognized GcsFileChecksumType: &quot; + type);</span>
+  }
+
+  @Override
+  public void setVerifyChecksum(boolean verifyChecksum) {
+<span class="fc" id="L1882">    logger.atFine().log(&quot;GHFS.setVerifyChecksum:&quot;);</span>
+<span class="fc" id="L1883">    super.setVerifyChecksum(verifyChecksum);</span>
+<span class="fc" id="L1884">    logger.atFine().log(&quot;GHFS.setVerifyChecksum:=&gt; &quot;);</span>
+<span class="fc" id="L1885">  }</span>
+
+  @Override
+  public void setPermission(Path p, FsPermission permission)
+      throws IOException {
+<span class="fc" id="L1890">    logger.atFine().log(&quot;GHFS.setPermission: path: %s, perm: %s&quot;, p, permission);</span>
+<span class="fc" id="L1891">    super.setPermission(p, permission);</span>
+<span class="fc" id="L1892">    logger.atFine().log(&quot;GHFS.setPermission:=&gt; &quot;);</span>
+<span class="fc" id="L1893">  }</span>
+
+  @Override
+  public void setOwner(Path p, String username, String groupname)
+      throws IOException {
+<span class="fc" id="L1898">    logger.atFine().log(&quot;GHFS.setOwner: path: %s, user: %s, group: %s&quot;, p, username, groupname);</span>
+<span class="fc" id="L1899">    super.setOwner(p, username, groupname);</span>
+<span class="fc" id="L1900">    logger.atFine().log(&quot;GHFS.setOwner:=&gt; &quot;);</span>
+<span class="fc" id="L1901">  }</span>
+
+  @Override
+  public void setTimes(Path p, long mtime, long atime)
+      throws IOException {
+<span class="fc" id="L1906">    logger.atFine().log(&quot;GHFS.setTimes: path: %s, mtime: %s, atime: %s&quot;, p, mtime, atime);</span>
+<span class="fc" id="L1907">    super.setTimes(p, mtime, atime);</span>
+<span class="fc" id="L1908">    logger.atFine().log(&quot;GHFS.setTimes:=&gt; &quot;);</span>
+<span class="fc" id="L1909">  }</span>
+
+  /** {@inheritDoc} */
+  @Override
+  public byte[] getXAttr(Path path, String name) throws IOException {
+<span class="fc" id="L1914">    logger.atFine().log(&quot;GHFS.getXAttr: %s, %s&quot;, path, name);</span>
+<span class="fc" id="L1915">    checkNotNull(path, &quot;path should not be null&quot;);</span>
+<span class="fc" id="L1916">    checkNotNull(name, &quot;name should not be null&quot;);</span>
+
+<span class="fc" id="L1918">    Map&lt;String, byte[]&gt; attributes = getGcsFs().getFileInfo(getGcsPath(path)).getAttributes();</span>
+<span class="fc" id="L1919">    String xAttrKey = getXAttrKey(name);</span>
+<span class="fc" id="L1920">    byte[] xAttr =</span>
+<span class="fc bfc" id="L1921" title="All 2 branches covered.">        attributes.containsKey(xAttrKey) ? getXAttrValue(attributes.get(xAttrKey)) : null;</span>
+
+<span class="pc" id="L1923">    logger.atFine().log(&quot;GHFS.getXAttr:=&gt; %s&quot;, lazy(() -&gt; new String(xAttr, UTF_8)));</span>
+<span class="fc" id="L1924">    return xAttr;</span>
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public Map&lt;String, byte[]&gt; getXAttrs(Path path) throws IOException {
+<span class="fc" id="L1930">    logger.atFine().log(&quot;GHFS.getXAttrs: %s&quot;, path);</span>
+<span class="fc" id="L1931">    checkNotNull(path, &quot;path should not be null&quot;);</span>
+
+<span class="fc" id="L1933">    FileInfo fileInfo = getGcsFs().getFileInfo(getGcsPath(path));</span>
+<span class="fc" id="L1934">    Map&lt;String, byte[]&gt; xAttrs =</span>
+<span class="fc" id="L1935">        fileInfo.getAttributes().entrySet().stream()</span>
+<span class="fc" id="L1936">            .filter(a -&gt; isXAttr(a.getKey()))</span>
+<span class="fc" id="L1937">            .collect(</span>
+                HashMap::new,
+<span class="fc" id="L1939">                (m, a) -&gt; m.put(getXAttrName(a.getKey()), getXAttrValue(a.getValue())),</span>
+                Map::putAll);
+
+<span class="fc" id="L1942">    logger.atFine().log(&quot;GHFS.getXAttrs:=&gt; %s&quot;, xAttrs);</span>
+<span class="fc" id="L1943">    return xAttrs;</span>
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public Map&lt;String, byte[]&gt; getXAttrs(Path path, List&lt;String&gt; names) throws IOException {
+<span class="fc" id="L1949">    logger.atFine().log(&quot;GHFS.getXAttrs: %s, %s&quot;, path, names);</span>
+<span class="fc" id="L1950">    checkNotNull(path, &quot;path should not be null&quot;);</span>
+<span class="fc" id="L1951">    checkNotNull(names, &quot;names should not be null&quot;);</span>
+
+    Map&lt;String, byte[]&gt; xAttrs;
+<span class="fc bfc" id="L1954" title="All 2 branches covered.">    if (names.isEmpty()) {</span>
+<span class="fc" id="L1955">      xAttrs = new HashMap&lt;&gt;();</span>
+    } else {
+<span class="fc" id="L1957">      Set&lt;String&gt; namesSet = new HashSet&lt;&gt;(names);</span>
+<span class="fc" id="L1958">      xAttrs =</span>
+<span class="fc" id="L1959">          getXAttrs(path).entrySet().stream()</span>
+<span class="fc" id="L1960">              .filter(a -&gt; namesSet.contains(a.getKey()))</span>
+<span class="fc" id="L1961">              .collect(HashMap::new, (m, a) -&gt; m.put(a.getKey(), a.getValue()), Map::putAll);</span>
+    }
+
+<span class="fc" id="L1964">    logger.atFine().log(&quot;GHFS.getXAttrs:=&gt; %s&quot;, xAttrs);</span>
+<span class="fc" id="L1965">    return xAttrs;</span>
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public List&lt;String&gt; listXAttrs(Path path) throws IOException {
+<span class="fc" id="L1971">    logger.atFine().log(&quot;GHFS.listXAttrs: %s&quot;, path);</span>
+<span class="fc" id="L1972">    checkNotNull(path, &quot;path should not be null&quot;);</span>
+
+<span class="fc" id="L1974">    FileInfo fileInfo = getGcsFs().getFileInfo(getGcsPath(path));</span>
+
+<span class="fc" id="L1976">    List&lt;String&gt; xAttrs =</span>
+<span class="fc" id="L1977">        fileInfo.getAttributes().keySet().stream()</span>
+<span class="fc" id="L1978">            .filter(this::isXAttr)</span>
+<span class="fc" id="L1979">            .map(this::getXAttrName)</span>
+<span class="fc" id="L1980">            .collect(Collectors.toCollection(ArrayList::new));</span>
+
+<span class="fc" id="L1982">    logger.atFine().log(&quot;GHFS.listXAttrs:=&gt; %s&quot;, xAttrs);</span>
+<span class="fc" id="L1983">    return xAttrs;</span>
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void setXAttr(Path path, String name, byte[] value, EnumSet&lt;XAttrSetFlag&gt; flags)
+      throws IOException {
+<span class="fc" id="L1990">    logger.atFine().log(</span>
+<span class="pc" id="L1991">        &quot;GHFS.setXAttr: %s, %s, %s, %s&quot;, path, name, lazy(() -&gt; new String(value, UTF_8)), flags);</span>
+<span class="fc" id="L1992">    checkNotNull(path, &quot;path should not be null&quot;);</span>
+<span class="fc" id="L1993">    checkNotNull(name, &quot;name should not be null&quot;);</span>
+<span class="fc bfc" id="L1994" title="All 4 branches covered.">    checkArgument(flags != null &amp;&amp; !flags.isEmpty(), &quot;flags should not be null or empty&quot;);</span>
+
+<span class="fc" id="L1996">    FileInfo fileInfo = getGcsFs().getFileInfo(getGcsPath(path));</span>
+<span class="fc" id="L1997">    String xAttrKey = getXAttrKey(name);</span>
+<span class="fc" id="L1998">    Map&lt;String, byte[]&gt; attributes = fileInfo.getAttributes();</span>
+
+<span class="fc bfc" id="L2000" title="All 4 branches covered.">    if (attributes.containsKey(xAttrKey) &amp;&amp; !flags.contains(XAttrSetFlag.REPLACE)) {</span>
+<span class="fc" id="L2001">      throw new IOException(</span>
+<span class="fc" id="L2002">          String.format(</span>
+              &quot;REPLACE flag must be set to update XAttr (name='%s', value='%s') for '%s'&quot;,
+              name, new String(value, UTF_8), path));
+    }
+<span class="fc bfc" id="L2006" title="All 4 branches covered.">    if (!attributes.containsKey(xAttrKey) &amp;&amp; !flags.contains(XAttrSetFlag.CREATE)) {</span>
+<span class="fc" id="L2007">      throw new IOException(</span>
+<span class="fc" id="L2008">          String.format(</span>
+              &quot;CREATE flag must be set to create XAttr (name='%s', value='%s') for '%s'&quot;,
+              name, new String(value, UTF_8), path));
+    }
+
+<span class="fc" id="L2013">    UpdatableItemInfo updateInfo =</span>
+        new UpdatableItemInfo(
+<span class="fc" id="L2015">            fileInfo.getItemInfo().getResourceId(),</span>
+<span class="fc" id="L2016">            ImmutableMap.of(xAttrKey, getXAttrValue(value)));</span>
+<span class="fc" id="L2017">    getGcsFs().getGcs().updateItems(ImmutableList.of(updateInfo));</span>
+<span class="fc" id="L2018">    logger.atFine().log(&quot;GHFS.setXAttr:=&gt; &quot;);</span>
+<span class="fc" id="L2019">  }</span>
+
+  /** {@inheritDoc} */
+  @Override
+  public void removeXAttr(Path path, String name) throws IOException {
+<span class="fc" id="L2024">    logger.atFine().log(&quot;GHFS.removeXAttr: %s, %s&quot;, path, name);</span>
+<span class="fc" id="L2025">    checkNotNull(path, &quot;path should not be null&quot;);</span>
+<span class="fc" id="L2026">    checkNotNull(name, &quot;name should not be null&quot;);</span>
+
+<span class="fc" id="L2028">    FileInfo fileInfo = getGcsFs().getFileInfo(getGcsPath(path));</span>
+<span class="fc" id="L2029">    Map&lt;String, byte[]&gt; xAttrToRemove = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L2030">    xAttrToRemove.put(getXAttrKey(name), null);</span>
+<span class="fc" id="L2031">    UpdatableItemInfo updateInfo =</span>
+<span class="fc" id="L2032">        new UpdatableItemInfo(fileInfo.getItemInfo().getResourceId(), xAttrToRemove);</span>
+<span class="fc" id="L2033">    getGcsFs().getGcs().updateItems(ImmutableList.of(updateInfo));</span>
+<span class="fc" id="L2034">    logger.atFine().log(&quot;GHFS.removeXAttr:=&gt; &quot;);</span>
+<span class="fc" id="L2035">  }</span>
+
+  private boolean isXAttr(String key) {
+<span class="pc bpc" id="L2038" title="1 of 4 branches missed.">    return key != null &amp;&amp; key.startsWith(XATTR_KEY_PREFIX);</span>
+  }
+
+  private String getXAttrKey(String name) {
+<span class="fc" id="L2042">    return XATTR_KEY_PREFIX + name;</span>
+  }
+
+  private String getXAttrName(String key) {
+<span class="fc" id="L2046">    return key.substring(XATTR_KEY_PREFIX.length());</span>
+  }
+
+  private byte[] getXAttrValue(byte[] value) {
+<span class="fc bfc" id="L2050" title="All 2 branches covered.">    return value == null ? XATTR_NULL_VALUE : value;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

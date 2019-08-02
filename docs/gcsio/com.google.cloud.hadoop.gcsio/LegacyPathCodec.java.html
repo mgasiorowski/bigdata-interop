@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>LegacyPathCodec.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">LegacyPathCodec.java</span></div><h1>LegacyPathCodec.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio;
+
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.flogger.GoogleLogger;
+import java.net.URI;
+import java.net.URISyntaxException;
+
+/**
+* A GoogleCloudStorageFileSystem PathCodec that was in use until version 1.4.4.
+*/
+<span class="fc" id="L28">class LegacyPathCodec implements PathCodec {</span>
+
+<span class="fc" id="L30">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  @Override
+  public StorageResourceId validatePathAndGetId(URI path, boolean allowEmptyObjectName) {
+<span class="fc" id="L34">    logger.atFine().log(&quot;validatePathAndGetId('%s', %s)&quot;, path, allowEmptyObjectName);</span>
+<span class="fc" id="L35">    Preconditions.checkNotNull(path);</span>
+
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">    if (!GoogleCloudStorageFileSystem.SCHEME.equals(path.getScheme())) {</span>
+<span class="nc" id="L38">      throw new IllegalArgumentException(</span>
+          &quot;Google Cloud Storage path supports only '&quot;
+              + GoogleCloudStorageFileSystem.SCHEME + &quot;' scheme, instead got '&quot;
+<span class="nc" id="L41">              + path.getScheme() + &quot;' from '&quot; + path + &quot;'.&quot;);</span>
+    }
+
+    String bucketName;
+    String objectName;
+
+<span class="pc bpc" id="L47" title="1 of 2 branches missed.">    if (path.equals(GoogleCloudStorageFileSystem.GCS_ROOT)) {</span>
+<span class="nc" id="L48">      return StorageResourceId.ROOT;</span>
+    } else {
+<span class="fc" id="L50">      bucketName = path.getAuthority();</span>
+
+      // We want not only the raw path, but also any &quot;query&quot; or &quot;fragment&quot; at the end; URI doesn't
+      // have a method for &quot;everything past the authority&quot;, so instead we start with the entire
+      // scheme-specific part and strip off the authority.
+<span class="fc" id="L55">      String schemeSpecificPart = path.getRawSchemeSpecificPart();</span>
+<span class="fc" id="L56">      Preconditions.checkState(schemeSpecificPart.startsWith(&quot;//&quot; + bucketName),</span>
+          &quot;Expected schemeSpecificStart to start with '//%s', instead got '%s'&quot;,
+          bucketName, schemeSpecificPart);
+<span class="fc" id="L59">      objectName = schemeSpecificPart.substring(2 + bucketName.length());</span>
+
+<span class="fc" id="L61">      bucketName =</span>
+<span class="fc" id="L62">          GoogleCloudStorageFileSystem.validateBucketName(bucketName);</span>
+<span class="fc" id="L63">      objectName =</span>
+<span class="fc" id="L64">          GoogleCloudStorageFileSystem.validateObjectName(objectName, allowEmptyObjectName);</span>
+
+      // TODO(user): Pull the logic for checking empty object name out of validateObjectName into
+      // here.
+<span class="fc bfc" id="L68" title="All 2 branches covered.">      if (Strings.isNullOrEmpty(objectName)) {</span>
+<span class="fc" id="L69">        return new StorageResourceId(bucketName);</span>
+      } else {
+<span class="fc" id="L71">        return new StorageResourceId(bucketName, objectName);</span>
+      }
+    }
+  }
+
+  @Override
+  public URI getPath(String bucketName, String objectName, boolean allowEmptyObjectName) {
+<span class="pc bpc" id="L78" title="3 of 6 branches missed.">    if (allowEmptyObjectName &amp;&amp; (bucketName == null) &amp;&amp; (objectName == null)) {</span>
+<span class="nc" id="L79">      return GoogleCloudStorageFileSystem.GCS_ROOT;</span>
+    }
+
+<span class="fc" id="L82">    bucketName =</span>
+<span class="fc" id="L83">        GoogleCloudStorageFileSystem.validateBucketName(bucketName);</span>
+<span class="fc" id="L84">    objectName =</span>
+<span class="fc" id="L85">        GoogleCloudStorageFileSystem.validateObjectName(objectName, allowEmptyObjectName);</span>
+
+<span class="fc" id="L87">    URI pathUri = null;</span>
+<span class="fc" id="L88">    String path = GoogleCloudStorageFileSystem.SCHEME + &quot;://&quot;</span>
+        + bucketName + GoogleCloudStorage.PATH_DELIMITER + objectName;
+    try {
+<span class="fc" id="L91">      pathUri = new URI(path);</span>
+<span class="fc" id="L92">    } catch (URISyntaxException e) {</span>
+      // This should be very rare given the earlier checks.
+<span class="fc" id="L94">      String msg = String.format(&quot;Invalid bucket name (%s) or object name (%s)&quot;,</span>
+          bucketName, objectName);
+<span class="fc" id="L96">      throw new IllegalArgumentException(msg, e);</span>
+<span class="fc" id="L97">    }</span>
+
+<span class="fc" id="L99">    return pathUri;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AutoValue_CooperativeLockingOptions.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio.cooplock</a> &gt; <span class="el_source">AutoValue_CooperativeLockingOptions.java</span></div><h1>AutoValue_CooperativeLockingOptions.java</h1><pre class="source lang-java linenums">
+
+package com.google.cloud.hadoop.gcsio.cooplock;
+
+import javax.annotation.Generated;
+
+@Generated(&quot;com.google.auto.value.processor.AutoValueProcessor&quot;)
+final class AutoValue_CooperativeLockingOptions extends CooperativeLockingOptions {
+
+  private final long lockExpirationTimeoutMilli;
+
+  private final int maxConcurrentOperations;
+
+  private AutoValue_CooperativeLockingOptions(
+      long lockExpirationTimeoutMilli,
+<span class="fc" id="L16">      int maxConcurrentOperations) {</span>
+<span class="fc" id="L17">    this.lockExpirationTimeoutMilli = lockExpirationTimeoutMilli;</span>
+<span class="fc" id="L18">    this.maxConcurrentOperations = maxConcurrentOperations;</span>
+<span class="fc" id="L19">  }</span>
+
+  @Override
+  public long getLockExpirationTimeoutMilli() {
+<span class="fc" id="L23">    return lockExpirationTimeoutMilli;</span>
+  }
+
+  @Override
+  public int getMaxConcurrentOperations() {
+<span class="fc" id="L28">    return maxConcurrentOperations;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L33">    return &quot;CooperativeLockingOptions{&quot;</span>
+         + &quot;lockExpirationTimeoutMilli=&quot; + lockExpirationTimeoutMilli + &quot;, &quot;
+         + &quot;maxConcurrentOperations=&quot; + maxConcurrentOperations
+        + &quot;}&quot;;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="nc bnc" id="L41" title="All 2 branches missed.">    if (o == this) {</span>
+<span class="nc" id="L42">      return true;</span>
+    }
+<span class="nc bnc" id="L44" title="All 2 branches missed.">    if (o instanceof CooperativeLockingOptions) {</span>
+<span class="nc" id="L45">      CooperativeLockingOptions that = (CooperativeLockingOptions) o;</span>
+<span class="nc bnc" id="L46" title="All 2 branches missed.">      return this.lockExpirationTimeoutMilli == that.getLockExpirationTimeoutMilli()</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">          &amp;&amp; this.maxConcurrentOperations == that.getMaxConcurrentOperations();</span>
+    }
+<span class="nc" id="L49">    return false;</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="nc" id="L54">    int h$ = 1;</span>
+<span class="nc" id="L55">    h$ *= 1000003;</span>
+<span class="nc" id="L56">    h$ ^= (int) ((lockExpirationTimeoutMilli &gt;&gt;&gt; 32) ^ lockExpirationTimeoutMilli);</span>
+<span class="nc" id="L57">    h$ *= 1000003;</span>
+<span class="nc" id="L58">    h$ ^= maxConcurrentOperations;</span>
+<span class="nc" id="L59">    return h$;</span>
+  }
+
+  @Override
+  public CooperativeLockingOptions.Builder toBuilder() {
+<span class="nc" id="L64">    return new Builder(this);</span>
+  }
+
+  static final class Builder extends CooperativeLockingOptions.Builder {
+    private Long lockExpirationTimeoutMilli;
+    private Integer maxConcurrentOperations;
+<span class="fc" id="L70">    Builder() {</span>
+<span class="fc" id="L71">    }</span>
+<span class="nc" id="L72">    private Builder(CooperativeLockingOptions source) {</span>
+<span class="nc" id="L73">      this.lockExpirationTimeoutMilli = source.getLockExpirationTimeoutMilli();</span>
+<span class="nc" id="L74">      this.maxConcurrentOperations = source.getMaxConcurrentOperations();</span>
+<span class="nc" id="L75">    }</span>
+    @Override
+    public CooperativeLockingOptions.Builder setLockExpirationTimeoutMilli(long lockExpirationTimeoutMilli) {
+<span class="fc" id="L78">      this.lockExpirationTimeoutMilli = lockExpirationTimeoutMilli;</span>
+<span class="fc" id="L79">      return this;</span>
+    }
+    @Override
+    public CooperativeLockingOptions.Builder setMaxConcurrentOperations(int maxConcurrentOperations) {
+<span class="fc" id="L83">      this.maxConcurrentOperations = maxConcurrentOperations;</span>
+<span class="fc" id="L84">      return this;</span>
+    }
+    @Override
+    CooperativeLockingOptions autoBuild() {
+<span class="fc" id="L88">      String missing = &quot;&quot;;</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">      if (this.lockExpirationTimeoutMilli == null) {</span>
+<span class="nc" id="L90">        missing += &quot; lockExpirationTimeoutMilli&quot;;</span>
+      }
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">      if (this.maxConcurrentOperations == null) {</span>
+<span class="nc" id="L93">        missing += &quot; maxConcurrentOperations&quot;;</span>
+      }
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">      if (!missing.isEmpty()) {</span>
+<span class="nc" id="L96">        throw new IllegalStateException(&quot;Missing required properties:&quot; + missing);</span>
+      }
+<span class="fc" id="L98">      return new AutoValue_CooperativeLockingOptions(</span>
+<span class="fc" id="L99">          this.lockExpirationTimeoutMilli,</span>
+<span class="fc" id="L100">          this.maxConcurrentOperations);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

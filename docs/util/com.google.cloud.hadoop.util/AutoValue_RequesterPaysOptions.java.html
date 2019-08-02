@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AutoValue_RequesterPaysOptions.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">AutoValue_RequesterPaysOptions.java</span></div><h1>AutoValue_RequesterPaysOptions.java</h1><pre class="source lang-java linenums">
+
+package com.google.cloud.hadoop.util;
+
+import com.google.common.collect.ImmutableSet;
+import java.util.Collection;
+import javax.annotation.Generated;
+import javax.annotation.Nullable;
+
+@Generated(&quot;com.google.auto.value.processor.AutoValueProcessor&quot;)
+final class AutoValue_RequesterPaysOptions extends RequesterPaysOptions {
+
+  private final RequesterPaysOptions.RequesterPaysMode mode;
+
+  private final String projectId;
+
+  private final ImmutableSet&lt;String&gt; buckets;
+
+  private AutoValue_RequesterPaysOptions(
+      RequesterPaysOptions.RequesterPaysMode mode,
+      @Nullable String projectId,
+<span class="fc" id="L22">      ImmutableSet&lt;String&gt; buckets) {</span>
+<span class="fc" id="L23">    this.mode = mode;</span>
+<span class="fc" id="L24">    this.projectId = projectId;</span>
+<span class="fc" id="L25">    this.buckets = buckets;</span>
+<span class="fc" id="L26">  }</span>
+
+  @Override
+  public RequesterPaysOptions.RequesterPaysMode getMode() {
+<span class="fc" id="L30">    return mode;</span>
+  }
+
+  @Nullable
+  @Override
+  public String getProjectId() {
+<span class="nc" id="L36">    return projectId;</span>
+  }
+
+  @Override
+  public ImmutableSet&lt;String&gt; getBuckets() {
+<span class="nc" id="L41">    return buckets;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L46">    return &quot;RequesterPaysOptions{&quot;</span>
+         + &quot;mode=&quot; + mode + &quot;, &quot;
+         + &quot;projectId=&quot; + projectId + &quot;, &quot;
+         + &quot;buckets=&quot; + buckets
+        + &quot;}&quot;;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="nc bnc" id="L55" title="All 2 branches missed.">    if (o == this) {</span>
+<span class="nc" id="L56">      return true;</span>
+    }
+<span class="nc bnc" id="L58" title="All 2 branches missed.">    if (o instanceof RequesterPaysOptions) {</span>
+<span class="nc" id="L59">      RequesterPaysOptions that = (RequesterPaysOptions) o;</span>
+<span class="nc bnc" id="L60" title="All 4 branches missed.">      return this.mode.equals(that.getMode())</span>
+<span class="nc bnc" id="L61" title="All 4 branches missed.">          &amp;&amp; (this.projectId == null ? that.getProjectId() == null : this.projectId.equals(that.getProjectId()))</span>
+<span class="nc bnc" id="L62" title="All 2 branches missed.">          &amp;&amp; this.buckets.equals(that.getBuckets());</span>
+    }
+<span class="nc" id="L64">    return false;</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="nc" id="L69">    int h$ = 1;</span>
+<span class="nc" id="L70">    h$ *= 1000003;</span>
+<span class="nc" id="L71">    h$ ^= mode.hashCode();</span>
+<span class="nc" id="L72">    h$ *= 1000003;</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">    h$ ^= (projectId == null) ? 0 : projectId.hashCode();</span>
+<span class="nc" id="L74">    h$ *= 1000003;</span>
+<span class="nc" id="L75">    h$ ^= buckets.hashCode();</span>
+<span class="nc" id="L76">    return h$;</span>
+  }
+
+  @Override
+  public RequesterPaysOptions.Builder toBuilder() {
+<span class="nc" id="L81">    return new Builder(this);</span>
+  }
+
+  static final class Builder extends RequesterPaysOptions.Builder {
+    private RequesterPaysOptions.RequesterPaysMode mode;
+    private String projectId;
+    private ImmutableSet&lt;String&gt; buckets;
+<span class="fc" id="L88">    Builder() {</span>
+<span class="fc" id="L89">    }</span>
+<span class="nc" id="L90">    private Builder(RequesterPaysOptions source) {</span>
+<span class="nc" id="L91">      this.mode = source.getMode();</span>
+<span class="nc" id="L92">      this.projectId = source.getProjectId();</span>
+<span class="nc" id="L93">      this.buckets = source.getBuckets();</span>
+<span class="nc" id="L94">    }</span>
+    @Override
+    public RequesterPaysOptions.Builder setMode(RequesterPaysOptions.RequesterPaysMode mode) {
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">      if (mode == null) {</span>
+<span class="nc" id="L98">        throw new NullPointerException(&quot;Null mode&quot;);</span>
+      }
+<span class="fc" id="L100">      this.mode = mode;</span>
+<span class="fc" id="L101">      return this;</span>
+    }
+    @Override
+    public RequesterPaysOptions.Builder setProjectId(@Nullable String projectId) {
+<span class="fc" id="L105">      this.projectId = projectId;</span>
+<span class="fc" id="L106">      return this;</span>
+    }
+    @Override
+    public RequesterPaysOptions.Builder setBuckets(Collection&lt;String&gt; buckets) {
+<span class="fc" id="L110">      this.buckets = ImmutableSet.copyOf(buckets);</span>
+<span class="fc" id="L111">      return this;</span>
+    }
+    @Override
+    public RequesterPaysOptions.Builder setBuckets(String... buckets) {
+<span class="nc" id="L115">      this.buckets = ImmutableSet.copyOf(buckets);</span>
+<span class="nc" id="L116">      return this;</span>
+    }
+    @Override
+    public RequesterPaysOptions build() {
+<span class="fc" id="L120">      String missing = &quot;&quot;;</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">      if (this.mode == null) {</span>
+<span class="nc" id="L122">        missing += &quot; mode&quot;;</span>
+      }
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">      if (this.buckets == null) {</span>
+<span class="nc" id="L125">        missing += &quot; buckets&quot;;</span>
+      }
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">      if (!missing.isEmpty()) {</span>
+<span class="nc" id="L128">        throw new IllegalStateException(&quot;Missing required properties:&quot; + missing);</span>
+      }
+<span class="fc" id="L130">      return new AutoValue_RequesterPaysOptions(</span>
+          this.mode,
+          this.projectId,
+          this.buckets);
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

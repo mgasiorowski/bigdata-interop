@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AutoValue_GoogleCloudStorageFileSystemOptions.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">AutoValue_GoogleCloudStorageFileSystemOptions.java</span></div><h1>AutoValue_GoogleCloudStorageFileSystemOptions.java</h1><pre class="source lang-java linenums">
+
+package com.google.cloud.hadoop.gcsio;
+
+import java.net.URI;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import javax.annotation.Generated;
+import javax.annotation.Nullable;
+
+@Generated(&quot;com.google.auto.value.processor.AutoValueProcessor&quot;)
+final class AutoValue_GoogleCloudStorageFileSystemOptions extends GoogleCloudStorageFileSystemOptions {
+
+  private final boolean performanceCacheEnabled;
+
+  private final PerformanceCachingGoogleCloudStorageOptions performanceCacheOptions;
+
+  private final GoogleCloudStorageOptions cloudStorageOptions;
+
+  private final Predicate&lt;URI&gt; shouldIncludeInTimestampUpdatesPredicate;
+
+  private final PathCodec pathCodec;
+
+  private final boolean bucketDeleteEnabled;
+
+  private final Pattern markerFilePattern;
+
+  private final boolean statusParallelEnabled;
+
+  private final boolean cooperativeLockingEnabled;
+
+  private AutoValue_GoogleCloudStorageFileSystemOptions(
+      boolean performanceCacheEnabled,
+      PerformanceCachingGoogleCloudStorageOptions performanceCacheOptions,
+      GoogleCloudStorageOptions cloudStorageOptions,
+      Predicate&lt;URI&gt; shouldIncludeInTimestampUpdatesPredicate,
+      PathCodec pathCodec,
+      boolean bucketDeleteEnabled,
+      @Nullable Pattern markerFilePattern,
+      boolean statusParallelEnabled,
+<span class="fc" id="L41">      boolean cooperativeLockingEnabled) {</span>
+<span class="fc" id="L42">    this.performanceCacheEnabled = performanceCacheEnabled;</span>
+<span class="fc" id="L43">    this.performanceCacheOptions = performanceCacheOptions;</span>
+<span class="fc" id="L44">    this.cloudStorageOptions = cloudStorageOptions;</span>
+<span class="fc" id="L45">    this.shouldIncludeInTimestampUpdatesPredicate = shouldIncludeInTimestampUpdatesPredicate;</span>
+<span class="fc" id="L46">    this.pathCodec = pathCodec;</span>
+<span class="fc" id="L47">    this.bucketDeleteEnabled = bucketDeleteEnabled;</span>
+<span class="fc" id="L48">    this.markerFilePattern = markerFilePattern;</span>
+<span class="fc" id="L49">    this.statusParallelEnabled = statusParallelEnabled;</span>
+<span class="fc" id="L50">    this.cooperativeLockingEnabled = cooperativeLockingEnabled;</span>
+<span class="fc" id="L51">  }</span>
+
+  @Override
+  public boolean isPerformanceCacheEnabled() {
+<span class="fc" id="L55">    return performanceCacheEnabled;</span>
+  }
+
+  @Override
+  public PerformanceCachingGoogleCloudStorageOptions getPerformanceCacheOptions() {
+<span class="fc" id="L60">    return performanceCacheOptions;</span>
+  }
+
+  @Override
+  public GoogleCloudStorageOptions getCloudStorageOptions() {
+<span class="fc" id="L65">    return cloudStorageOptions;</span>
+  }
+
+  @Override
+  public Predicate&lt;URI&gt; getShouldIncludeInTimestampUpdatesPredicate() {
+<span class="fc" id="L70">    return shouldIncludeInTimestampUpdatesPredicate;</span>
+  }
+
+  @Override
+  public PathCodec getPathCodec() {
+<span class="fc" id="L75">    return pathCodec;</span>
+  }
+
+  @Override
+  public boolean isBucketDeleteEnabled() {
+<span class="fc" id="L80">    return bucketDeleteEnabled;</span>
+  }
+
+  @Nullable
+  @Override
+  public Pattern getMarkerFilePattern() {
+<span class="fc" id="L86">    return markerFilePattern;</span>
+  }
+
+  @Override
+  public boolean isStatusParallelEnabled() {
+<span class="fc" id="L91">    return statusParallelEnabled;</span>
+  }
+
+  @Override
+  public boolean isCooperativeLockingEnabled() {
+<span class="fc" id="L96">    return cooperativeLockingEnabled;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L101">    return &quot;GoogleCloudStorageFileSystemOptions{&quot;</span>
+         + &quot;performanceCacheEnabled=&quot; + performanceCacheEnabled + &quot;, &quot;
+         + &quot;performanceCacheOptions=&quot; + performanceCacheOptions + &quot;, &quot;
+         + &quot;cloudStorageOptions=&quot; + cloudStorageOptions + &quot;, &quot;
+         + &quot;shouldIncludeInTimestampUpdatesPredicate=&quot; + shouldIncludeInTimestampUpdatesPredicate + &quot;, &quot;
+         + &quot;pathCodec=&quot; + pathCodec + &quot;, &quot;
+         + &quot;bucketDeleteEnabled=&quot; + bucketDeleteEnabled + &quot;, &quot;
+         + &quot;markerFilePattern=&quot; + markerFilePattern + &quot;, &quot;
+         + &quot;statusParallelEnabled=&quot; + statusParallelEnabled + &quot;, &quot;
+         + &quot;cooperativeLockingEnabled=&quot; + cooperativeLockingEnabled
+        + &quot;}&quot;;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="nc bnc" id="L116" title="All 2 branches missed.">    if (o == this) {</span>
+<span class="nc" id="L117">      return true;</span>
+    }
+<span class="nc bnc" id="L119" title="All 2 branches missed.">    if (o instanceof GoogleCloudStorageFileSystemOptions) {</span>
+<span class="nc" id="L120">      GoogleCloudStorageFileSystemOptions that = (GoogleCloudStorageFileSystemOptions) o;</span>
+<span class="nc bnc" id="L121" title="All 2 branches missed.">      return this.performanceCacheEnabled == that.isPerformanceCacheEnabled()</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">          &amp;&amp; this.performanceCacheOptions.equals(that.getPerformanceCacheOptions())</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">          &amp;&amp; this.cloudStorageOptions.equals(that.getCloudStorageOptions())</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">          &amp;&amp; this.shouldIncludeInTimestampUpdatesPredicate.equals(that.getShouldIncludeInTimestampUpdatesPredicate())</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">          &amp;&amp; this.pathCodec.equals(that.getPathCodec())</span>
+<span class="nc bnc" id="L126" title="All 4 branches missed.">          &amp;&amp; this.bucketDeleteEnabled == that.isBucketDeleteEnabled()</span>
+<span class="nc bnc" id="L127" title="All 4 branches missed.">          &amp;&amp; (this.markerFilePattern == null ? that.getMarkerFilePattern() == null : this.markerFilePattern.equals(that.getMarkerFilePattern()))</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">          &amp;&amp; this.statusParallelEnabled == that.isStatusParallelEnabled()</span>
+<span class="nc bnc" id="L129" title="All 2 branches missed.">          &amp;&amp; this.cooperativeLockingEnabled == that.isCooperativeLockingEnabled();</span>
+    }
+<span class="nc" id="L131">    return false;</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="nc" id="L136">    int h$ = 1;</span>
+<span class="nc" id="L137">    h$ *= 1000003;</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">    h$ ^= performanceCacheEnabled ? 1231 : 1237;</span>
+<span class="nc" id="L139">    h$ *= 1000003;</span>
+<span class="nc" id="L140">    h$ ^= performanceCacheOptions.hashCode();</span>
+<span class="nc" id="L141">    h$ *= 1000003;</span>
+<span class="nc" id="L142">    h$ ^= cloudStorageOptions.hashCode();</span>
+<span class="nc" id="L143">    h$ *= 1000003;</span>
+<span class="nc" id="L144">    h$ ^= shouldIncludeInTimestampUpdatesPredicate.hashCode();</span>
+<span class="nc" id="L145">    h$ *= 1000003;</span>
+<span class="nc" id="L146">    h$ ^= pathCodec.hashCode();</span>
+<span class="nc" id="L147">    h$ *= 1000003;</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">    h$ ^= bucketDeleteEnabled ? 1231 : 1237;</span>
+<span class="nc" id="L149">    h$ *= 1000003;</span>
+<span class="nc bnc" id="L150" title="All 2 branches missed.">    h$ ^= (markerFilePattern == null) ? 0 : markerFilePattern.hashCode();</span>
+<span class="nc" id="L151">    h$ *= 1000003;</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">    h$ ^= statusParallelEnabled ? 1231 : 1237;</span>
+<span class="nc" id="L153">    h$ *= 1000003;</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">    h$ ^= cooperativeLockingEnabled ? 1231 : 1237;</span>
+<span class="nc" id="L155">    return h$;</span>
+  }
+
+  @Override
+  public GoogleCloudStorageFileSystemOptions.Builder toBuilder() {
+<span class="fc" id="L160">    return new Builder(this);</span>
+  }
+
+  static final class Builder extends GoogleCloudStorageFileSystemOptions.Builder {
+    private Boolean performanceCacheEnabled;
+    private PerformanceCachingGoogleCloudStorageOptions performanceCacheOptions;
+    private GoogleCloudStorageOptions cloudStorageOptions;
+    private Predicate&lt;URI&gt; shouldIncludeInTimestampUpdatesPredicate;
+    private PathCodec pathCodec;
+    private Boolean bucketDeleteEnabled;
+    private Pattern markerFilePattern;
+    private Boolean statusParallelEnabled;
+    private Boolean cooperativeLockingEnabled;
+<span class="fc" id="L173">    Builder() {</span>
+<span class="fc" id="L174">    }</span>
+<span class="fc" id="L175">    private Builder(GoogleCloudStorageFileSystemOptions source) {</span>
+<span class="fc" id="L176">      this.performanceCacheEnabled = source.isPerformanceCacheEnabled();</span>
+<span class="fc" id="L177">      this.performanceCacheOptions = source.getPerformanceCacheOptions();</span>
+<span class="fc" id="L178">      this.cloudStorageOptions = source.getCloudStorageOptions();</span>
+<span class="fc" id="L179">      this.shouldIncludeInTimestampUpdatesPredicate = source.getShouldIncludeInTimestampUpdatesPredicate();</span>
+<span class="fc" id="L180">      this.pathCodec = source.getPathCodec();</span>
+<span class="fc" id="L181">      this.bucketDeleteEnabled = source.isBucketDeleteEnabled();</span>
+<span class="fc" id="L182">      this.markerFilePattern = source.getMarkerFilePattern();</span>
+<span class="fc" id="L183">      this.statusParallelEnabled = source.isStatusParallelEnabled();</span>
+<span class="fc" id="L184">      this.cooperativeLockingEnabled = source.isCooperativeLockingEnabled();</span>
+<span class="fc" id="L185">    }</span>
+    @Override
+    public GoogleCloudStorageFileSystemOptions.Builder setPerformanceCacheEnabled(boolean performanceCacheEnabled) {
+<span class="fc" id="L188">      this.performanceCacheEnabled = performanceCacheEnabled;</span>
+<span class="fc" id="L189">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageFileSystemOptions.Builder setPerformanceCacheOptions(PerformanceCachingGoogleCloudStorageOptions performanceCacheOptions) {
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">      if (performanceCacheOptions == null) {</span>
+<span class="nc" id="L194">        throw new NullPointerException(&quot;Null performanceCacheOptions&quot;);</span>
+      }
+<span class="fc" id="L196">      this.performanceCacheOptions = performanceCacheOptions;</span>
+<span class="fc" id="L197">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageFileSystemOptions.Builder setCloudStorageOptions(GoogleCloudStorageOptions cloudStorageOptions) {
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">      if (cloudStorageOptions == null) {</span>
+<span class="nc" id="L202">        throw new NullPointerException(&quot;Null cloudStorageOptions&quot;);</span>
+      }
+<span class="fc" id="L204">      this.cloudStorageOptions = cloudStorageOptions;</span>
+<span class="fc" id="L205">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageFileSystemOptions.Builder setShouldIncludeInTimestampUpdatesPredicate(Predicate&lt;URI&gt; shouldIncludeInTimestampUpdatesPredicate) {
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">      if (shouldIncludeInTimestampUpdatesPredicate == null) {</span>
+<span class="nc" id="L210">        throw new NullPointerException(&quot;Null shouldIncludeInTimestampUpdatesPredicate&quot;);</span>
+      }
+<span class="fc" id="L212">      this.shouldIncludeInTimestampUpdatesPredicate = shouldIncludeInTimestampUpdatesPredicate;</span>
+<span class="fc" id="L213">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageFileSystemOptions.Builder setPathCodec(PathCodec pathCodec) {
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">      if (pathCodec == null) {</span>
+<span class="nc" id="L218">        throw new NullPointerException(&quot;Null pathCodec&quot;);</span>
+      }
+<span class="fc" id="L220">      this.pathCodec = pathCodec;</span>
+<span class="fc" id="L221">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageFileSystemOptions.Builder setBucketDeleteEnabled(boolean bucketDeleteEnabled) {
+<span class="fc" id="L225">      this.bucketDeleteEnabled = bucketDeleteEnabled;</span>
+<span class="fc" id="L226">      return this;</span>
+    }
+    @Override
+    GoogleCloudStorageFileSystemOptions.Builder setMarkerFilePattern(Pattern markerFilePattern) {
+<span class="fc" id="L230">      this.markerFilePattern = markerFilePattern;</span>
+<span class="fc" id="L231">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageFileSystemOptions.Builder setStatusParallelEnabled(boolean statusParallelEnabled) {
+<span class="fc" id="L235">      this.statusParallelEnabled = statusParallelEnabled;</span>
+<span class="fc" id="L236">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageFileSystemOptions.Builder setCooperativeLockingEnabled(boolean cooperativeLockingEnabled) {
+<span class="fc" id="L240">      this.cooperativeLockingEnabled = cooperativeLockingEnabled;</span>
+<span class="fc" id="L241">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageFileSystemOptions build() {
+<span class="fc" id="L245">      String missing = &quot;&quot;;</span>
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">      if (this.performanceCacheEnabled == null) {</span>
+<span class="nc" id="L247">        missing += &quot; performanceCacheEnabled&quot;;</span>
+      }
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">      if (this.performanceCacheOptions == null) {</span>
+<span class="nc" id="L250">        missing += &quot; performanceCacheOptions&quot;;</span>
+      }
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">      if (this.cloudStorageOptions == null) {</span>
+<span class="nc" id="L253">        missing += &quot; cloudStorageOptions&quot;;</span>
+      }
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">      if (this.shouldIncludeInTimestampUpdatesPredicate == null) {</span>
+<span class="nc" id="L256">        missing += &quot; shouldIncludeInTimestampUpdatesPredicate&quot;;</span>
+      }
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">      if (this.pathCodec == null) {</span>
+<span class="nc" id="L259">        missing += &quot; pathCodec&quot;;</span>
+      }
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">      if (this.bucketDeleteEnabled == null) {</span>
+<span class="nc" id="L262">        missing += &quot; bucketDeleteEnabled&quot;;</span>
+      }
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">      if (this.statusParallelEnabled == null) {</span>
+<span class="nc" id="L265">        missing += &quot; statusParallelEnabled&quot;;</span>
+      }
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">      if (this.cooperativeLockingEnabled == null) {</span>
+<span class="nc" id="L268">        missing += &quot; cooperativeLockingEnabled&quot;;</span>
+      }
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">      if (!missing.isEmpty()) {</span>
+<span class="nc" id="L271">        throw new IllegalStateException(&quot;Missing required properties:&quot; + missing);</span>
+      }
+<span class="fc" id="L273">      return new AutoValue_GoogleCloudStorageFileSystemOptions(</span>
+<span class="fc" id="L274">          this.performanceCacheEnabled,</span>
+          this.performanceCacheOptions,
+          this.cloudStorageOptions,
+          this.shouldIncludeInTimestampUpdatesPredicate,
+          this.pathCodec,
+<span class="fc" id="L279">          this.bucketDeleteEnabled,</span>
+          this.markerFilePattern,
+<span class="fc" id="L281">          this.statusParallelEnabled,</span>
+<span class="fc" id="L282">          this.cooperativeLockingEnabled);</span>
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

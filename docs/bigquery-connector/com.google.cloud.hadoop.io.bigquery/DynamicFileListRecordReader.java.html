@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DynamicFileListRecordReader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">DynamicFileListRecordReader.java</span></div><h1>DynamicFileListRecordReader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import com.google.api.client.util.Sleeper;
+import com.google.cloud.hadoop.util.HadoopToStringUtil;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.HashSet;
+import java.util.Queue;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+
+/**
+ * DynamicFileListRecordReader implements hadoop RecordReader by exposing a single logical
+ * record stream despite being made up of multiple files which are still newly appearing
+ * while this RecordReader is being used. Requires a single zero-record file to mark the end of the
+ * series of files, and all files must appear under a single directory. Note that with some
+ * file encodings a 0-record file may not be the same as a 0-length file. Filenames must follow
+ * the naming convention specified in the static final members of this class; files will be
+ * read in whatever order they appear, so multiple uses of this RecordReader may result in
+ * very different orderings of data being read.
+ */
+public class DynamicFileListRecordReader&lt;K, V&gt;
+    extends RecordReader&lt;K, V&gt; {
+<span class="fc" id="L48">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // Directory/file-pattern which will contain all the files we read with this reader.
+  private Path inputDirectoryAndPattern;
+
+  // The estimated number of records we will read in total.
+  private long estimatedNumRecords;
+
+  // The interval we will poll listStatus/globStatus inside nextKeyValue() if we don't already
+  // have a file ready for reading.
+  private int pollIntervalMs;
+
+  // Stashed away context for use with delegate readers.
+  private TaskAttemptContext context;
+
+  // The filesystem we will poll for files, based on initial inputDirectoryAndPattern Path.
+  private FileSystem fileSystem;
+
+  // The Pattern for matching export files, set up at initialization time.
+  private Pattern exportPattern;
+
+  // Counter for the number of records read so far.
+<span class="fc" id="L70">  private long recordsRead = 0;</span>
+
+  // Factory for creating the underlying reader for iterating over records within a single file.
+  private DelegateRecordReaderFactory&lt;K, V&gt; delegateRecordReaderFactory;
+
+  // Underlying reader for iterating over the records within a single file.
+<span class="fc" id="L76">  private RecordReader&lt;K, V&gt; delegateReader = null;</span>
+
+  // Set of all files we've successfully listed so far. Doesn't include end-indicator empty file.
+<span class="fc" id="L79">  private Set&lt;String&gt; knownFileSet = new HashSet&lt;&gt;();</span>
+
+  // Queue of ready-but-not-yet-processed files whose filenames are also saved in knownFileSet,
+  // in the order we discovered them.
+<span class="fc" id="L83">  private Queue&lt;FileStatus&gt; fileQueue = new ArrayDeque&lt;&gt;();</span>
+
+  // Becomes positive once we've discovered the end-indicator file for the first time.
+<span class="fc" id="L86">  private int endFileNumber = -1;</span>
+
+  // Sleeper used to sleep when polling listStatus.
+<span class="fc" id="L89">  private Sleeper sleeper = Sleeper.DEFAULT;</span>
+
+  // Stored current key/value.
+<span class="fc" id="L92">  private K currentKey = null;</span>
+<span class="fc" id="L93">  private V currentValue = null;</span>
+
+  public DynamicFileListRecordReader(
+<span class="fc" id="L96">      DelegateRecordReaderFactory&lt;K, V&gt; delegateRecordReaderFactory) {</span>
+<span class="fc" id="L97">    this.delegateRecordReaderFactory = delegateRecordReaderFactory;</span>
+<span class="fc" id="L98">  }</span>
+
+  @Override
+  public void initialize(InputSplit genericSplit, TaskAttemptContext context) throws IOException {
+    try {
+<span class="fc" id="L103">      logger.atInfo().log(</span>
+          &quot;Initializing DynamicFileListRecordReader with split '%s', task context '%s'&quot;,
+<span class="fc" id="L105">          HadoopToStringUtil.toString(genericSplit), HadoopToStringUtil.toString(context));</span>
+<span class="nc" id="L106">    } catch (InterruptedException ie) {</span>
+<span class="nc" id="L107">      logger.atWarning().withCause(ie).log(&quot;InterruptedException when logging InputSplit.&quot;);</span>
+<span class="fc" id="L108">    }</span>
+<span class="fc" id="L109">    Preconditions.checkArgument(genericSplit instanceof ShardedInputSplit,</span>
+        &quot;InputSplit genericSplit should be an instance of ShardedInputSplit.&quot;);
+
+<span class="fc" id="L112">    this.context = context;</span>
+
+    // Get inputDirectoryAndPattern from the split.
+<span class="fc" id="L115">    ShardedInputSplit shardedSplit = (ShardedInputSplit) genericSplit;</span>
+<span class="fc" id="L116">    inputDirectoryAndPattern = shardedSplit.getShardDirectoryAndPattern();</span>
+<span class="fc" id="L117">    estimatedNumRecords = shardedSplit.getLength();</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    if (estimatedNumRecords &lt;= 0) {</span>
+<span class="fc" id="L119">      logger.atWarning().log(</span>
+          &quot;Non-positive estimatedNumRecords '%s'; clipping to 1.&quot;, estimatedNumRecords);
+<span class="fc" id="L121">      estimatedNumRecords = 1;</span>
+    }
+
+    // Grab pollIntervalMs out of the config.
+<span class="fc" id="L125">    pollIntervalMs = context.getConfiguration().getInt(</span>
+        BigQueryConfiguration.DYNAMIC_FILE_LIST_RECORD_READER_POLL_INTERVAL_MS_KEY,
+        BigQueryConfiguration.DYNAMIC_FILE_LIST_RECORD_READER_POLL_INTERVAL_MS_DEFAULT);
+
+<span class="fc" id="L129">    fileSystem = inputDirectoryAndPattern.getFileSystem(context.getConfiguration());</span>
+
+    // TODO(user): Make the base export pattern configurable.
+<span class="fc" id="L132">    String exportPatternRegex = inputDirectoryAndPattern.getName().replace(&quot;*&quot;, &quot;(\\d+)&quot;);</span>
+<span class="fc" id="L133">    exportPattern = Pattern.compile(exportPatternRegex);</span>
+
+<span class="fc" id="L135">    fileSystem.mkdirs(inputDirectoryAndPattern.getParent());</span>
+<span class="fc" id="L136">  }</span>
+
+  /**
+   * Reads the next key, value pair. Gets next line and parses Json object. May hang for a long
+   * time waiting for more files to appear in this reader's directory.
+   *
+   * @return true if a key/value pair was read.
+   * @throws IOException on IO Error.
+   */
+  @Override
+  public boolean nextKeyValue()
+      throws IOException, InterruptedException {
+<span class="fc" id="L148">    currentValue = null;</span>
+
+    // Check if we already have a reader in-progress.
+<span class="fc bfc" id="L151" title="All 2 branches covered.">    if (delegateReader != null) {</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">      if (delegateReader.nextKeyValue()) {</span>
+<span class="fc" id="L153">        populateCurrentKeyValue();</span>
+<span class="fc" id="L154">        return true;</span>
+      } else {
+<span class="fc" id="L156">        delegateReader.close();</span>
+<span class="fc" id="L157">        delegateReader = null;</span>
+      }
+    }
+
+<span class="fc bfc" id="L161" title="All 4 branches covered.">    boolean needRefresh = !isNextFileReady() &amp;&amp; shouldExpectMoreFiles();</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    while (needRefresh) {</span>
+<span class="fc" id="L163">      logger.atFine().log(&quot;No files available, but more are expected; refreshing...&quot;);</span>
+<span class="fc" id="L164">      refreshFileList();</span>
+<span class="pc bpc" id="L165" title="1 of 4 branches missed.">      needRefresh = !isNextFileReady() &amp;&amp; shouldExpectMoreFiles();</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">      if (needRefresh) {</span>
+<span class="fc" id="L167">        logger.atFine().log(&quot;No new files found, sleeping before trying again...&quot;);</span>
+        try {
+<span class="nc" id="L169">          sleeper.sleep(pollIntervalMs);</span>
+<span class="nc" id="L170">          context.progress();</span>
+<span class="nc" id="L171">        } catch (InterruptedException ie) {</span>
+<span class="nc" id="L172">          logger.atWarning().withCause(ie).log(&quot;Interrupted while sleeping.&quot;);</span>
+<span class="nc" id="L173">        }</span>
+      }
+    }
+
+<span class="fc bfc" id="L177" title="All 2 branches covered.">    if (isNextFileReady()) {</span>
+      // Open the file and see if it's the 0-record end of dataset marker:
+<span class="fc" id="L179">      FileStatus newFile = moveToNextFile();</span>
+<span class="fc" id="L180">      logger.atInfo().log(</span>
+          &quot;Moving to next file '%s' which has %s bytes. Records read so far: %s&quot;,
+<span class="fc" id="L182">          newFile.getPath(), newFile.getLen(), recordsRead);</span>
+
+<span class="fc" id="L184">      InputSplit split = new FileSplit(newFile.getPath(), 0, newFile.getLen(), new String[0]);</span>
+<span class="fc" id="L185">      delegateReader = delegateRecordReaderFactory.createDelegateRecordReader(</span>
+<span class="fc" id="L186">          split, context.getConfiguration());</span>
+<span class="fc" id="L187">      delegateReader.initialize(split, context);</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">      if (!delegateReader.nextKeyValue()) {</span>
+        // we found the end of dataset marker.
+<span class="fc" id="L190">        setEndFileMarkerFile(newFile.getPath().getName());</span>
+<span class="fc" id="L191">        return nextKeyValue();</span>
+      } else {
+<span class="fc" id="L193">        populateCurrentKeyValue();</span>
+<span class="fc" id="L194">        return true;</span>
+      }
+    }
+
+<span class="fc" id="L198">    Preconditions.checkState(</span>
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">        !shouldExpectMoreFiles(),</span>
+        &quot;Should not have exited the refresh loop shouldExpectMoreFiles = true &quot;
+            + &quot;and no files ready to read.&quot;);
+
+    // No files ready and we shouldn't expect any more.
+<span class="fc" id="L204">    return false;</span>
+  }
+
+  /**
+   * Gets the current key as reported by the delegate record reader. This will generally be the
+   * byte position within the current file.
+   *
+   * @return the current key or null if there is no current key.
+   */
+  @Override
+  public K getCurrentKey() {
+<span class="fc" id="L215">    return currentKey;</span>
+  }
+
+  /**
+   * Gets the current value.
+   *
+   * @return the current value or null if there is no current value.
+   */
+  @Override
+  public V getCurrentValue() {
+<span class="fc" id="L225">    return currentValue;</span>
+  }
+
+  /**
+   * Returns the current progress based on the number of records read compared to the *estimated*
+   * total number of records planned to be read; this number may be inexact, but will not
+   * report a number greater than 1.
+   *
+   * @return a number between 0.0 and 1.0 that is the fraction of the data read.
+   */
+  @Override
+  public float getProgress() {
+<span class="fc" id="L237">    return Math.min(1.0f, recordsRead / (float) estimatedNumRecords);</span>
+  }
+
+  /**
+   * Closes the record reader.
+   *
+   * @throws IOException on IO Error.
+   */
+  @Override
+  public void close()
+      throws IOException {
+<span class="fc bfc" id="L248" title="All 2 branches covered.">    if (delegateReader != null) {</span>
+<span class="fc" id="L249">      logger.atWarning().log(</span>
+          &quot;Got non-null delegateReader during close(); possible premature close() call.&quot;);
+<span class="fc" id="L251">      delegateReader.close();</span>
+<span class="fc" id="L252">      delegateReader = null;</span>
+    }
+<span class="fc" id="L254">  }</span>
+
+  /**
+   * Allows setting a mock Sleeper for tests to not have to wait in realtime for polling.
+   */
+  @VisibleForTesting
+  void setSleeper(Sleeper sleeper) {
+<span class="fc" id="L261">    this.sleeper = sleeper;</span>
+<span class="fc" id="L262">  }</span>
+
+  /**
+   * Helper for populating currentKey and currentValue from delegateReader. Should only be called
+   * once per new key/value from the delegateReader; this method is also responsible for tracking
+   * the number of records read so far.
+   */
+  private void populateCurrentKeyValue() throws IOException, InterruptedException {
+<span class="fc" id="L270">    currentKey = delegateReader.getCurrentKey();</span>
+<span class="fc" id="L271">    currentValue = delegateReader.getCurrentValue();</span>
+<span class="fc" id="L272">    ++recordsRead;</span>
+<span class="fc" id="L273">  }</span>
+
+  /**
+   * @return true if the next file is available for immediate usage.
+   */
+  private boolean isNextFileReady() {
+<span class="fc bfc" id="L279" title="All 2 branches covered.">    return !fileQueue.isEmpty();</span>
+  }
+
+  /**
+   * Moves to the next file; must have checked to make sure isNextFileReady() returns true prior
+   * to calling this.
+   */
+  private FileStatus moveToNextFile() {
+<span class="fc" id="L287">    return fileQueue.remove();</span>
+  }
+
+  /**
+   * @return true if we haven't found the end-indicator file yet, or if the number of known files
+   *     is less than the total number of files as indicated by the endFileNumber. Note that
+   *     returning false does *not* mean this RecordReader is done, just that we know of all the
+   *     files we plan to read.
+   */
+  private boolean shouldExpectMoreFiles() {
+<span class="fc bfc" id="L297" title="All 4 branches covered.">    if (endFileNumber == -1 || knownFileSet.size() &lt;= endFileNumber) {</span>
+<span class="fc" id="L298">      return true;</span>
+    }
+<span class="fc" id="L300">    return false;</span>
+  }
+
+  /**
+   * Parses the numerical index out of a String which matches exportPattern; the exportPattern
+   * should have been compiled from a regex that looks like &quot;data-(\d+).json&quot;.
+   *
+   * @throws IndexOutOfBoundsException if the parsed value is greater than Integer.MAX_VALUE.
+   */
+  private int parseFileIndex(String fileName) {
+<span class="fc" id="L310">    Matcher match = null;</span>
+<span class="fc" id="L311">    String indexString = null;</span>
+    try {
+<span class="fc" id="L313">      match = exportPattern.matcher(fileName);</span>
+<span class="fc" id="L314">      match.find();</span>
+<span class="fc" id="L315">      indexString = match.group(1);</span>
+<span class="nc" id="L316">    } catch (Exception e) {</span>
+<span class="nc" id="L317">      throw new IllegalStateException(String.format(&quot;Failed to parse file '%s'&quot;, fileName), e);</span>
+<span class="fc" id="L318">    }</span>
+<span class="fc" id="L319">    long longValue = Long.parseLong(indexString);</span>
+<span class="fc bfc" id="L320" title="All 2 branches covered.">    if (longValue &gt; Integer.MAX_VALUE) {</span>
+<span class="fc" id="L321">      throw new IndexOutOfBoundsException(String.format(</span>
+          &quot;Invalid fileName '%s'; max allowable index is %d, got %d instead&quot;,
+<span class="fc" id="L323">          fileName, Integer.MAX_VALUE, longValue));</span>
+    }
+<span class="fc" id="L325">    return (int) longValue;</span>
+  }
+
+  /**
+   * Record a specific file as being the 0-record end of stream marker.
+   */
+  private void setEndFileMarkerFile(String fileName) {
+<span class="fc" id="L332">    int fileIndex = parseFileIndex(fileName);</span>
+<span class="pc bpc" id="L333" title="1 of 2 branches missed.">    if (endFileNumber == -1) {</span>
+      // First time finding the end-marker file.
+<span class="fc" id="L335">      endFileNumber = fileIndex;</span>
+<span class="fc" id="L336">      logger.atInfo().log(&quot;Found end-marker file '%s' with index %s&quot;, fileName, endFileNumber);</span>
+
+      // Sanity-check known filenames against the endFileNumber.
+<span class="fc bfc" id="L339" title="All 2 branches covered.">      for (String knownFile : knownFileSet) {</span>
+<span class="fc" id="L340">        int knownFileIndex = parseFileIndex(knownFile);</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">        Preconditions.checkState(</span>
+            knownFileIndex &lt;= endFileNumber,
+            &quot;Found known file '%s' with index %s, which isn't less than or &quot;
+                + &quot;equal to than endFileNumber %s!&quot;,
+<span class="fc" id="L345">            knownFile, knownFileIndex, endFileNumber);</span>
+<span class="fc" id="L346">      }</span>
+    } else {
+      // If we found it before, make sure the file we're looking at has the same index.
+<span class="nc bnc" id="L349" title="All 2 branches missed.">      Preconditions.checkState(fileIndex == endFileNumber,</span>
+          &quot;Found new end-marker file '%s' with index %s but already have endFileNumber %s!&quot;,
+<span class="nc" id="L351">          fileName, fileIndex, endFileNumber);</span>
+    }
+<span class="fc" id="L353">  }</span>
+
+  /**
+   * Lists files, and sifts through the results for any new files we haven't found before.
+   * If a file of size 0 is found, we mark the 'endFileNumber' from it.
+   */
+  private void refreshFileList()
+      throws IOException {
+<span class="fc" id="L361">    FileStatus[] files = fileSystem.globStatus(inputDirectoryAndPattern);</span>
+<span class="fc bfc" id="L362" title="All 2 branches covered.">    for (FileStatus file : files) {</span>
+<span class="fc" id="L363">      String fileName = file.getPath().getName();</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">      if (!knownFileSet.contains(fileName)) {</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">        if (endFileNumber != -1) {</span>
+          // Sanity check against endFileNumber.
+<span class="fc" id="L367">          int newFileIndex = parseFileIndex(fileName);</span>
+<span class="fc bfc" id="L368" title="All 2 branches covered.">          Preconditions.checkState(newFileIndex &lt; endFileNumber,</span>
+              &quot;Found new file '%s' with index %s, which isn't less than endFileNumber %s!&quot;,
+<span class="fc" id="L370">              fileName, newFileIndex, endFileNumber);</span>
+        }
+
+<span class="fc" id="L373">        logger.atInfo().log(</span>
+<span class="fc" id="L374">            &quot;Adding new file '%s' of size %s to knownFileSet.&quot;, fileName, file.getLen());</span>
+<span class="fc" id="L375">        knownFileSet.add(fileName);</span>
+<span class="fc" id="L376">        fileQueue.add(file);</span>
+      }
+    }
+<span class="fc" id="L379">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

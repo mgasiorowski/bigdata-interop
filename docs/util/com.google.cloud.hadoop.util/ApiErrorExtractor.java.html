@@ -1,0 +1,474 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ApiErrorExtractor.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">ApiErrorExtractor.java</span></div><h1>ApiErrorExtractor.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.util;
+
+import static com.google.api.client.http.HttpStatusCodes.STATUS_CODE_BAD_REQUEST;
+
+import com.google.api.client.googleapis.json.GoogleJsonError;
+import com.google.api.client.googleapis.json.GoogleJsonError.ErrorInfo;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.client.http.HttpStatusCodes;
+import java.io.IOError;
+import java.io.IOException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.List;
+import javax.annotation.Nullable;
+import javax.net.ssl.SSLException;
+
+/**
+ * Translates exceptions from API calls into higher-level meaning, while allowing injectability
+ * for testing how API errors are handled.
+ */
+public class ApiErrorExtractor {
+
+  /** Singleton instance of the ApiErrorExtractor. */
+<span class="fc" id="L40">  public static final ApiErrorExtractor INSTANCE = new ApiErrorExtractor();</span>
+
+  // TODO(user): Move this into HttpStatusCodes.java.
+  public static final int STATUS_CODE_CONFLICT = 409;
+  public static final int STATUS_CODE_PRECONDITION_FAILED = 412;
+  public static final int STATUS_CODE_RANGE_NOT_SATISFIABLE = 416;
+  public static final String GLOBAL_DOMAIN = &quot;global&quot;;
+  public static final String USAGE_LIMITS_DOMAIN = &quot;usageLimits&quot;;
+  public static final String RATE_LIMITED_REASON_CODE = &quot;rateLimitExceeded&quot;;
+  public static final String USER_RATE_LIMITED_REASON_CODE = &quot;userRateLimitExceeded&quot;;
+
+  // These come with &quot;The account for ... has been disabled&quot; message.
+  public static final String ACCOUNT_DISABLED_REASON_CODE = &quot;accountDisabled&quot;;
+
+  // These come with &quot;Project marked for deletion&quot; message.
+  public static final String ACCESS_NOT_CONFIGURED_REASON_CODE = &quot;accessNotConfigured&quot;;
+
+  // These are 400 error codes with &quot;resource 'xyz' is not ready&quot; message.
+  // These sometimes happens when create operation is still in-flight but resource
+  // representation is already available via get call.
+  // Only explanation I could find for this is described here:
+  //    java/com/google/cloud/cluster/data/cognac/cognac.proto
+  // with an example &quot;because resource is being created in reconciler.&quot;
+  public static final String RESOURCE_NOT_READY_REASON_CODE = &quot;resourceNotReady&quot;;
+
+  // HTTP 413 with message &quot;Value for field 'foo' is too large&quot;.
+  public static final String FIELD_SIZE_TOO_LARGE = &quot;fieldSizeTooLarge&quot;;
+
+  // HTTP 400 message for 'USER_PROJECT_MISSING' error.
+  public static final String USER_PROJECT_MISSING =
+      &quot;Bucket is requester pays bucket but no user project provided.&quot;;
+
+  // The debugInfo field present on Errors collection in GoogleJsonException
+  // as an unknown key.
+  private static final String DEBUG_INFO_FIELD = &quot;debugInfo&quot;;
+
+  /** @deprecated use {@link #INSTANCE} instead */
+  @Deprecated
+<span class="fc" id="L78">  public ApiErrorExtractor() {}</span>
+
+  // Public methods here are in alphabetical order.
+
+
+  /**
+   * Determines if the given exception indicates 'access denied'.
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   *
+   * &lt;p&gt; Warning: this method only checks for access denied status code,
+   * however this may include potentially recoverable reason codes such as
+   * rate limiting. For alternative, see
+   * {@link #accessDeniedNonRecoverable(IOException)}.
+   */
+  public boolean accessDenied(IOException e) {
+<span class="fc" id="L94">    return recursiveCheckForCode(e, HttpStatusCodes.STATUS_CODE_FORBIDDEN);</span>
+  }
+
+
+  /**
+   * Determine if the given exception indicates the request was unauthenticated.
+   * This can be caused by attaching invalid credentials to a request.
+   */
+  public boolean unauthorized(IOException e) {
+<span class="nc" id="L103">    return recursiveCheckForCode(e, HttpStatusCodes.STATUS_CODE_UNAUTHORIZED);</span>
+  }
+
+  /**
+   * Determine if the exception is a non-recoverable access denied code
+   * (such as account closed or marked for deletion).
+   */
+  public boolean accessDeniedNonRecoverable(IOException e) {
+<span class="fc" id="L111">    GoogleJsonResponseException jsonException = getJsonResponseExceptionOrNull(e);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">    if (jsonException != null) {</span>
+<span class="fc" id="L113">      return accessDeniedNonRecoverable(getDetails(jsonException));</span>
+    }
+<span class="fc" id="L115">    return false;</span>
+  }
+
+  /**
+   * Determine if a given GoogleJsonError is caused by, and only by,
+   * account disabled error.
+   */
+  public boolean accessDeniedNonRecoverable(GoogleJsonError e) {
+<span class="fc" id="L123">    ErrorInfo errorInfo = getErrorInfo(e);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">    if (errorInfo != null) {</span>
+<span class="fc" id="L125">      String reason = errorInfo.getReason();</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">      return ACCOUNT_DISABLED_REASON_CODE.equals(reason)</span>
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">          || ACCESS_NOT_CONFIGURED_REASON_CODE.equals(reason);</span>
+    }
+<span class="fc" id="L129">    return false;</span>
+  }
+
+  /**
+   * Determines if the exception is a client error.
+   */
+  public boolean isClientError(IOException e) {
+<span class="fc" id="L136">    GoogleJsonResponseException jsonException = getJsonResponseExceptionOrNull(e);</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">    if (jsonException != null) {</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">      return getHttpStatusCode(jsonException) / 100 == 4;</span>
+    }
+<span class="fc" id="L140">    return false;</span>
+  }
+
+  /**
+   * Determines if the exception is an internal server error.
+   */
+  public boolean isInternalServerError(IOException e) {
+<span class="fc" id="L147">    GoogleJsonResponseException jsonException = getJsonResponseExceptionOrNull(e);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">    if (jsonException != null) {</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">      return getHttpStatusCode(jsonException) / 100 == 5;</span>
+    }
+<span class="fc" id="L151">    return false;</span>
+  }
+
+  /**
+   * Determines if the given exception indicates 'item already exists'.
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   */
+  public boolean itemAlreadyExists(IOException e) {
+<span class="fc" id="L160">      return recursiveCheckForCode(e, STATUS_CODE_CONFLICT);</span>
+  }
+
+  /**
+   * Determines if the given GoogleJsonError indicates 'item not found'.
+   */
+  public boolean itemNotFound(GoogleJsonError e) {
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">    return e.getCode() == HttpStatusCodes.STATUS_CODE_NOT_FOUND;</span>
+  }
+
+  /**
+   * Determines if the given exception indicates 'item not found'.
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   */
+  public boolean itemNotFound(IOException e) {
+<span class="fc" id="L176">    return recursiveCheckForCode(e, HttpStatusCodes.STATUS_CODE_NOT_FOUND);</span>
+  }
+
+  /**
+   * Determines if the given GoogleJsonError indicates 'field size too large'.
+   */
+  public boolean fieldSizeTooLarge(GoogleJsonError e) {
+<span class="fc" id="L183">    ErrorInfo errorInfo = getErrorInfo(e);</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">    if (errorInfo != null) {</span>
+<span class="fc" id="L185">      String reason = errorInfo.getReason();</span>
+<span class="fc" id="L186">      return FIELD_SIZE_TOO_LARGE.equals(reason);</span>
+    }
+<span class="fc" id="L188">    return false;</span>
+  }
+
+  /**
+   * Determines if the given exception indicates 'field size too large'.
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   */
+  public boolean fieldSizeTooLarge(IOException e) {
+<span class="fc" id="L197">    GoogleJsonResponseException jsonException = getJsonResponseExceptionOrNull(e);</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">    if (jsonException != null) {</span>
+<span class="fc" id="L199">      return fieldSizeTooLarge(getDetails(jsonException));</span>
+    }
+<span class="fc" id="L201">    return false;</span>
+  }
+
+  /**
+   * Determines if the given GoogleJsonError indicates 'resource not ready'.
+   */
+  public boolean resourceNotReady(GoogleJsonError e) {
+<span class="fc" id="L208">    ErrorInfo errorInfo = getErrorInfo(e);</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">    if (errorInfo != null) {</span>
+<span class="fc" id="L210">      String reason = errorInfo.getReason();</span>
+<span class="fc" id="L211">      return RESOURCE_NOT_READY_REASON_CODE.equals(reason);</span>
+    }
+<span class="fc" id="L213">    return false;</span>
+  }
+
+  /**
+   * Determines if the given exception indicates 'resource not ready'.
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   */
+  public boolean resourceNotReady(IOException e) {
+<span class="fc" id="L222">    GoogleJsonResponseException jsonException = getJsonResponseExceptionOrNull(e);</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">    if (jsonException != null) {</span>
+<span class="fc" id="L224">      return resourceNotReady(getDetails(jsonException));</span>
+    }
+<span class="fc" id="L226">    return false;</span>
+  }
+
+  /**
+   * Determines if the given GoogleJsonError indicates 'precondition not met'
+   */
+  public boolean preconditionNotMet(GoogleJsonError e) {
+<span class="fc bfc" id="L233" title="All 2 branches covered.">    return e.getCode() == STATUS_CODE_PRECONDITION_FAILED;</span>
+  }
+
+  /**
+   * Determine if the given IOException indicates 'precondition not met'
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   */
+  public boolean preconditionNotMet(IOException e) {
+<span class="fc" id="L242">    return recursiveCheckForCode(e, STATUS_CODE_PRECONDITION_FAILED);</span>
+  }
+
+  /**
+   * Determines if the given exception indicates 'range not satisfiable'.
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   */
+  public boolean rangeNotSatisfiable(IOException e) {
+<span class="fc" id="L251">    return recursiveCheckForCode(e, STATUS_CODE_RANGE_NOT_SATISFIABLE);</span>
+  }
+
+  /**
+   * Determine if a given GoogleJsonError is caused by, and only by,
+   * a rate limit being applied.
+   * @param e The GoogleJsonError returned by the request
+   * @return True if the error is caused by a rate limit being applied.
+   */
+  public boolean rateLimited(GoogleJsonError e) {
+<span class="fc" id="L261">    ErrorInfo errorInfo = getErrorInfo(e);</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">    if (errorInfo != null) {</span>
+<span class="fc" id="L263">      String domain = errorInfo.getDomain();</span>
+<span class="fc" id="L264">      String reason = errorInfo.getReason();</span>
+<span class="fc" id="L265">      boolean isRateLimitedOrGlobalDomain =</span>
+<span class="fc bfc" id="L266" title="All 4 branches covered.">          USAGE_LIMITS_DOMAIN.equals(domain) || GLOBAL_DOMAIN.equals(domain);</span>
+<span class="fc" id="L267">      boolean isRateLimitedReason =</span>
+<span class="pc bpc" id="L268" title="1 of 4 branches missed.">          RATE_LIMITED_REASON_CODE.equals(reason) || USER_RATE_LIMITED_REASON_CODE.equals(reason);</span>
+<span class="fc bfc" id="L269" title="All 4 branches covered.">      return isRateLimitedOrGlobalDomain &amp;&amp; isRateLimitedReason;</span>
+    }
+<span class="fc" id="L271">    return false;</span>
+  }
+
+  /**
+   * Determine if a given Throwable is caused by a rate limit being applied.
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   * @param throwable The Throwable to check.
+   * @return True if the Throwable is a result of rate limiting being applied.
+   */
+  // TODO(user): change to accept IOException, in line with other methods.
+  public boolean rateLimited(Throwable throwable) {
+<span class="fc" id="L283">    GoogleJsonResponseException jsonException = getJsonResponseExceptionOrNull(throwable);</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">    if (jsonException != null) {</span>
+<span class="fc" id="L285">      return rateLimited(getDetails(jsonException));</span>
+    }
+<span class="fc" id="L287">    return false;</span>
+  }
+
+  /** Determines if the given GoogleJsonError indicates that 'userProject' is missing in request */
+  public boolean userProjectMissing(GoogleJsonError e) {
+<span class="fc" id="L292">    ErrorInfo errorInfo = getErrorInfo(e);</span>
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">    return errorInfo != null</span>
+<span class="fc bfc" id="L294" title="All 2 branches covered.">        &amp;&amp; e.getCode() == STATUS_CODE_BAD_REQUEST</span>
+<span class="pc bpc" id="L295" title="1 of 2 branches missed.">        &amp;&amp; USER_PROJECT_MISSING.equals(errorInfo.getMessage());</span>
+  }
+
+  /**
+   * Determines if the given exception indicates that 'userProject' is missing in request.
+   * Recursively checks getCause() if outer exception isn't an instance of the correct class.
+   */
+  public boolean userProjectMissing(IOException e) {
+<span class="fc" id="L303">    GoogleJsonResponseException jsonException = getJsonResponseExceptionOrNull(e);</span>
+<span class="pc bpc" id="L304" title="2 of 4 branches missed.">    return jsonException != null &amp;&amp; userProjectMissing(jsonException.getDetails());</span>
+  }
+
+  /**
+   * Determine if a given Throwable is caused by an IO error.
+   * Recursively checks getCause() if outer exception isn't an instance of the
+   * correct class.
+   *
+   * @param throwable The Throwable to check.
+   * @return True if the Throwable is a result of an IO error.
+   */
+
+  public boolean ioError(Throwable throwable) {
+<span class="fc bfc" id="L317" title="All 4 branches covered.">    if (throwable instanceof IOException || throwable instanceof IOError) {</span>
+<span class="fc" id="L318">      return true;</span>
+    }
+<span class="fc bfc" id="L320" title="All 4 branches covered.">    return throwable.getCause() != null &amp;&amp; ioError(throwable.getCause());</span>
+  }
+
+  /**
+   * Determine if a given Throwable is caused by a socket error.
+   * Recursively checks getCause() if outer exception isn't
+   * an instance of the correct class.
+   * @param throwable The Throwable to check.
+   * @return True if the Throwable is a result of a socket error.
+   */
+  public boolean socketError(Throwable throwable) {
+<span class="fc bfc" id="L331" title="All 4 branches covered.">    if (throwable instanceof SocketException || throwable instanceof SocketTimeoutException) {</span>
+<span class="fc" id="L332">      return true;</span>
+    }
+<span class="fc" id="L334">    Throwable cause = throwable.getCause();</span>
+    // Subset of SSL exceptions that are caused by IO errors (e.g. SSLHandshakeException due to
+    // unexpected connection closure) is also a socket error.
+<span class="fc bfc" id="L337" title="All 6 branches covered.">    if (throwable instanceof SSLException &amp;&amp; cause != null &amp;&amp; ioError(cause)) {</span>
+<span class="fc" id="L338">      return true;</span>
+    }
+<span class="fc bfc" id="L340" title="All 4 branches covered.">    return cause != null &amp;&amp; socketError(cause);</span>
+  }
+
+  /**
+   * True if the exception is a &quot;read timed out&quot;.
+   */
+  public boolean readTimedOut(IOException ex) {
+<span class="fc bfc" id="L347" title="All 2 branches covered.">    if (!(ex instanceof SocketTimeoutException)) {</span>
+<span class="fc" id="L348">      return false;</span>
+    }
+<span class="fc" id="L350">    return (ex.getMessage().equals(&quot;Read timed out&quot;));</span>
+  }
+
+  /** Extracts the error message. */
+  public String getErrorMessage(IOException e) {
+    // Prefer to use message from GJRE.
+<span class="fc" id="L356">    GoogleJsonResponseException gjre = getJsonResponseExceptionOrNull(e);</span>
+
+<span class="pc bpc" id="L358" title="2 of 4 branches missed.">    if (gjre != null &amp;&amp; gjre.getDetails() != null) {</span>
+<span class="fc" id="L359">      return gjre.getDetails().getMessage();</span>
+    }
+<span class="nc" id="L361">    return e.getMessage();</span>
+  }
+
+  /**
+   * Converts the exception to a user-presentable error message. Specifically,
+   * extracts message field for HTTP 4xx codes, and creates a generic
+   * &quot;Internal Server Error&quot; for HTTP 5xx codes.
+   *
+   * @param ioe the exception
+   * @param action the description of the action being performed at the time of error.
+   * @see #toUserPresentableMessage(IOException, String)
+   */
+  public IOException toUserPresentableException(IOException ioe, String action) throws IOException {
+<span class="fc" id="L374">    throw new IOException(toUserPresentableMessage(ioe, action), ioe);</span>
+  }
+
+  /**
+   * Converts the exception to a user-presentable error message. Specifically,
+   * extracts message field for HTTP 4xx codes, and creates a generic
+   * &quot;Internal Server Error&quot; for HTTP 5xx codes.
+   */
+  public String toUserPresentableMessage(IOException ioe, @Nullable String action) {
+<span class="fc" id="L383">    String message = &quot;Internal server error&quot;;</span>
+<span class="pc bpc" id="L384" title="1 of 2 branches missed.">    if (isClientError(ioe)) {</span>
+<span class="fc" id="L385">      message = getErrorMessage(ioe);</span>
+    }
+
+<span class="fc bfc" id="L388" title="All 2 branches covered.">    if (action == null) {</span>
+<span class="fc" id="L389">      return message;</span>
+    } else {
+<span class="fc" id="L391">      return String.format(&quot;Encountered an error while %s: %s&quot;, action, message);</span>
+    }
+  }
+
+  /**
+   * @see #toUserPresentableMessage(IOException, String)
+   */
+  public String toUserPresentableMessage(IOException ioe) {
+<span class="fc" id="L399">    return toUserPresentableMessage(ioe, null);</span>
+  }
+
+  @Nullable
+  public String getDebugInfo(IOException ioe) {
+<span class="fc" id="L404">    ErrorInfo info = getErrorInfo(ioe);</span>
+<span class="pc bpc" id="L405" title="1 of 2 branches missed.">    if (info != null) {</span>
+<span class="nc bnc" id="L406" title="All 2 branches missed.">      if (info.getUnknownKeys().containsKey(DEBUG_INFO_FIELD)) {</span>
+<span class="nc" id="L407">        return (String) info.getUnknownKeys().get(DEBUG_INFO_FIELD);</span>
+      }
+    }
+<span class="fc" id="L410">    return null;</span>
+  }
+
+  /**
+   * Returns HTTP status code from the given exception.
+   *
+   * &lt;p&gt; Note: GoogleJsonResponseException.getStatusCode() method is marked final
+   * therefore it cannot be mocked using Mockito. We use this helper so that
+   * we can override it in tests.
+   */
+  protected int getHttpStatusCode(GoogleJsonResponseException e) {
+<span class="fc" id="L421">    return e.getStatusCode();</span>
+  }
+
+  /**
+   * Get the first ErrorInfo from an IOException if it is an instance of
+   * GoogleJsonResponseException, otherwise return null.
+   */
+  protected ErrorInfo getErrorInfo(IOException e) {
+<span class="fc" id="L429">    GoogleJsonError gjre = getDetails(e);</span>
+<span class="pc bpc" id="L430" title="1 of 2 branches missed.">    if (gjre != null) {</span>
+<span class="nc" id="L431">      return getErrorInfo(gjre);</span>
+    }
+<span class="fc" id="L433">    return null;</span>
+  }
+
+  /** Get the first ErrorInfo from a GoogleJsonError, or null if there is not one. */
+  protected ErrorInfo getErrorInfo(GoogleJsonError details) {
+<span class="fc bfc" id="L438" title="All 2 branches covered.">    if (details == null) {</span>
+<span class="fc" id="L439">      return null;</span>
+    }
+<span class="fc" id="L441">    List&lt;ErrorInfo&gt; errors = details.getErrors();</span>
+<span class="pc bpc" id="L442" title="1 of 2 branches missed.">    return errors.isEmpty() ? null : errors.get(0);</span>
+  }
+
+  /** If the exception is a GoogleJsonResponseException, get the error details, else return null. */
+  protected GoogleJsonError getDetails(IOException e) {
+<span class="fc bfc" id="L447" title="All 2 branches covered.">    if (e instanceof GoogleJsonResponseException) {</span>
+<span class="fc" id="L448">      return ((GoogleJsonResponseException) e).getDetails();</span>
+    }
+<span class="fc" id="L450">    return null;</span>
+  }
+
+  /** Recursively checks getCause() if outer exception isn't an instance of the correct class. */
+  protected boolean recursiveCheckForCode(Throwable e, int code) {
+<span class="fc" id="L455">    GoogleJsonResponseException jsonException = getJsonResponseExceptionOrNull(e);</span>
+<span class="fc bfc" id="L456" title="All 2 branches covered.">    if (jsonException != null) {</span>
+<span class="fc bfc" id="L457" title="All 2 branches covered.">      return getHttpStatusCode(jsonException) == code;</span>
+    }
+<span class="fc" id="L459">    return false;</span>
+  }
+
+  @Nullable
+  public static GoogleJsonResponseException getJsonResponseExceptionOrNull(Throwable t) {
+<span class="fc" id="L464">    Throwable cause = t;</span>
+<span class="fc bfc" id="L465" title="All 2 branches covered.">    while (cause != null) {</span>
+<span class="fc bfc" id="L466" title="All 2 branches covered.">      if (cause instanceof GoogleJsonResponseException) {</span>
+<span class="fc" id="L467">        return (GoogleJsonResponseException) cause;</span>
+      }
+<span class="fc" id="L469">      cause = cause.getCause();</span>
+    }
+<span class="fc" id="L471">    return null;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

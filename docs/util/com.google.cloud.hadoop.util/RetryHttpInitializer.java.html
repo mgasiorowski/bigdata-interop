@@ -1,0 +1,306 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>RetryHttpInitializer.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">RetryHttpInitializer.java</span></div><h1>RetryHttpInitializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.util;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+
+import com.google.api.client.auth.oauth2.Credential;
+import com.google.api.client.http.HttpBackOffIOExceptionHandler;
+import com.google.api.client.http.HttpBackOffUnsuccessfulResponseHandler;
+import com.google.api.client.http.HttpIOExceptionHandler;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestInitializer;
+import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpStatusCodes;
+import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
+import com.google.api.client.util.ExponentialBackOff;
+import com.google.api.client.util.Sleeper;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.util.Set;
+import org.apache.http.HttpStatus;
+
+public class RetryHttpInitializer implements HttpRequestInitializer {
+
+<span class="fc" id="L42">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  /** HTTP status code indicating too many requests in a given amount of time. */
+  private static final int HTTP_SC_TOO_MANY_REQUESTS = 429;
+
+  // Base impl of BackOffRequired determining the default set of cases where we'll retry on
+  // unsuccessful HTTP responses; we'll mix in additional retriable response cases on top
+  // of the bases cases defined by this instance.
+  private static final HttpBackOffUnsuccessfulResponseHandler.BackOffRequired
+<span class="fc" id="L51">      BASE_HTTP_BACKOFF_REQUIRED =</span>
+          HttpBackOffUnsuccessfulResponseHandler.BackOffRequired.ON_SERVER_ERROR;
+
+  // Default number of retries.
+  private static final int DEFAULT_MAX_REQUEST_RETRIES = HttpRequest.DEFAULT_NUMBER_OF_RETRIES;
+
+  // Default number of connection timeout (20 seconds).
+  private static final int DEFAULT_CONNECT_TIMEOUT = 20 * 1000;
+
+  // Default number of read timeout (20 seconds).
+  private static final int DEFAULT_READ_TIMEOUT = 20 * 1000;
+
+  // To be used as a request interceptor for filling in the &quot;Authorization&quot; header field, as well
+  // as a response handler for certain unsuccessful error codes wherein the Credential must refresh
+  // its token for a retry.
+  private final Credential credential;
+
+  // If non-null, the backoff handlers will be set to use this sleeper instead of their defaults.
+  // Only used for testing.
+  private Sleeper sleeperOverride;
+
+  // String to set as user-agent when initializing HttpRequests if none already set.
+  private String defaultUserAgent;
+
+  // Max number of retires.
+  private final int maxRequestRetries;
+
+  // Connect timeout, in milliseconds.
+  private final int connectTimeoutMillis;
+
+  // Read timeout, in milliseconds.
+  private final int readTimeoutMillis;
+
+  /** A HttpUnsuccessfulResponseHandler logs the URL that generated certain failures. */
+  private static class LoggingResponseHandler
+      implements HttpUnsuccessfulResponseHandler, HttpIOExceptionHandler {
+
+    private static final String LOG_MESSAGE_FORMAT =
+        &quot;Encountered status code %d when accessing URL '%s'. &quot;
+            + &quot;Delegating to response handler for possible retry.&quot;;
+
+    private final HttpUnsuccessfulResponseHandler delegateResponseHandler;
+    private final HttpIOExceptionHandler delegateIOExceptionHandler;
+    private final ImmutableSet&lt;Integer&gt; responseCodesToLog;
+    private final ImmutableSet&lt;Integer&gt; responseCodesToLogWithRateLimit;
+
+    /**
+     * @param delegateResponseHandler The HttpUnsuccessfulResponseHandler to invoke to really handle
+     *     errors.
+     * @param delegateIOExceptionHandler The HttpIOExceptionResponseHandler to delegate to.
+     * @param responseCodesToLog The set of response codes to log URLs for.
+     * @param responseCodesToLogWithRateLimit The set of response codes to log URLs for with reate
+     *     limit.
+     */
+    public LoggingResponseHandler(
+        HttpUnsuccessfulResponseHandler delegateResponseHandler,
+        HttpIOExceptionHandler delegateIOExceptionHandler,
+        Set&lt;Integer&gt; responseCodesToLog,
+<span class="fc" id="L109">        Set&lt;Integer&gt; responseCodesToLogWithRateLimit) {</span>
+<span class="fc" id="L110">      this.delegateResponseHandler = delegateResponseHandler;</span>
+<span class="fc" id="L111">      this.delegateIOExceptionHandler = delegateIOExceptionHandler;</span>
+<span class="fc" id="L112">      this.responseCodesToLog = ImmutableSet.copyOf(responseCodesToLog);</span>
+<span class="fc" id="L113">      this.responseCodesToLogWithRateLimit = ImmutableSet.copyOf(responseCodesToLogWithRateLimit);</span>
+<span class="fc" id="L114">    }</span>
+
+    @Override
+    public boolean handleResponse(
+        HttpRequest httpRequest, HttpResponse httpResponse, boolean supportsRetry)
+        throws IOException {
+<span class="fc bfc" id="L120" title="All 2 branches covered.">      if (responseCodesToLogWithRateLimit.contains(httpResponse.getStatusCode())) {</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        switch (httpResponse.getStatusCode()) {</span>
+          case HTTP_SC_TOO_MANY_REQUESTS:
+<span class="fc" id="L123">            logger.atInfo().atMostEvery(10, SECONDS).log(</span>
+<span class="fc" id="L124">                LOG_MESSAGE_FORMAT, httpResponse.getStatusCode(), httpRequest.getUrl());</span>
+<span class="fc" id="L125">            break;</span>
+          default:
+<span class="nc" id="L127">            logger.atInfo().atMostEvery(10, SECONDS).log(</span>
+                &quot;Encountered status code %d (and maybe others) when accessing URL '%s'.&quot;
+                    + &quot; Delegating to response handler for possible retry.&quot;,
+<span class="nc" id="L130">                httpResponse.getStatusCode(), httpRequest.getUrl());</span>
+        }
+<span class="fc bfc" id="L132" title="All 2 branches covered.">      } else if (responseCodesToLog.contains(httpResponse.getStatusCode())) {</span>
+<span class="fc" id="L133">        logger.atInfo().log(LOG_MESSAGE_FORMAT, httpResponse.getStatusCode(), httpRequest.getUrl());</span>
+      }
+
+<span class="fc" id="L136">      return delegateResponseHandler.handleResponse(httpRequest, httpResponse, supportsRetry);</span>
+    }
+
+    @Override
+    public boolean handleIOException(HttpRequest httpRequest, boolean supportsRetry)
+        throws IOException {
+      // We sadly don't get anything helpful to see if this is something we want to log. As a result
+      // we'll turn down the logging level to debug.
+<span class="fc" id="L144">      logger.atFine().log(&quot;Encountered an IOException when accessing URL %s&quot;, httpRequest.getUrl());</span>
+<span class="fc" id="L145">      return delegateIOExceptionHandler.handleIOException(httpRequest, supportsRetry);</span>
+    }
+  }
+
+  /**
+   * An inner class allowing this initializer to create a new handler instance per HttpRequest which
+   * shares the Credential of the outer class and which will compose the Credential with a backoff
+   * handler to handle unsuccessful HTTP codes.
+   */
+  private class CredentialOrBackoffResponseHandler implements HttpUnsuccessfulResponseHandler {
+    // The backoff-handler instance to use whenever the outer-class's Credential does not handle
+    // the error.
+    private final HttpUnsuccessfulResponseHandler delegateHandler;
+
+<span class="fc" id="L159">    public CredentialOrBackoffResponseHandler() {</span>
+<span class="fc" id="L160">      HttpBackOffUnsuccessfulResponseHandler errorCodeHandler =</span>
+          new HttpBackOffUnsuccessfulResponseHandler(new ExponentialBackOff());
+<span class="fc" id="L162">      errorCodeHandler.setBackOffRequired(</span>
+<span class="fc" id="L163">          new HttpBackOffUnsuccessfulResponseHandler.BackOffRequired() {</span>
+            @Override
+            public boolean isRequired(HttpResponse response) {
+<span class="fc bfc" id="L166" title="All 2 branches covered.">              return BASE_HTTP_BACKOFF_REQUIRED.isRequired(response)</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">                  || response.getStatusCode() == HTTP_SC_TOO_MANY_REQUESTS;</span>
+            }
+          });
+<span class="fc bfc" id="L170" title="All 2 branches covered.">      if (sleeperOverride != null) {</span>
+<span class="fc" id="L171">        errorCodeHandler.setSleeper(sleeperOverride);</span>
+      }
+<span class="fc" id="L173">      this.delegateHandler = errorCodeHandler;</span>
+<span class="fc" id="L174">    }</span>
+
+    @Override
+    public boolean handleResponse(HttpRequest request, HttpResponse response, boolean supportsRetry)
+        throws IOException {
+<span class="fc bfc" id="L179" title="All 2 branches covered.">      if (credential.handleResponse(request, response, supportsRetry)) {</span>
+        // If credential decides it can handle it, the return code or message indicated something
+        // specific to authentication, and no backoff is desired.
+<span class="fc" id="L182">        return true;</span>
+      }
+
+<span class="fc bfc" id="L185" title="All 2 branches covered.">      if (delegateHandler.handleResponse(request, response, supportsRetry)) {</span>
+        // Otherwise, we defer to the judgement of our internal backoff handler.
+<span class="fc" id="L187">        return true;</span>
+      }
+
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">      if (HttpStatusCodes.isRedirect(response.getStatusCode())</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">          &amp;&amp; request.getFollowRedirects()</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">          &amp;&amp; response.getHeaders() != null</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">          &amp;&amp; response.getHeaders().getLocation() != null) {</span>
+        // Hack: Reach in and fix any '+' in the URL but still report 'false'. The client library
+        // incorrectly tries to decode '+' into ' ', even though the backend servers treat '+'
+        // as a legitimate path character, and so do not encode it. This is safe to do whether
+        // or not the client library fixes the bug, since %2B will correctly be decoded as '+'
+        // even after the fix.
+<span class="nc" id="L199">        String redirectLocation = response.getHeaders().getLocation();</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        if (redirectLocation.contains(&quot;+&quot;)) {</span>
+<span class="nc" id="L201">          String escapedLocation = redirectLocation.replace(&quot;+&quot;, &quot;%2B&quot;);</span>
+<span class="nc" id="L202">          logger.atFine().log(</span>
+              &quot;Redirect path '%s' contains unescaped '+', replacing with '%%2B': '%s'&quot;,
+              redirectLocation, escapedLocation);
+<span class="nc" id="L205">          response.getHeaders().setLocation(escapedLocation);</span>
+        }
+      }
+
+<span class="fc" id="L209">      return false;</span>
+    }
+  }
+
+  /**
+   * @param credential A credential which will be set as an interceptor on HttpRequests and as the
+   *     delegate for a CredentialOrBackoffResponsehandler.
+   * @param defaultUserAgent A String to set as the user-agent when initializing an HttpRequest if
+   *     the HttpRequest doesn't already have a user-agent header.
+   * @param maxRequestRetries An int to indicate the max number of retries of an HttpRequest.
+   * @param connectTimeoutMillis An int to indicate the number of milliseconds for connection
+   *     timeout. Use {@code 0} for infinite timeout.
+   * @param readTimeoutMillis An int to indicate the number of milliseconds for read timeout from an
+   *     established connection. Use {@code 0} for infinite timeout.
+   */
+  public RetryHttpInitializer(
+      Credential credential,
+      String defaultUserAgent,
+      int maxRequestRetries,
+      int connectTimeoutMillis,
+<span class="fc" id="L229">      int readTimeoutMillis) {</span>
+<span class="fc" id="L230">    Preconditions.checkNotNull(credential, &quot;A valid Credential is required&quot;);</span>
+<span class="fc" id="L231">    this.credential = credential;</span>
+<span class="fc" id="L232">    this.sleeperOverride = null;</span>
+<span class="fc" id="L233">    this.defaultUserAgent = defaultUserAgent;</span>
+<span class="fc" id="L234">    this.maxRequestRetries = maxRequestRetries;</span>
+<span class="fc" id="L235">    this.connectTimeoutMillis = connectTimeoutMillis;</span>
+<span class="fc" id="L236">    this.readTimeoutMillis = readTimeoutMillis;</span>
+<span class="fc" id="L237">  }</span>
+
+  /**
+   * {@code maxRequestRetries} defaults to {@link RetryHttpInitializer#DEFAULT_MAX_REQUEST_RETRIES}.
+   *
+   * &lt;p&gt;{@code connectTimeoutMillis} defaults to {@link
+   * RetryHttpInitializer#DEFAULT_CONNECT_TIMEOUT}.
+   *
+   * &lt;p&gt;{@code readTimeoutMillis} defaults to {@link RetryHttpInitializer#DEFAULT_READ_TIMEOUT}.
+   *
+   * @param credential A credential which will be set as an interceptor on HttpRequests and as the
+   *     delegate for a CredentialOrBackoffResponseHandler.
+   * @param defaultUserAgent A String to set as the user-agent when initializing an HttpRequest if
+   *     the HttpRequest doesn't already have a user-agent header.
+   */
+  public RetryHttpInitializer(Credential credential, String defaultUserAgent) {
+<span class="fc" id="L253">    this(</span>
+        credential,
+        defaultUserAgent,
+        DEFAULT_MAX_REQUEST_RETRIES,
+        DEFAULT_CONNECT_TIMEOUT,
+        DEFAULT_READ_TIMEOUT);
+<span class="fc" id="L259">  }</span>
+
+  @Override
+  public void initialize(HttpRequest request) {
+    // Credential must be the interceptor to fill in accessToken fields.
+<span class="fc" id="L264">    request.setInterceptor(credential);</span>
+
+    // Request will be retried if server errors (5XX) or I/O errors are encountered.
+<span class="fc" id="L267">    request.setNumberOfRetries(maxRequestRetries);</span>
+
+    // Set the timeout configurations.
+<span class="fc" id="L270">    request.setConnectTimeout(connectTimeoutMillis);</span>
+<span class="fc" id="L271">    request.setReadTimeout(readTimeoutMillis);</span>
+
+    // IOExceptions such as &quot;socket timed out&quot; of &quot;insufficient bytes written&quot; will follow a
+    // straightforward backoff.
+<span class="fc" id="L275">    HttpBackOffIOExceptionHandler exceptionHandler =</span>
+        new HttpBackOffIOExceptionHandler(new ExponentialBackOff());
+<span class="fc bfc" id="L277" title="All 2 branches covered.">    if (sleeperOverride != null) {</span>
+<span class="fc" id="L278">      exceptionHandler.setSleeper(sleeperOverride);</span>
+    }
+
+    // Supply a new composite handler for unsuccessful return codes. 401 Unauthorized will be
+    // handled by the Credential, 410 Gone will be logged, and 5XX will be handled by a backoff
+    // handler.
+<span class="fc" id="L284">    LoggingResponseHandler loggingResponseHandler =</span>
+        new LoggingResponseHandler(
+            new CredentialOrBackoffResponseHandler(),
+            exceptionHandler,
+<span class="fc" id="L288">            ImmutableSet.of(HttpStatus.SC_GONE, HttpStatus.SC_SERVICE_UNAVAILABLE),</span>
+<span class="fc" id="L289">            ImmutableSet.of(HTTP_SC_TOO_MANY_REQUESTS));</span>
+<span class="fc" id="L290">    request.setUnsuccessfulResponseHandler(loggingResponseHandler);</span>
+<span class="fc" id="L291">    request.setIOExceptionHandler(loggingResponseHandler);</span>
+
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">    if (Strings.isNullOrEmpty(request.getHeaders().getUserAgent())) {</span>
+<span class="fc" id="L294">      logger.atFiner().log(</span>
+          &quot;Request is missing a user-agent, adding default value of '%s'&quot;, defaultUserAgent);
+<span class="fc" id="L296">      request.getHeaders().setUserAgent(defaultUserAgent);</span>
+    }
+<span class="fc" id="L298">  }</span>
+
+  /** Overrides the default Sleepers used in backoff retry handler instances. */
+  @VisibleForTesting
+  void setSleeperOverride(Sleeper sleeper) {
+<span class="fc" id="L303">    sleeperOverride = sleeper;</span>
+<span class="fc" id="L304">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,352 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>BigQueryHelper.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">BigQueryHelper.java</span></div><h1>BigQueryHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import static com.google.common.flogger.LazyArgs.lazy;
+
+import com.google.api.services.bigquery.Bigquery;
+import com.google.api.services.bigquery.Bigquery.Jobs.Insert;
+import com.google.api.services.bigquery.model.Dataset;
+import com.google.api.services.bigquery.model.EncryptionConfiguration;
+import com.google.api.services.bigquery.model.ExternalDataConfiguration;
+import com.google.api.services.bigquery.model.Job;
+import com.google.api.services.bigquery.model.JobConfiguration;
+import com.google.api.services.bigquery.model.JobConfigurationExtract;
+import com.google.api.services.bigquery.model.JobConfigurationLoad;
+import com.google.api.services.bigquery.model.JobReference;
+import com.google.api.services.bigquery.model.Table;
+import com.google.api.services.bigquery.model.TableReference;
+import com.google.api.services.bigquery.model.TableSchema;
+import com.google.api.services.bigquery.model.TimePartitioning;
+import com.google.cloud.hadoop.util.ApiErrorExtractor;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
+import javax.annotation.Nullable;
+
+/**
+ * Wrapper for BigQuery API.
+ */
+public class BigQueryHelper {
+  // BigQuery job_ids must match this pattern.
+  public static final String BIGQUERY_JOB_ID_PATTERN = &quot;[a-zA-Z0-9_-]+&quot;;
+
+  // Maximum number of characters in a BigQuery job_id.
+  public static final int BIGQUERY_JOB_ID_MAX_LENGTH = 1024;
+
+<span class="fc" id="L52">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // Used for specialized handling of various API-defined exceptions.
+<span class="fc" id="L55">  private ApiErrorExtractor errorExtractor = ApiErrorExtractor.INSTANCE;</span>
+
+  private Bigquery service;
+
+<span class="fc" id="L59">  public BigQueryHelper(Bigquery service) {</span>
+<span class="fc" id="L60">    this.service = service;</span>
+<span class="fc" id="L61">  }</span>
+
+  /**
+   * Returns the underlying Bigquery instance used for communicating with the BigQuery API.
+   */
+  public Bigquery getRawBigquery() {
+<span class="fc" id="L67">    return service;</span>
+  }
+
+  /**
+   * Performs a federated import on data from GCS into BigQuery via a table insert.
+   *
+   * @param projectId the project on whose behalf to perform the load.
+   * @param tableRef the reference to the destination table.
+   * @param schema the schema of the source data to populate the destination table by.
+   * @param sourceFormat the file format of the source data.
+   * @param gcsPaths the location of the source data in GCS.
+   * @throws IOException
+   */
+  public void importFederatedFromGcs(
+      String projectId,
+      TableReference tableRef,
+      @Nullable TableSchema schema,
+      BigQueryFileFormat sourceFormat,
+      List&lt;String&gt; gcsPaths)
+      throws IOException {
+<span class="nc" id="L87">    logger.atInfo().log(</span>
+        &quot;Importing into federated table '%s' from %s paths; path[0] is '%s'&quot;,
+<span class="nc" id="L89">        BigQueryStrings.toString(tableRef),</span>
+<span class="nc" id="L90">        gcsPaths.size(),</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        gcsPaths.isEmpty() ? &quot;(empty)&quot; : gcsPaths.get(0));</span>
+
+<span class="nc" id="L93">    ExternalDataConfiguration externalConf = new ExternalDataConfiguration();</span>
+<span class="nc" id="L94">    externalConf.setSchema(schema);</span>
+<span class="nc" id="L95">    externalConf.setSourceUris(gcsPaths);</span>
+<span class="nc" id="L96">    externalConf.setSourceFormat(sourceFormat.getFormatIdentifier());</span>
+
+    // Auto detect the schema if we're not given one, otherwise use the passed schema.
+<span class="nc bnc" id="L99" title="All 2 branches missed.">    if (schema == null) {</span>
+<span class="nc" id="L100">      logger.atInfo().log(&quot;No federated import schema provided, auto detecting schema.&quot;);</span>
+<span class="nc" id="L101">      externalConf.setAutodetect(true);</span>
+    } else {
+<span class="nc" id="L103">      logger.atInfo().log(&quot;Using provided federated import schema '%s'.&quot;, schema.toString());</span>
+    }
+
+<span class="nc" id="L106">    Table table = new Table();</span>
+<span class="nc" id="L107">    table.setTableReference(tableRef);</span>
+<span class="nc" id="L108">    table.setExternalDataConfiguration(externalConf);</span>
+
+<span class="nc" id="L110">    service.tables().insert(projectId, tableRef.getDatasetId(), table).execute();</span>
+<span class="nc" id="L111">  }</span>
+
+  /**
+   * Imports data from GCS into BigQuery via a load job. Optionally polls for completion before
+   * returning.
+   *
+   * @param projectId the project on whose behalf to perform the load.
+   * @param tableRef the reference to the destination table.
+   * @param schema the schema of the source data to populate the destination table by.
+   * @param timePartitioning time partitioning to populate the destination table.
+   * @param kmsKeyName the Cloud KMS encryption key used to protect the output table.
+   * @param sourceFormat the file format of the source data.
+   * @param writeDisposition the write disposition of the output table.
+   * @param gcsPaths the location of the source data in GCS.
+   * @param awaitCompletion if true, block and poll until job completes, otherwise return as soon as
+   *     the job has been successfully dispatched.
+   * @throws IOException
+   * @throws InterruptedException if interrupted while waiting for job completion.
+   */
+  public void importFromGcs(
+      String projectId,
+      TableReference tableRef,
+      @Nullable TableSchema schema,
+      @Nullable TimePartitioning timePartitioning,
+      @Nullable String kmsKeyName,
+      BigQueryFileFormat sourceFormat,
+      String writeDisposition,
+      List&lt;String&gt; gcsPaths,
+      boolean awaitCompletion)
+      throws IOException, InterruptedException {
+<span class="fc" id="L141">    logger.atInfo().log(</span>
+        &quot;Importing into table '%s' from %s paths; path[0] is '%s'; awaitCompletion: %s;&quot;
+            + &quot; timePartitioning: %s&quot;,
+<span class="fc" id="L144">        lazy(() -&gt; BigQueryStrings.toString(tableRef)),</span>
+<span class="fc" id="L145">        gcsPaths.size(),</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">        gcsPaths.isEmpty() ? &quot;(empty)&quot; : gcsPaths.get(0),</span>
+<span class="fc" id="L147">        awaitCompletion,</span>
+        timePartitioning);
+
+    // Create load conf with minimal requirements.
+<span class="fc" id="L151">    JobConfigurationLoad loadConfig = new JobConfigurationLoad();</span>
+<span class="fc" id="L152">    loadConfig.setSchema(schema);</span>
+<span class="fc" id="L153">    loadConfig.setSourceFormat(sourceFormat.getFormatIdentifier());</span>
+<span class="fc" id="L154">    loadConfig.setSourceUris(gcsPaths);</span>
+<span class="fc" id="L155">    loadConfig.setDestinationTable(tableRef);</span>
+<span class="fc" id="L156">    loadConfig.setTimePartitioning(timePartitioning);</span>
+<span class="fc" id="L157">    loadConfig.setWriteDisposition(writeDisposition);</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(kmsKeyName)) {</span>
+<span class="fc" id="L159">      loadConfig.setDestinationEncryptionConfiguration(</span>
+<span class="fc" id="L160">          new EncryptionConfiguration().setKmsKeyName(kmsKeyName));</span>
+    }
+    // Auto detect the schema if we're not given one, otherwise use the passed schema.
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">    if (schema == null) {</span>
+<span class="nc" id="L164">      logger.atInfo().log(&quot;No import schema provided, auto detecting schema.&quot;);</span>
+<span class="nc" id="L165">      loadConfig.setAutodetect(true);</span>
+    } else {
+<span class="fc" id="L167">      logger.atInfo().log(&quot;Using provided import schema '%s'.&quot;, schema.toString());</span>
+    }
+
+<span class="fc" id="L170">    JobConfiguration config = new JobConfiguration();</span>
+<span class="fc" id="L171">    config.setLoad(loadConfig);</span>
+
+    // Get the dataset to determine the location
+<span class="fc" id="L174">    Dataset dataset =</span>
+<span class="fc" id="L175">        service.datasets().get(tableRef.getProjectId(), tableRef.getDatasetId()).execute();</span>
+
+<span class="fc" id="L177">    JobReference jobReference =</span>
+<span class="fc" id="L178">        createJobReference(projectId, &quot;direct-bigqueryhelper-import&quot;, dataset.getLocation());</span>
+<span class="fc" id="L179">    Job job = new Job();</span>
+<span class="fc" id="L180">    job.setConfiguration(config);</span>
+<span class="fc" id="L181">    job.setJobReference(jobReference);</span>
+
+    // Insert and run job.
+<span class="fc" id="L184">    insertJobOrFetchDuplicate(projectId, job);</span>
+
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">    if (awaitCompletion) {</span>
+      // Poll until job is complete.
+<span class="pc" id="L188">      BigQueryUtils.waitForJobCompletion(getRawBigquery(), projectId, jobReference, () -&gt; {});</span>
+    }
+<span class="fc" id="L190">  }</span>
+
+  /**
+   * Exports BigQuery results into GCS, polls for completion before returning.
+   *
+   * @param projectId the project on whose behalf to perform the export.
+   * @param tableRef the table to export.
+   * @param gcsPaths the GCS paths to export to.
+   * @param awaitCompletion if true, block and poll until job completes, otherwise return as soon as
+   *        the job has been successfully dispatched.
+   *
+   * @throws IOException on IO error.
+   * @throws InterruptedException on interrupt.
+   */
+  public void exportBigQueryToGcs(String projectId, TableReference tableRef, List&lt;String&gt; gcsPaths,
+      boolean awaitCompletion) throws IOException, InterruptedException {
+<span class="fc" id="L206">    logger.atFine().log(</span>
+        &quot;exportBigQueryToGcs(bigquery, '%s', '%s', '%s', '%s')&quot;,
+<span class="fc" id="L208">        projectId, BigQueryStrings.toString(tableRef), gcsPaths, awaitCompletion);</span>
+<span class="fc" id="L209">    logger.atInfo().log(</span>
+        &quot;Exporting table '%s' to %s paths; path[0] is '%s'; awaitCompletion: %s&quot;,
+<span class="fc" id="L211">        BigQueryStrings.toString(tableRef),</span>
+<span class="fc" id="L212">        gcsPaths.size(),</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        gcsPaths.isEmpty() ? &quot;(empty)&quot; : gcsPaths.get(0),</span>
+<span class="fc" id="L214">        awaitCompletion);</span>
+
+    // Create job and configuration.
+<span class="fc" id="L217">    JobConfigurationExtract extractConfig = new JobConfigurationExtract();</span>
+
+    // Set source.
+<span class="fc" id="L220">    extractConfig.setSourceTable(tableRef);</span>
+
+    // Set destination.
+<span class="fc" id="L223">    extractConfig.setDestinationUris(gcsPaths);</span>
+<span class="fc" id="L224">    extractConfig.set(&quot;destinationFormat&quot;, &quot;NEWLINE_DELIMITED_JSON&quot;);</span>
+
+<span class="fc" id="L226">    JobConfiguration config = new JobConfiguration();</span>
+<span class="fc" id="L227">    config.setExtract(extractConfig);</span>
+
+    // Get the table to determine the location
+<span class="fc" id="L230">    Table table = getTable(tableRef);</span>
+
+<span class="fc" id="L232">    JobReference jobReference =</span>
+<span class="fc" id="L233">        createJobReference(projectId, &quot;direct-bigqueryhelper-export&quot;, table.getLocation());</span>
+
+<span class="fc" id="L235">    Job job = new Job();</span>
+<span class="fc" id="L236">    job.setConfiguration(config);</span>
+<span class="fc" id="L237">    job.setJobReference(jobReference);</span>
+
+    // Insert and run job.
+<span class="fc" id="L240">    insertJobOrFetchDuplicate(projectId, job);</span>
+
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">    if (awaitCompletion) {</span>
+      // Poll until job is complete.
+<span class="pc" id="L244">      BigQueryUtils.waitForJobCompletion(service, projectId, jobReference, () -&gt; {});</span>
+    }
+<span class="fc" id="L246">  }</span>
+
+  /**
+   * Returns true if the table exists, or false if not.
+   */
+  public boolean tableExists(TableReference tableRef) throws IOException {
+    try {
+<span class="fc" id="L253">      Table fetchedTable = service.tables().get(</span>
+<span class="fc" id="L254">          tableRef.getProjectId(), tableRef.getDatasetId(), tableRef.getTableId()).execute();</span>
+<span class="fc" id="L255">      logger.atFine().log(</span>
+          &quot;Successfully fetched table '%s' for tableRef '%s'&quot;, fetchedTable, tableRef);
+<span class="fc" id="L257">      return true;</span>
+<span class="fc" id="L258">    } catch (IOException ioe) {</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(ioe)) {</span>
+<span class="fc" id="L260">        return false;</span>
+      } else {
+        // Unhandled exceptions should just propagate up.
+<span class="fc" id="L263">        throw ioe;</span>
+      }
+    }
+  }
+
+  /**
+   * Gets the specified table resource by table ID. This method does not return the data in the
+   * table, it only returns the table resource, which describes the structure of this table.
+   *
+   * @param tableRef The BigQuery table reference.
+   * @return The table resource, which describes the structure of this table.
+   * @throws IOException
+   */
+  public Table getTable(TableReference tableRef)
+      throws IOException {
+<span class="fc" id="L278">    Bigquery.Tables.Get getTablesReply = service.tables().get(</span>
+<span class="fc" id="L279">        tableRef.getProjectId(), tableRef.getDatasetId(), tableRef.getTableId());</span>
+<span class="fc" id="L280">    return getTablesReply.execute();</span>
+  }
+
+  /**
+   * Creates a new JobReference with a unique jobId generated from {@code jobIdPrefix} plus a
+   * randomly generated UUID String.
+   */
+  public JobReference createJobReference(
+      String projectId, String jobIdPrefix, @Nullable String location) {
+<span class="pc bpc" id="L289" title="1 of 2 branches missed.">    Preconditions.checkArgument(projectId != null, &quot;projectId must not be null.&quot;);</span>
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">    Preconditions.checkArgument(jobIdPrefix != null, &quot;jobIdPrefix must not be null.&quot;);</span>
+<span class="fc" id="L291">    Preconditions.checkArgument(jobIdPrefix.matches(BIGQUERY_JOB_ID_PATTERN),</span>
+        &quot;jobIdPrefix '%s' must match pattern '%s'&quot;, jobIdPrefix, BIGQUERY_JOB_ID_PATTERN);
+
+<span class="fc" id="L294">    String fullJobId = String.format(&quot;%s-%s&quot;, jobIdPrefix, UUID.randomUUID().toString());</span>
+<span class="pc bpc" id="L295" title="1 of 2 branches missed.">    Preconditions.checkArgument(fullJobId.length() &lt;= BIGQUERY_JOB_ID_MAX_LENGTH,</span>
+        &quot;fullJobId '%s' has length '%s'; must be less than or equal to %s&quot;,
+<span class="fc" id="L297">        fullJobId, fullJobId.length(), BIGQUERY_JOB_ID_MAX_LENGTH);</span>
+<span class="fc" id="L298">    return new JobReference().setProjectId(projectId).setJobId(fullJobId).setLocation(location);</span>
+  }
+
+  /**
+   * Helper to check for non-null Job.getJobReference().getJobId() and quality of the getJobId()
+   * between {@code expected} and {@code actual}, using Preconditions.checkState.
+   */
+  public void checkJobIdEquality(Job expected, Job actual) {
+<span class="pc bpc" id="L306" title="1 of 2 branches missed.">    Preconditions.checkState(actual.getJobReference() != null</span>
+<span class="pc bpc" id="L307" title="1 of 2 branches missed.">        &amp;&amp; actual.getJobReference().getJobId() != null</span>
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">        &amp;&amp; expected.getJobReference() != null</span>
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">        &amp;&amp; expected.getJobReference().getJobId() != null</span>
+<span class="pc bpc" id="L310" title="1 of 2 branches missed.">        &amp;&amp; actual.getJobReference().getJobId().equals(expected.getJobReference().getJobId()),</span>
+        &quot;jobIds must match in '[expected|actual].getJobReference()' (got '%s' vs '%s')&quot;,
+<span class="fc" id="L312">        expected.getJobReference(), actual.getJobReference());</span>
+<span class="fc" id="L313">  }</span>
+
+  /**
+   * Tries to run jobs().insert(...) with the provided {@code projectId} and {@code job}, which
+   * returns a {@code Job} under normal operation, which is then returned from this method.
+   * In case of an exception being thrown, if the cause was &quot;409 conflict&quot;, then we issue a
+   * separate &quot;jobs().get(...)&quot; request and return the results of that fetch instead.
+   * Other exceptions propagate out as normal.
+   */
+  public Job insertJobOrFetchDuplicate(String projectId, Job job) throws IOException {
+<span class="fc" id="L323">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L324" title="2 of 4 branches missed.">        job.getJobReference() != null &amp;&amp; job.getJobReference().getJobId() != null,</span>
+        &quot;Require non-null JobReference and JobId inside; getJobReference() == '%s'&quot;,
+<span class="fc" id="L326">        job.getJobReference());</span>
+<span class="fc" id="L327">    Insert insert = service.jobs().insert(projectId, job);</span>
+<span class="fc" id="L328">    Job response = null;</span>
+    try {
+<span class="fc" id="L330">      response = insert.execute();</span>
+<span class="fc" id="L331">      logger.atFine().log(&quot;Successfully inserted job '%s'. Response: '%s'&quot;, job, response);</span>
+<span class="fc" id="L332">    } catch (IOException ioe) {</span>
+<span class="fc bfc" id="L333" title="All 2 branches covered.">      if (errorExtractor.itemAlreadyExists(ioe)) {</span>
+<span class="fc" id="L334">        logger.atInfo().withCause(ioe).log(</span>
+            &quot;Fetching existing job after catching exception for duplicate jobId '%s'&quot;,
+<span class="fc" id="L336">            job.getJobReference().getJobId());</span>
+<span class="fc" id="L337">        response = service.jobs().get(projectId, job.getJobReference().getJobId()).execute();</span>
+      } else {
+<span class="fc" id="L339">        throw new IOException(</span>
+<span class="fc" id="L340">            String.format(&quot;Unhandled exception trying to insert job '%s'&quot;, job), ioe);</span>
+      }
+<span class="fc" id="L342">    }</span>
+<span class="fc" id="L343">    checkJobIdEquality(job, response);</span>
+<span class="fc" id="L344">    return response;</span>
+  }
+
+  @VisibleForTesting
+  void setErrorExtractor(ApiErrorExtractor errorExtractor) {
+<span class="fc" id="L349">    this.errorExtractor = errorExtractor;</span>
+<span class="fc" id="L350">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

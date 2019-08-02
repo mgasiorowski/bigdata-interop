@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ForwardingBigQueryFileOutputCommitter.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery.output</a> &gt; <span class="el_source">ForwardingBigQueryFileOutputCommitter.java</span></div><h1>ForwardingBigQueryFileOutputCommitter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery.output;
+
+import com.google.cloud.hadoop.io.bigquery.BigQueryFactory;
+import com.google.cloud.hadoop.io.bigquery.BigQueryHelper;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.JobStatus.State;
+import org.apache.hadoop.mapreduce.OutputCommitter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputCommitter;
+
+/**
+ * This class acts as a wrapper which delegates calls to another OutputCommitter whose
+ * responsibility is to generate files in the defined output path.
+ */
+@InterfaceStability.Unstable
+public class ForwardingBigQueryFileOutputCommitter extends OutputCommitter {
+
+<span class="fc" id="L42">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  /** The delegate OutputCommitter being wrapped. */
+  private final OutputCommitter delegate;
+
+  /** The output file system for the intermediary data in GCS. */
+  private final FileSystem outputFileSystem;
+
+  /** The output path for the intermediary data in GCS. */
+  private final Path outputPath;
+
+  /** The helper used to interact with BigQuery. Non-final for unit testing. */
+  private BigQueryHelper bigQueryHelper;
+
+  /**
+   * This acts as a wrapper which delegates calls to another OutputCommitter whose responsibility is
+   * to generate files in the defined output path.
+   *
+   * @param context the context of the task.
+   * @param delegate the OutputCommitter that this will delegate functionality to.
+   * @throws IOException if there's an exception while validating the output path or getting the
+   *     BigQueryHelper.
+   */
+  public ForwardingBigQueryFileOutputCommitter(TaskAttemptContext context, OutputCommitter delegate)
+<span class="fc" id="L66">      throws IOException {</span>
+<span class="fc" id="L67">    this.delegate = delegate;</span>
+
+    // Get the configuration and ensure it's valid.
+<span class="fc" id="L70">    Configuration conf = context.getConfiguration();</span>
+<span class="fc" id="L71">    BigQueryOutputConfiguration.validateConfiguration(conf);</span>
+
+    // Resolve the output path.
+<span class="fc" id="L74">    Path path = BigQueryOutputConfiguration.getGcsOutputPath(conf);</span>
+<span class="fc" id="L75">    outputFileSystem = path.getFileSystem(conf);</span>
+<span class="fc" id="L76">    outputPath = outputFileSystem.makeQualified(path);</span>
+
+    // Create a big query reference
+    try {
+<span class="fc" id="L80">      bigQueryHelper = BigQueryFactory.INSTANCE.getBigQueryHelper(conf);</span>
+<span class="nc" id="L81">    } catch (GeneralSecurityException gse) {</span>
+<span class="nc" id="L82">      throw new IOException(&quot;Failed to create BigQuery client&quot;, gse);</span>
+<span class="fc" id="L83">    }</span>
+<span class="fc" id="L84">  }</span>
+
+  /** Calls the delegate's {@link OutputCommitter#commitJob(JobContext)}. */
+  @Override
+  public void commitJob(JobContext context) throws IOException {
+<span class="fc" id="L89">    delegate.commitJob(context);</span>
+<span class="fc" id="L90">  }</span>
+
+  /** Calls the delegate's {@link OutputCommitter#abortJob(JobContext, State)}. */
+  @Override
+  public void abortJob(JobContext context, State state) throws IOException {
+<span class="fc" id="L95">    delegate.abortJob(context, state);</span>
+<span class="fc" id="L96">  }</span>
+
+  /** Calls the delegate's {@link OutputCommitter#abortTask(TaskAttemptContext)}. */
+  @Override
+  public void abortTask(TaskAttemptContext context) throws IOException {
+<span class="fc" id="L101">    delegate.abortTask(context);</span>
+<span class="fc" id="L102">  }</span>
+
+  /** Calls the delegate's {@link OutputCommitter#commitTask(TaskAttemptContext)}. */
+  @Override
+  public void commitTask(TaskAttemptContext context) throws IOException {
+<span class="fc" id="L107">    delegate.commitTask(context);</span>
+<span class="fc" id="L108">  }</span>
+
+  /** Calls the delegate's {@link OutputCommitter#needsTaskCommit(TaskAttemptContext)}. */
+  @Override
+  public boolean needsTaskCommit(TaskAttemptContext context) throws IOException {
+<span class="fc" id="L113">    return delegate.needsTaskCommit(context);</span>
+  }
+
+  /** Calls the delegate's {@link OutputCommitter#setupJob(JobContext)}. */
+  @Override
+  public void setupJob(JobContext context) throws IOException {
+<span class="fc" id="L119">    delegate.setupJob(context);</span>
+<span class="fc" id="L120">  }</span>
+
+  /** Calls the delegate's {@link OutputCommitter#setupTask(TaskAttemptContext)}. */
+  @Override
+  public void setupTask(TaskAttemptContext context) throws IOException {
+<span class="fc" id="L125">    delegate.setupTask(context);</span>
+<span class="fc" id="L126">  }</span>
+
+  /**
+   * Queries the file system for the URIs of all files in the base output directory that are not
+   * directories and whose name isn't {@link FileOutputCommitter#SUCCEEDED_FILE_NAME}.
+   *
+   * @return a list of all URIs in the form of strings.
+   * @throws IOException if unable to query for the files in the base output directory.
+   */
+  protected List&lt;String&gt; getOutputFileURIs() throws IOException {
+    // Enumerate over all files in the output path.
+<span class="fc" id="L137">    FileStatus[] outputFiles = outputFileSystem.listStatus(outputPath);</span>
+<span class="fc" id="L138">    ArrayList&lt;String&gt; sourceUris = new ArrayList&lt;String&gt;(outputFiles.length);</span>
+
+<span class="fc bfc" id="L140" title="All 2 branches covered.">    for (int i = 0; i &lt; outputFiles.length; i++) {</span>
+<span class="fc" id="L141">      FileStatus fileStatus = outputFiles[i];</span>
+
+      // Skip the success file and directories as they're not relevant to BigQuery.
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">      if (!fileStatus.isDir()</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">          &amp;&amp; !fileStatus.getPath().getName().equals(FileOutputCommitter.SUCCEEDED_FILE_NAME)) {</span>
+<span class="fc" id="L146">        sourceUris.add(fileStatus.getPath().toString());</span>
+      }
+    }
+
+<span class="fc" id="L150">    return sourceUris;</span>
+  }
+
+  /**
+   * Attempts to manually delete data in the output path. If this fails, another delete attempt is
+   * made on JVM shutdown.
+   *
+   * @param context the job content to cleanup.
+   * @throws IOException if a FileSystem exception is encountered.
+   */
+  protected void cleanup(JobContext context) throws IOException {
+<span class="fc" id="L161">    boolean delete =</span>
+<span class="fc" id="L162">        BigQueryOutputConfiguration.getCleanupTemporaryDataFlag(context.getConfiguration());</span>
+
+<span class="pc bpc" id="L164" title="2 of 4 branches missed.">    if (delete &amp;&amp; outputFileSystem.exists(outputPath)) {</span>
+<span class="fc" id="L165">      logger.atInfo().log(&quot;Found GCS output data at '%s', attempting to clean up.&quot;, outputPath);</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">      if (outputFileSystem.delete(outputPath, true)) {</span>
+<span class="fc" id="L167">        logger.atInfo().log(&quot;Successfully deleted GCS output path '%s'.&quot;, outputPath);</span>
+      } else {
+<span class="nc" id="L169">        logger.atWarning().log(</span>
+            &quot;Failed to delete GCS output at '%s', retrying on shutdown.&quot;, outputPath);
+<span class="nc" id="L171">        outputFileSystem.deleteOnExit(outputPath);</span>
+      }
+    }
+<span class="fc" id="L174">  }</span>
+
+  /**
+   * Gets the delegate OutputCommitter being wrapped.
+   *
+   * @return the delegate OutputCommitter being wrapped.
+   */
+  protected OutputCommitter getDelegate() {
+<span class="fc" id="L182">    return delegate;</span>
+  }
+
+  /**
+   * Gets the helper used to interact with BigQuery.
+   *
+   * @return the helper used to interact with BigQuery.
+   */
+  protected BigQueryHelper getBigQueryHelper() {
+<span class="fc" id="L191">    return bigQueryHelper;</span>
+  }
+
+  /**
+   * Sets the {@link BigQueryHelper} used by this class. This is exposed for testing purposes.
+   *
+   * @param bigQueryHelper the BigQueryHelper to use.
+   */
+  @VisibleForTesting
+  void setBigQueryHelper(BigQueryHelper bigQueryHelper) {
+<span class="fc" id="L201">    this.bigQueryHelper = bigQueryHelper;</span>
+<span class="fc" id="L202">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

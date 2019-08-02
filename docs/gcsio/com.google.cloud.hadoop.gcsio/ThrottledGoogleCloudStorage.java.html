@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ThrottledGoogleCloudStorage.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">ThrottledGoogleCloudStorage.java</span></div><h1>ThrottledGoogleCloudStorage.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 Google Inc. All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio;
+
+import com.google.common.util.concurrent.RateLimiter;
+import java.io.IOException;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
+import java.util.EnumSet;
+import java.util.List;
+
+/**
+ * Throttled GCS implementation that will limit our bucket creation and delete operations
+ * to N per second.
+ */
+public class ThrottledGoogleCloudStorage implements GoogleCloudStorage {
+
+  /**
+   * Operations that may be throttled.
+   */
+<span class="fc" id="L33">  public enum StorageOperation {</span>
+<span class="fc" id="L34">    CREATE_BUCKET,</span>
+<span class="fc" id="L35">    DELETE_BUCKETS,</span>
+<span class="fc" id="L36">    CREATE_OBJECT,</span>
+<span class="fc" id="L37">    COMPOSE_OBJECTS,</span>
+<span class="fc" id="L38">    DELETE_OBJECTS,</span>
+<span class="fc" id="L39">    OPEN_OBJECT,</span>
+<span class="fc" id="L40">    COPY_OBJECT,</span>
+<span class="fc" id="L41">    LIST_BUCKETS,</span>
+<span class="fc" id="L42">    LIST_OBJECTS,</span>
+<span class="fc" id="L43">    GET_ITEMINFO,</span>
+<span class="fc" id="L44">    UPDATE_ITEMINFO</span>
+  }
+
+  private final RateLimiter rateLimiter;
+  private final GoogleCloudStorage wrappedGcs;
+  private final EnumSet&lt;StorageOperation&gt; throttledOperations;
+
+  /**
+   * Construct a ThrottledGoogleCloudStorage object that throttles all operations.
+   * @param wrappedGcs The GCS to wrap with
+   * @param rateLimiter The RateLimiter to control operations permitted per timespan.
+   */
+  public ThrottledGoogleCloudStorage(GoogleCloudStorage wrappedGcs,
+      RateLimiter rateLimiter) {
+<span class="nc" id="L58">    this(rateLimiter, wrappedGcs, EnumSet.allOf(StorageOperation.class));</span>
+<span class="nc" id="L59">  }</span>
+  /**
+   * @param operationsPerSecond Operations per second to allow.
+   * @param wrappedGcs The GoogleCloudStorage that we should delegate operations to.
+   * @param throttledOperations The operations that should be throttled.
+   */
+  public ThrottledGoogleCloudStorage(
+      double operationsPerSecond, GoogleCloudStorage wrappedGcs,
+      EnumSet&lt;StorageOperation&gt; throttledOperations) {
+<span class="nc" id="L68">    this(RateLimiter.create(operationsPerSecond), wrappedGcs, throttledOperations);</span>
+<span class="nc" id="L69">  }</span>
+
+  /**
+   * @param rateLimiter The RateLimiter to control operations permitted per timespan.
+   * @param wrappedGcs The GoogleCloudStorage that we should delegate operations to.
+   * @param throttledOperations The operations that should be throttled.
+   */
+  public ThrottledGoogleCloudStorage(RateLimiter rateLimiter,
+      GoogleCloudStorage wrappedGcs,
+<span class="fc" id="L78">      EnumSet&lt;StorageOperation&gt; throttledOperations) {</span>
+<span class="fc" id="L79">    this.rateLimiter = rateLimiter;</span>
+<span class="fc" id="L80">    this.wrappedGcs = wrappedGcs;</span>
+<span class="fc" id="L81">    this.throttledOperations = throttledOperations;</span>
+<span class="fc" id="L82">  }</span>
+
+  private void throttle(StorageOperation operation) {
+<span class="fc" id="L85">    throttle(operation, 1);</span>
+<span class="fc" id="L86">  }</span>
+
+  private void throttle(StorageOperation operation, int permits) {
+<span class="pc bpc" id="L89" title="1 of 4 branches missed.">    if (throttledOperations.contains(operation) &amp;&amp; permits &gt; 0) {</span>
+<span class="fc" id="L90">      rateLimiter.acquire(permits);</span>
+    }
+<span class="fc" id="L92">  }</span>
+
+  @Override
+  public GoogleCloudStorageOptions getOptions() {
+<span class="fc" id="L96">    return wrappedGcs.getOptions();</span>
+  }
+
+  @Override
+  public WritableByteChannel create(StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L101">    throttle(StorageOperation.CREATE_OBJECT);</span>
+<span class="fc" id="L102">    return wrappedGcs.create(resourceId);</span>
+  }
+
+  @Override
+  public WritableByteChannel create(StorageResourceId resourceId, CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L108">    throttle(StorageOperation.CREATE_OBJECT);</span>
+<span class="fc" id="L109">    return wrappedGcs.create(resourceId, options);</span>
+  }
+
+  @Override
+  public void createEmptyObject(StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L114">    throttle(StorageOperation.CREATE_OBJECT);</span>
+<span class="fc" id="L115">    wrappedGcs.createEmptyObject(resourceId);</span>
+<span class="fc" id="L116">  }</span>
+
+  @Override
+  public void createEmptyObject(StorageResourceId resourceId, CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L121">    throttle(StorageOperation.CREATE_OBJECT);</span>
+<span class="fc" id="L122">    wrappedGcs.createEmptyObject(resourceId, options);</span>
+<span class="fc" id="L123">  }</span>
+
+  @Override
+  public void createEmptyObjects(List&lt;StorageResourceId&gt; resourceIds)
+      throws IOException {
+<span class="fc" id="L128">    throttle(StorageOperation.CREATE_OBJECT, resourceIds.size());</span>
+<span class="fc" id="L129">    wrappedGcs.createEmptyObjects(resourceIds);</span>
+<span class="fc" id="L130">  }</span>
+
+  @Override
+  public void createEmptyObjects(List&lt;StorageResourceId&gt; resourceIds, CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L135">    throttle(StorageOperation.CREATE_OBJECT, resourceIds.size());</span>
+<span class="fc" id="L136">    wrappedGcs.createEmptyObjects(resourceIds, options);</span>
+<span class="fc" id="L137">  }</span>
+
+  @Override
+  public SeekableByteChannel open(
+      StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L142">    throttle(StorageOperation.OPEN_OBJECT);</span>
+<span class="fc" id="L143">    return wrappedGcs.open(resourceId);</span>
+  }
+
+  @Override
+  public SeekableByteChannel open(
+      StorageResourceId resourceId, GoogleCloudStorageReadOptions readOptions)
+      throws IOException {
+<span class="fc" id="L150">    throttle(StorageOperation.OPEN_OBJECT);</span>
+<span class="fc" id="L151">    return wrappedGcs.open(resourceId, readOptions);</span>
+  }
+
+  @Override
+  public void create(String bucketName) throws IOException {
+<span class="fc" id="L156">    throttle(StorageOperation.CREATE_BUCKET);</span>
+<span class="fc" id="L157">    wrappedGcs.create(bucketName);</span>
+<span class="fc" id="L158">  }</span>
+
+  @Override
+  public void create(String bucketName, CreateBucketOptions options) throws IOException {
+<span class="nc" id="L162">    throttle(StorageOperation.CREATE_BUCKET);</span>
+<span class="nc" id="L163">    wrappedGcs.create(bucketName, options);</span>
+<span class="nc" id="L164">  }</span>
+
+  @Override
+  public void deleteBuckets(List&lt;String&gt; bucketNames) throws IOException {
+    // We're quota'd on delete, and base impl does a batch operation. We should
+    // really wait once per bucket or something similar. BUT since this is used
+    // for testing, I don't want to do anything but delegate actual logic.
+<span class="fc" id="L171">    throttle(StorageOperation.DELETE_BUCKETS, bucketNames.size());</span>
+<span class="fc" id="L172">    wrappedGcs.deleteBuckets(bucketNames);</span>
+<span class="fc" id="L173">  }</span>
+
+  @Override
+  public void deleteObjects(
+      List&lt;StorageResourceId&gt; fullObjectNames) throws IOException {
+<span class="fc" id="L178">    throttle(StorageOperation.DELETE_OBJECTS, fullObjectNames.size());</span>
+<span class="fc" id="L179">    wrappedGcs.deleteObjects(fullObjectNames);</span>
+<span class="fc" id="L180">  }</span>
+
+  @Override
+  public void copy(String srcBucketName, List&lt;String&gt; srcObjectNames,
+      String dstBucketName, List&lt;String&gt; dstObjectNames) throws IOException {
+<span class="fc" id="L185">    throttle(StorageOperation.COPY_OBJECT, srcObjectNames.size());</span>
+<span class="fc" id="L186">    wrappedGcs.copy(srcBucketName, srcObjectNames, dstBucketName, dstObjectNames);</span>
+<span class="fc" id="L187">  }</span>
+
+  @Override
+  public List&lt;String&gt; listBucketNames() throws IOException {
+<span class="fc" id="L191">    throttle(StorageOperation.LIST_BUCKETS);</span>
+<span class="fc" id="L192">    return wrappedGcs.listBucketNames();</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listBucketInfo() throws IOException {
+<span class="fc" id="L197">    throttle(StorageOperation.LIST_BUCKETS);</span>
+<span class="fc" id="L198">    return wrappedGcs.listBucketInfo();</span>
+  }
+
+  @Override
+  public List&lt;String&gt; listObjectNames(String bucketName,
+      String objectNamePrefix, String delimiter)
+      throws IOException {
+<span class="fc" id="L205">    return listObjectNames(bucketName, objectNamePrefix, delimiter,</span>
+        GoogleCloudStorage.MAX_RESULTS_UNLIMITED);
+  }
+
+  @Override
+  public List&lt;String&gt; listObjectNames(String bucketName,
+      String objectNamePrefix, String delimiter, long maxResults)
+      throws IOException {
+<span class="fc" id="L213">    throttle(StorageOperation.LIST_OBJECTS);</span>
+<span class="fc" id="L214">    return wrappedGcs.listObjectNames(</span>
+        bucketName, objectNamePrefix, delimiter, maxResults);
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(String bucketName,
+      String objectNamePrefix, String delimiter)
+      throws IOException {
+<span class="fc" id="L222">    return listObjectInfo(bucketName, objectNamePrefix, delimiter,</span>
+        GoogleCloudStorage.MAX_RESULTS_UNLIMITED);
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(String bucketName,
+      String objectNamePrefix, String delimiter, long maxResults)
+      throws IOException {
+<span class="fc" id="L230">    throttle(StorageOperation.LIST_OBJECTS);</span>
+<span class="fc" id="L231">    return wrappedGcs.listObjectInfo(</span>
+        bucketName, objectNamePrefix, delimiter, maxResults);
+  }
+
+  @Override
+  public ListPage&lt;GoogleCloudStorageItemInfo&gt; listObjectInfoPage(
+      String bucketName, String objectNamePrefix, String delimiter, String pageToken)
+      throws IOException {
+<span class="fc" id="L239">    throttle(StorageOperation.LIST_OBJECTS);</span>
+<span class="fc" id="L240">    return wrappedGcs.listObjectInfoPage(bucketName, objectNamePrefix, delimiter, pageToken);</span>
+  }
+
+  @Override
+  public GoogleCloudStorageItemInfo getItemInfo(
+      StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L246">    throttle(StorageOperation.GET_ITEMINFO);</span>
+<span class="fc" id="L247">    return wrappedGcs.getItemInfo(resourceId);</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; getItemInfos(
+      List&lt;StorageResourceId&gt; resourceIds) throws IOException {
+<span class="fc" id="L253">    throttle(StorageOperation.GET_ITEMINFO, resourceIds.size());</span>
+<span class="fc" id="L254">    return wrappedGcs.getItemInfos(resourceIds);</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; updateItems(List&lt;UpdatableItemInfo&gt; itemInfoList)
+      throws IOException {
+<span class="fc" id="L260">    throttle(StorageOperation.UPDATE_ITEMINFO, itemInfoList.size());</span>
+<span class="fc" id="L261">    return wrappedGcs.updateItems(itemInfoList);</span>
+  }
+
+  @Override
+  public void close() {
+<span class="nc" id="L266">    wrappedGcs.close();</span>
+<span class="nc" id="L267">  }</span>
+
+  @Override
+  public void waitForBucketEmpty(String bucketName) throws IOException {
+<span class="nc" id="L271">    throttle(StorageOperation.LIST_OBJECTS);</span>
+<span class="nc" id="L272">    wrappedGcs.waitForBucketEmpty(bucketName);</span>
+<span class="nc" id="L273">  }</span>
+
+  @Override
+  public void compose(
+      String bucketName, List&lt;String&gt; sources, String destination, String contentType)
+      throws IOException {
+<span class="fc" id="L279">    throttle(StorageOperation.GET_ITEMINFO, sources.size());</span>
+<span class="fc" id="L280">    throttle(StorageOperation.COMPOSE_OBJECTS);</span>
+<span class="fc" id="L281">    wrappedGcs.compose(bucketName, sources, destination, contentType);</span>
+<span class="fc" id="L282">  }</span>
+
+  @Override
+  public GoogleCloudStorageItemInfo composeObjects(
+      List&lt;StorageResourceId&gt; sources,
+      final StorageResourceId destination,
+      CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L290">    throttle(StorageOperation.GET_ITEMINFO, sources.size());</span>
+<span class="fc" id="L291">    throttle(StorageOperation.COMPOSE_OBJECTS);</span>
+<span class="fc" id="L292">    return wrappedGcs.composeObjects(sources, destination, options);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

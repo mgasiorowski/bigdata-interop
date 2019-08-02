@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>UnshardedExportToCloudStorage.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">UnshardedExportToCloudStorage.java</span></div><h1>UnshardedExportToCloudStorage.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import com.google.api.services.bigquery.model.Table;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.InputFormat;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.util.Progressable;
+
+/**
+ * An Export to GCS that provides a single directory for BigQuery to export to and requires
+ * all content to be written (the export complete) before we begin execution of the MapReduce.
+ */
+public class UnshardedExportToCloudStorage extends AbstractExportToCloudStorage {
+<span class="fc" id="L40">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+  private InputFormat&lt;LongWritable, Text&gt; delegateInputFormat;
+
+  public UnshardedExportToCloudStorage(
+      Configuration configuration,
+      String gcsPath,
+      ExportFileFormat fileFormat,
+      BigQueryHelper bigQueryHelper,
+      String projectId,
+      Table tableToExport,
+      @Nullable InputFormat&lt;LongWritable, Text&gt; delegateInputFormat) {
+<span class="fc" id="L51">    super(configuration, gcsPath, fileFormat, bigQueryHelper, projectId, tableToExport);</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">    if (delegateInputFormat == null) {</span>
+<span class="fc" id="L53">      this.delegateInputFormat = new TextInputFormat();</span>
+    } else {
+<span class="fc" id="L55">      this.delegateInputFormat = delegateInputFormat;</span>
+    }
+<span class="fc" id="L57">  }</span>
+
+  @Override
+  public List&lt;InputSplit&gt; getSplits(JobContext context) throws IOException, InterruptedException {
+<span class="fc" id="L61">    logger.atInfo().log(&quot;Setting FileInputFormat's inputPath to '%s'&quot;, gcsPath);</span>
+<span class="fc" id="L62">    configuration.set(FileInputFormat.INPUT_DIR, gcsPath);</span>
+
+    // Now that the FileInputFormat's path is pointed to the export directory, construct splits
+    // using a TextInputFormat instance.
+<span class="fc" id="L66">    List&lt;InputSplit&gt; splits = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">    for (InputSplit split : delegateInputFormat.getSplits(context)) {</span>
+<span class="fc" id="L68">      FileSplit fileSplit = (FileSplit) split;</span>
+<span class="fc" id="L69">      splits.add(</span>
+          new UnshardedInputSplit(
+<span class="fc" id="L71">              fileSplit.getPath(),</span>
+<span class="fc" id="L72">              fileSplit.getStart(),</span>
+<span class="fc" id="L73">              fileSplit.getLength(),</span>
+<span class="fc" id="L74">              fileSplit.getLocations()));</span>
+<span class="fc" id="L75">    }</span>
+<span class="fc" id="L76">    return splits;</span>
+  }
+
+  @Override
+  public List&lt;String&gt; getExportPaths() throws IOException {
+<span class="fc" id="L81">    logger.atFine().log(&quot;Using unsharded splits&quot;);</span>
+<span class="fc" id="L82">    String exportPattern = gcsPath + &quot;/&quot; + fileFormat.getFilePattern();</span>
+<span class="fc" id="L83">    return ImmutableList.of(exportPattern);</span>
+  }
+
+  @Override
+  public void waitForUsableMapReduceInput() throws IOException, InterruptedException {
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">      Preconditions.checkState(</span>
+          exportJobReference != null,
+          &quot;beginExport() must be called before waitForUsableMapReduceInput()&quot;);
+
+<span class="fc" id="L92">      BigQueryUtils.waitForJobCompletion(</span>
+<span class="fc" id="L93">          bigQueryHelper.getRawBigquery(),</span>
+          projectId,
+          exportJobReference,
+<span class="fc" id="L96">          new Progressable() {</span>
+            @Override
+            public void progress() {
+<span class="nc" id="L99">            }</span>
+          });
+<span class="fc" id="L101">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>HttpTransportFactory.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">HttpTransportFactory.java</span></div><h1>HttpTransportFactory.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
+
+package com.google.cloud.hadoop.util;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+import com.google.api.client.googleapis.GoogleUtils;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.apache.ApacheHttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.net.Authenticator;
+import java.net.InetSocketAddress;
+import java.net.PasswordAuthentication;
+import java.net.Proxy;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.security.GeneralSecurityException;
+import javax.annotation.Nullable;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.impl.client.DefaultHttpClient;
+
+/**
+ * Factory for creating HttpTransport types.
+ */
+<span class="nc" id="L44">public class HttpTransportFactory {</span>
+<span class="fc" id="L45">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  /**
+   * Types of HttpTransports the factory can create.
+   */
+<span class="fc" id="L50">  public enum HttpTransportType {</span>
+<span class="fc" id="L51">    APACHE,</span>
+<span class="fc" id="L52">    JAVA_NET,</span>
+  }
+
+  // Default to javanet implementation.
+<span class="fc" id="L56">  public static final HttpTransportType DEFAULT_TRANSPORT_TYPE = HttpTransportType.JAVA_NET;</span>
+
+  /**
+   * Create an {@link HttpTransport} based on an type class.
+   *
+   * @param type The type of HttpTransport to use.
+   * @return The resulting HttpTransport.
+   * @throws IllegalArgumentException If the proxy address is invalid.
+   * @throws IOException If there is an issue connecting to Google's Certification server.
+   */
+  public static HttpTransport createHttpTransport(HttpTransportType type) throws IOException {
+<span class="fc" id="L67">    return createHttpTransport(</span>
+        type, /* proxyAddress= */ null, /* proxyUsername= */ null, /* proxyPassword= */ null);
+  }
+
+  /**
+   * Create an {@link HttpTransport} based on an type class and an optional HTTP proxy.
+   *
+   * @param type The type of HttpTransport to use.
+   * @param proxyAddress The HTTP proxy to use with the transport. Of the form hostname:port. If
+   *     empty no proxy will be used.
+   * @param proxyUsername The HTTP proxy username to use with the transport. If empty no proxy
+   *     username will be used.
+   * @param proxyPassword The HTTP proxy password to use with the transport. If empty no proxy
+   *     password will be used.
+   * @return The resulting HttpTransport.
+   * @throws IllegalArgumentException If the proxy address is invalid.
+   * @throws IOException If there is an issue connecting to Google's Certification server.
+   */
+  public static HttpTransport createHttpTransport(
+      HttpTransportType type,
+      @Nullable String proxyAddress,
+      @Nullable String proxyUsername,
+      @Nullable String proxyPassword)
+      throws IOException {
+<span class="fc" id="L91">    logger.atFine().log(</span>
+        &quot;createHttpTransport(%s, %s, %s, %s)&quot;,
+<span class="fc" id="L93">        type, proxyAddress, toSecretString(proxyUsername), toSecretString(proxyPassword));</span>
+<span class="pc bpc" id="L94" title="3 of 6 branches missed.">    checkArgument(</span>
+        proxyAddress != null || (proxyUsername == null &amp;&amp; proxyPassword == null),
+        &quot;if proxyAddress is null then proxyUsername and proxyPassword should be null too&quot;);
+<span class="pc bpc" id="L97" title="3 of 6 branches missed.">    checkArgument(</span>
+        (proxyUsername == null) == (proxyPassword == null),
+        &quot;both proxyUsername and proxyPassword should be null or not null together&quot;);
+<span class="fc" id="L100">    URI proxyUri = parseProxyAddress(proxyAddress);</span>
+    try {
+<span class="pc bpc" id="L102" title="1 of 3 branches missed.">      switch (type) {</span>
+        case APACHE:
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">          Credentials proxyCredentials =</span>
+              proxyUsername != null
+                  ? new UsernamePasswordCredentials(proxyUsername, proxyPassword)
+                  : null;
+<span class="fc" id="L108">          return createApacheHttpTransport(proxyUri, proxyCredentials);</span>
+        case JAVA_NET:
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">          PasswordAuthentication proxyAuth =</span>
+              proxyUsername != null
+<span class="pc" id="L112">                  ? new PasswordAuthentication(proxyUsername, proxyPassword.toCharArray())</span>
+                  : null;
+<span class="fc" id="L114">          return createNetHttpTransport(proxyUri, proxyAuth);</span>
+        default:
+<span class="nc" id="L116">          throw new IllegalArgumentException(</span>
+<span class="nc" id="L117">              String.format(&quot;Invalid HttpTransport type '%s'&quot;, type.name()));</span>
+      }
+<span class="nc" id="L119">    } catch (GeneralSecurityException e) {</span>
+<span class="nc" id="L120">      throw new IOException(e);</span>
+    }
+  }
+
+  static String toSecretString(@Nullable String secret) {
+<span class="fc bfc" id="L125" title="All 2 branches covered.">    return secret == null ? &quot;&lt;not provided&gt;&quot; : &quot;&lt;provided, but not displayed&gt;&quot;;</span>
+  }
+
+  /**
+   * Create an {@link ApacheHttpTransport} for calling Google APIs with an optional HTTP proxy.
+   *
+   * @param proxyUri Optional HTTP proxy URI to use with the transport.
+   * @param proxyCredentials Optional HTTP proxy credentials to authenticate with the transport
+   *     proxy.
+   * @return The resulting HttpTransport.
+   * @throws IOException If there is an issue connecting to Google's certification server.
+   * @throws GeneralSecurityException If there is a security issue with the keystore.
+   */
+  public static ApacheHttpTransport createApacheHttpTransport(
+      @Nullable URI proxyUri, @Nullable Credentials proxyCredentials)
+      throws IOException, GeneralSecurityException {
+<span class="pc bpc" id="L141" title="2 of 4 branches missed.">    checkArgument(</span>
+        proxyUri != null || proxyCredentials == null,
+        &quot;if proxyUri is null than proxyCredentials should be null too&quot;);
+
+<span class="fc" id="L145">    ApacheHttpTransport transport =</span>
+        new ApacheHttpTransport.Builder()
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">            .trustCertificates(GoogleUtils.getCertificateTrustStore())</span>
+<span class="fc" id="L148">            .setProxy(</span>
+<span class="nc" id="L149">                proxyUri == null ? null : new HttpHost(proxyUri.getHost(), proxyUri.getPort()))</span>
+<span class="fc" id="L150">            .build();</span>
+
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">    if (proxyCredentials != null) {</span>
+<span class="nc" id="L153">      ((DefaultHttpClient) transport.getHttpClient())</span>
+<span class="nc" id="L154">          .getCredentialsProvider()</span>
+<span class="nc" id="L155">          .setCredentials(new AuthScope(proxyUri.getHost(), proxyUri.getPort()), proxyCredentials);</span>
+    }
+
+<span class="fc" id="L158">    return transport;</span>
+  }
+
+  /**
+   * Create an {@link NetHttpTransport} for calling Google APIs with an optional HTTP proxy.
+   *
+   * @param proxyUri Optional HTTP proxy URI to use with the transport.
+   * @param proxyAuth Optional HTTP proxy credentials to authenticate with the transport proxy.
+   * @return The resulting HttpTransport.
+   * @throws IOException If there is an issue connecting to Google's certification server.
+   * @throws GeneralSecurityException If there is a security issue with the keystore.
+   */
+  public static NetHttpTransport createNetHttpTransport(
+      @Nullable URI proxyUri, @Nullable PasswordAuthentication proxyAuth)
+      throws IOException, GeneralSecurityException {
+<span class="pc bpc" id="L173" title="2 of 4 branches missed.">    checkArgument(</span>
+        proxyUri != null || proxyAuth == null,
+        &quot;if proxyUri is null than proxyAuth should be null too&quot;);
+
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">    if (proxyAuth != null) {</span>
+<span class="nc" id="L178">      Authenticator.setDefault(</span>
+<span class="nc" id="L179">          new Authenticator() {</span>
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+<span class="nc bnc" id="L182" title="All 2 branches missed.">              if (getRequestorType() == RequestorType.PROXY</span>
+<span class="nc bnc" id="L183" title="All 2 branches missed.">                  &amp;&amp; getRequestingHost().equalsIgnoreCase(proxyUri.getHost())</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                  &amp;&amp; getRequestingPort() == proxyUri.getPort()) {</span>
+<span class="nc" id="L185">                return proxyAuth;</span>
+              }
+<span class="nc" id="L187">              return null;</span>
+            }
+          });
+    }
+
+<span class="fc" id="L192">    return new NetHttpTransport.Builder()</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">        .trustCertificates(GoogleUtils.getCertificateTrustStore())</span>
+<span class="fc" id="L194">        .setProxy(</span>
+            proxyUri == null
+                ? null
+                : new Proxy(
+<span class="nc" id="L198">                    Proxy.Type.HTTP, new InetSocketAddress(proxyUri.getHost(), proxyUri.getPort())))</span>
+<span class="fc" id="L199">        .build();</span>
+  }
+
+  /**
+   * Parse an HTTP proxy from a String address.
+   * @param proxyAddress The address of the proxy of the form (https?://)HOST:PORT.
+   * @return The URI of the proxy.
+   * @throws IllegalArgumentException If the address is invalid.
+   */
+  @VisibleForTesting
+  static URI parseProxyAddress(@Nullable String proxyAddress) {
+<span class="fc bfc" id="L210" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(proxyAddress)) {</span>
+<span class="fc" id="L211">      return null;</span>
+    }
+<span class="fc bfc" id="L213" title="All 2 branches covered.">    String uriString = (proxyAddress.contains(&quot;//&quot;) ? &quot;&quot; : &quot;//&quot;) + proxyAddress;</span>
+    try {
+<span class="fc" id="L215">      URI uri = new URI(uriString);</span>
+<span class="fc" id="L216">      String scheme = uri.getScheme();</span>
+<span class="fc" id="L217">      String host = uri.getHost();</span>
+<span class="fc" id="L218">      int port = uri.getPort();</span>
+<span class="fc" id="L219">      checkArgument(</span>
+<span class="fc bfc" id="L220" title="All 4 branches covered.">          Strings.isNullOrEmpty(scheme) || scheme.matches(&quot;https?&quot;),</span>
+          &quot;HTTP proxy address '%s' has invalid scheme '%s'.&quot;, proxyAddress, scheme);
+<span class="fc bfc" id="L222" title="All 2 branches covered.">      checkArgument(!Strings.isNullOrEmpty(host), &quot;Proxy address '%s' has no host.&quot;, proxyAddress);</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">      checkArgument(port != -1, &quot;Proxy address '%s' has no port.&quot;, proxyAddress);</span>
+<span class="fc" id="L224">      checkArgument(</span>
+<span class="fc" id="L225">          uri.equals(new URI(scheme, null, host, port, null, null, null)),</span>
+          &quot;Invalid proxy address '%s'.&quot;, proxyAddress);
+<span class="fc" id="L227">      return uri;</span>
+<span class="fc" id="L228">    } catch (URISyntaxException e) {</span>
+<span class="fc" id="L229">      throw new IllegalArgumentException(</span>
+<span class="fc" id="L230">          String.format(&quot;Invalid proxy address '%s'.&quot;, proxyAddress), e);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>FederatedBigQueryOutputCommitter.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery.output</a> &gt; <span class="el_source">FederatedBigQueryOutputCommitter.java</span></div><h1>FederatedBigQueryOutputCommitter.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery.output;
+
+import com.google.api.services.bigquery.model.TableReference;
+import com.google.cloud.hadoop.io.bigquery.BigQueryFileFormat;
+import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
+import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.JobStatus.State;
+import org.apache.hadoop.mapreduce.OutputCommitter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+
+/**
+ * This class acts as a wrapper which delegates calls to another OutputCommitter whose
+ * responsibility is to generate files in the defined output path. This class will ensure that a
+ * federated BigQuery table is created linking to those files.
+ */
+@InterfaceStability.Unstable
+public class FederatedBigQueryOutputCommitter extends ForwardingBigQueryFileOutputCommitter {
+
+  /**
+   * This class acts as a wrapper which delegates calls to another OutputCommitter whose
+   * responsibility is to generate files in the defined output path. This class will ensure that a
+   * federated BigQuery table is created linking to those files.
+   *
+   * @param context the context of the task.
+   * @param delegate the OutputCommitter that this will delegate functionality to.
+   * @throws IOException if there's an exception while validating the output path or getting the
+   *     BigQueryHelper.
+   */
+  public FederatedBigQueryOutputCommitter(TaskAttemptContext context, OutputCommitter delegate)
+      throws IOException {
+<span class="fc" id="L48">    super(context, delegate);</span>
+<span class="fc" id="L49">  }</span>
+
+  /**
+   * Runs a federated import job on BigQuery for the data in the output path in addition to calling
+   * the delegate's commitJob.
+   */
+  @Override
+  public void commitJob(JobContext context) throws IOException {
+<span class="fc" id="L57">    super.commitJob(context);</span>
+
+    // Get the destination configuration information.
+<span class="fc" id="L60">    Configuration conf = context.getConfiguration();</span>
+<span class="fc" id="L61">    TableReference destTable = BigQueryOutputConfiguration.getTableReference(conf);</span>
+<span class="fc" id="L62">    String jobProjectId = BigQueryOutputConfiguration.getJobProjectId(conf);</span>
+<span class="fc" id="L63">    Optional&lt;BigQueryTableSchema&gt; destSchema = BigQueryOutputConfiguration.getTableSchema(conf);</span>
+<span class="fc" id="L64">    BigQueryFileFormat outputFileFormat = BigQueryOutputConfiguration.getFileFormat(conf);</span>
+<span class="fc" id="L65">    List&lt;String&gt; sourceUris = getOutputFileURIs();</span>
+
+<span class="fc" id="L67">    getBigQueryHelper()</span>
+<span class="fc" id="L68">        .importFederatedFromGcs(</span>
+            jobProjectId,
+            destTable,
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">            destSchema.isPresent() ? destSchema.get().get() : null,</span>
+            outputFileFormat,
+            sourceUris);
+<span class="fc" id="L74">  }</span>
+
+  /**
+   * Performs a cleanup of the output path in addition to delegating the call to the wrapped
+   * OutputCommitter.
+   */
+  @Override
+  public void abortJob(JobContext context, State state) throws IOException {
+<span class="fc" id="L82">    super.abortJob(context, state);</span>
+<span class="fc" id="L83">    cleanup(context);</span>
+<span class="fc" id="L84">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

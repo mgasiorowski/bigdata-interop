@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DirectBigQueryInputFormat.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">DirectBigQueryInputFormat.java</span></div><h1>DirectBigQueryInputFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import com.google.api.services.bigquery.model.Table;
+import com.google.api.services.bigquery.model.TableReference;
+import com.google.cloud.bigquery.storage.v1beta1.BigQueryStorageClient;
+import com.google.cloud.bigquery.storage.v1beta1.ReadOptions.TableReadOptions;
+import com.google.cloud.bigquery.storage.v1beta1.ReadOptions.TableReadOptions.Builder;
+import com.google.cloud.bigquery.storage.v1beta1.Storage.CreateReadSessionRequest;
+import com.google.cloud.bigquery.storage.v1beta1.Storage.DataFormat;
+import com.google.cloud.bigquery.storage.v1beta1.Storage.ReadSession;
+import com.google.cloud.bigquery.storage.v1beta1.TableReferenceProto;
+import com.google.cloud.hadoop.util.ConfigurationUtil;
+import com.google.common.base.Preconditions;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapreduce.InputFormat;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.MRJobConfig;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+
+/**
+ * InputFormat that directly reads data from BigQuery using the BigQuery Storage API. See
+ * https://cloud.google.com/bigquery/docs/reference/storage/.
+ */
+@InterfaceStability.Evolving
+<span class="fc" id="L54">public class DirectBigQueryInputFormat extends InputFormat&lt;NullWritable, GenericRecord&gt; {</span>
+
+  private static final String DIRECT_PARALLELISM_KEY = MRJobConfig.NUM_MAPS;
+  private static final int DIRECT_PARALLELISM_DEFAULT = 10;
+
+  @Override
+  public List&lt;InputSplit&gt; getSplits(JobContext context) throws IOException {
+<span class="fc" id="L61">    final Configuration configuration = context.getConfiguration();</span>
+<span class="fc" id="L62">    BigQueryStorageClient client = getClient(configuration);</span>
+    BigQueryHelper bigQueryHelper;
+    try {
+<span class="fc" id="L65">      bigQueryHelper = getBigQueryHelper(configuration);</span>
+<span class="nc" id="L66">    } catch (GeneralSecurityException gse) {</span>
+<span class="nc" id="L67">      throw new IOException(&quot;Failed to create BigQuery client&quot;, gse);</span>
+<span class="fc" id="L68">    }</span>
+<span class="fc" id="L69">    double skewLimit =</span>
+<span class="fc" id="L70">        configuration.getDouble(</span>
+            BigQueryConfiguration.SKEW_LIMIT_KEY, BigQueryConfiguration.SKEW_LIMIT_DEFAULT);
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">    Preconditions.checkArgument(</span>
+        skewLimit &gt;= 1.0,
+        &quot;%s is less than 1; not all records would be read. Exiting&quot;,
+        BigQueryConfiguration.SKEW_LIMIT_KEY);
+<span class="fc" id="L76">    Table table = getTable(configuration, bigQueryHelper);</span>
+<span class="fc" id="L77">    ReadSession session = startSession(configuration, table, client);</span>
+<span class="fc" id="L78">    long numRows = table.getNumRows().longValue();</span>
+<span class="fc" id="L79">    long limit = Math.round(skewLimit * numRows / session.getStreamsCount());</span>
+
+<span class="fc" id="L81">    return session.getStreamsList().stream()</span>
+<span class="fc" id="L82">        .map(</span>
+            stream -&gt;
+<span class="fc" id="L84">                new DirectBigQueryInputSplit(</span>
+<span class="fc" id="L85">                    stream.getName(), session.getAvroSchema().getSchema(), limit))</span>
+<span class="fc" id="L86">        .collect(Collectors.toList());</span>
+  }
+
+  private static Table getTable(Configuration configuration, BigQueryHelper bigQueryHelper)
+      throws IOException {
+<span class="fc" id="L91">    Map&lt;String, String&gt; mandatoryConfig =</span>
+<span class="fc" id="L92">        ConfigurationUtil.getMandatoryConfig(</span>
+            configuration, BigQueryConfiguration.MANDATORY_CONFIG_PROPERTIES_INPUT);
+<span class="fc" id="L94">    String inputProjectId = mandatoryConfig.get(BigQueryConfiguration.INPUT_PROJECT_ID_KEY);</span>
+<span class="fc" id="L95">    String datasetId = mandatoryConfig.get(BigQueryConfiguration.INPUT_DATASET_ID_KEY);</span>
+<span class="fc" id="L96">    String tableName = mandatoryConfig.get(BigQueryConfiguration.INPUT_TABLE_ID_KEY);</span>
+
+<span class="fc" id="L98">    TableReference tableReference =</span>
+        new TableReference()
+<span class="fc" id="L100">            .setDatasetId(datasetId)</span>
+<span class="fc" id="L101">            .setProjectId(inputProjectId)</span>
+<span class="fc" id="L102">            .setTableId(tableName);</span>
+<span class="fc" id="L103">    return bigQueryHelper.getTable(tableReference);</span>
+  }
+
+  private static ReadSession startSession(
+      Configuration configuration, Table table, BigQueryStorageClient client) {
+    // Extract relevant configuration settings.
+<span class="fc" id="L109">    String jobProjectId = configuration.get(BigQueryConfiguration.PROJECT_ID_KEY);</span>
+<span class="fc" id="L110">    String filter = configuration.get(BigQueryConfiguration.SQL_FILTER_KEY, &quot;&quot;);</span>
+<span class="fc" id="L111">    Collection&lt;String&gt; selectedFields =</span>
+<span class="fc" id="L112">        configuration.getStringCollection(BigQueryConfiguration.SELECTED_FIELDS_KEY);</span>
+
+<span class="fc" id="L114">    Builder readOptions = TableReadOptions.newBuilder().setRowRestriction(filter);</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">    if (!selectedFields.isEmpty()) {</span>
+<span class="fc" id="L116">      readOptions.addAllSelectedFields(selectedFields);</span>
+    }
+    CreateReadSessionRequest request =
+<span class="fc" id="L119">        CreateReadSessionRequest.newBuilder()</span>
+<span class="fc" id="L120">            .setTableReference(</span>
+<span class="fc" id="L121">                TableReferenceProto.TableReference.newBuilder()</span>
+<span class="fc" id="L122">                    .setProjectId(table.getTableReference().getProjectId())</span>
+<span class="fc" id="L123">                    .setDatasetId(table.getTableReference().getDatasetId())</span>
+<span class="fc" id="L124">                    .setTableId(table.getTableReference().getTableId()))</span>
+<span class="fc" id="L125">            .setRequestedStreams(getParallelism(configuration))</span>
+<span class="fc" id="L126">            .setParent(&quot;projects/&quot; + jobProjectId)</span>
+<span class="fc" id="L127">            .setReadOptions(readOptions)</span>
+<span class="fc" id="L128">            .setFormat(DataFormat.AVRO)</span>
+<span class="fc" id="L129">            .build();</span>
+<span class="fc" id="L130">    return client.createReadSession(request);</span>
+  }
+
+  private static int getParallelism(Configuration configuration) {
+<span class="fc" id="L134">    return configuration.getInt(DIRECT_PARALLELISM_KEY, DIRECT_PARALLELISM_DEFAULT);</span>
+  }
+
+  @Override
+  public RecordReader&lt;NullWritable, GenericRecord&gt; createRecordReader(
+      InputSplit inputSplit, TaskAttemptContext context) {
+<span class="fc" id="L140">    return new DirectBigQueryRecordReader();</span>
+  }
+
+  /**
+   * Helper method to override for testing.
+   *
+   * @return Bigquery.
+   * @throws IOException on IO Error.
+   */
+  protected BigQueryStorageClient getClient(Configuration config) throws IOException {
+<span class="nc" id="L150">    return BigQueryStorageClient.create();</span>
+  }
+
+  /** Helper method to override for testing. */
+  protected BigQueryHelper getBigQueryHelper(Configuration config)
+      throws GeneralSecurityException, IOException {
+<span class="nc" id="L156">    BigQueryFactory factory = new BigQueryFactory();</span>
+<span class="nc" id="L157">    return factory.getBigQueryHelper(config);</span>
+  }
+
+  /** InputSplit containing session metadata. */
+  public static class DirectBigQueryInputSplit extends InputSplit implements Writable {
+
+    private String name;
+    private String schema;
+    private long limit;
+
+<span class="nc" id="L167">    public DirectBigQueryInputSplit() {}</span>
+
+<span class="fc" id="L169">    public DirectBigQueryInputSplit(String name, String schema, long limit) {</span>
+<span class="fc" id="L170">      this.name = name;</span>
+<span class="fc" id="L171">      this.schema = schema;</span>
+<span class="fc" id="L172">      this.limit = limit;</span>
+<span class="fc" id="L173">    }</span>
+
+    @Override
+    public long getLength() {
+      // Unknown because of dynamic allocation
+<span class="nc" id="L178">      return -1;</span>
+    }
+
+    @Override
+    public String[] getLocations() {
+<span class="nc" id="L183">      return new String[0];</span>
+    }
+
+    @Override
+    public void write(DataOutput out) throws IOException {
+<span class="nc" id="L188">      out.writeUTF(name);</span>
+<span class="nc" id="L189">      out.writeUTF(schema);</span>
+<span class="nc" id="L190">      out.writeLong(limit);</span>
+<span class="nc" id="L191">    }</span>
+
+    @Override
+    public void readFields(DataInput in) throws IOException {
+<span class="nc" id="L195">      name = in.readUTF();</span>
+<span class="nc" id="L196">      schema = in.readUTF();</span>
+<span class="nc" id="L197">      limit = in.readLong();</span>
+<span class="nc" id="L198">    }</span>
+
+    public String getName() {
+<span class="fc" id="L201">      return name;</span>
+    }
+
+    public String getSchema() {
+<span class="fc" id="L205">      return schema;</span>
+    }
+
+    public long getLimit() {
+<span class="fc" id="L209">      return limit;</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L214">      return Objects.hash(name, schema, limit);</span>
+    }
+
+    private Object[] values() {
+<span class="fc" id="L218">      return new Object[] {name, schema, limit};</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">      if (!(o instanceof DirectBigQueryInputSplit)) {</span>
+<span class="nc" id="L224">        return false;</span>
+      }
+<span class="fc" id="L226">      return Arrays.equals(values(), ((DirectBigQueryInputSplit) o).values());</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L231">      return String.format(&quot;(name='%s', schema='%s', limit='%s')&quot;, name, schema, limit);</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

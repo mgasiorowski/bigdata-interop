@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GoogleHadoopFSInputStream.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcs-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.fs.gcs</a> &gt; <span class="el_source">GoogleHadoopFSInputStream.java</span></div><h1>GoogleHadoopFSInputStream.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.fs.gcs;
+
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
+import com.google.common.base.Preconditions;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.SeekableByteChannel;
+import org.apache.hadoop.fs.FSInputStream;
+import org.apache.hadoop.fs.FileSystem;
+
+/** A seekable and positionable FSInputStream that provides read access to a file. */
+class GoogleHadoopFSInputStream extends FSInputStream {
+
+<span class="fc" id="L33">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // Instance of GoogleHadoopFileSystemBase.
+  private GoogleHadoopFileSystemBase ghfs;
+
+  // All store IO access goes through this.
+  private final SeekableByteChannel channel;
+
+  // Path of the file to read.
+  private URI gcsPath;
+
+  // Number of bytes read through this channel.
+  private long totalBytesRead;
+
+  // Statistics tracker provided by the parent GoogleHadoopFileSystemBase for recording
+  // numbers of bytes read.
+  private final FileSystem.Statistics statistics;
+
+  // Time of initialization
+  private long initTime;
+
+  // Used for single-byte reads.
+<span class="fc" id="L55">  private final byte[] singleReadBuf = new byte[1];</span>
+
+  /**
+   * Constructs an instance of GoogleHadoopFSInputStream object.
+   *
+   * @param ghfs Instance of GoogleHadoopFileSystemBase.
+   * @param gcsPath Path of the file to read from.
+   * @param statistics File system statistics object.
+   * @throws IOException if an IO error occurs.
+   */
+  GoogleHadoopFSInputStream(
+      GoogleHadoopFileSystemBase ghfs,
+      URI gcsPath,
+      GoogleCloudStorageReadOptions readOptions,
+      FileSystem.Statistics statistics)
+<span class="fc" id="L70">      throws IOException {</span>
+<span class="fc" id="L71">    logger.atFine().log(&quot;GoogleHadoopFSInputStream(%s)&quot;, gcsPath);</span>
+<span class="fc" id="L72">    this.ghfs = ghfs;</span>
+<span class="fc" id="L73">    this.gcsPath = gcsPath;</span>
+<span class="fc" id="L74">    this.statistics = statistics;</span>
+<span class="fc" id="L75">    this.initTime = System.nanoTime();</span>
+<span class="fc" id="L76">    this.totalBytesRead = 0;</span>
+<span class="fc" id="L77">    this.channel = ghfs.getGcsFs().open(gcsPath, readOptions);</span>
+<span class="fc" id="L78">  }</span>
+
+  /**
+   * Reads a single byte from the underlying store.
+   *
+   * @return A single byte from the underlying store or -1 on EOF.
+   * @throws IOException if an IO error occurs.
+   */
+  @Override
+  public synchronized int read() throws IOException {
+<span class="fc" id="L88">    long startTime = System.nanoTime();</span>
+
+    // TODO(user): Wrap this in a while-loop if we ever introduce a non-blocking mode for the
+    // underlying channel.
+<span class="fc" id="L92">    int numRead = channel.read(ByteBuffer.wrap(singleReadBuf));</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    if (numRead == -1) {</span>
+<span class="fc" id="L94">      return -1;</span>
+    }
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">    if (numRead != 1) {</span>
+<span class="nc" id="L97">      throw new IOException(</span>
+<span class="nc" id="L98">          String.format(</span>
+              &quot;Somehow read %d bytes using single-byte buffer for path %s ending in position %d!&quot;,
+<span class="nc" id="L100">              numRead, gcsPath, channel.position()));</span>
+    }
+<span class="fc" id="L102">    byte b = singleReadBuf[0];</span>
+
+<span class="fc" id="L104">    totalBytesRead++;</span>
+<span class="fc" id="L105">    statistics.incrementBytesRead(1);</span>
+<span class="fc" id="L106">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L107">    ghfs.increment(GoogleHadoopFileSystemBase.Counter.READ1);</span>
+<span class="fc" id="L108">    ghfs.increment(GoogleHadoopFileSystemBase.Counter.READ1_TIME, duration);</span>
+<span class="fc" id="L109">    return (b &amp; 0xff);</span>
+  }
+
+  /**
+   * Reads up to length bytes from the underlying store and stores them starting at the specified
+   * offset in the given buffer. Less than length bytes may be returned.
+   *
+   * @param buf The buffer into which data is returned.
+   * @param offset The offset at which data is written.
+   * @param length Maximum number of bytes to read.
+   * @return Number of bytes read or -1 on EOF.
+   * @throws IOException if an IO error occurs.
+   */
+  @Override
+  public synchronized int read(byte[] buf, int offset, int length) throws IOException {
+<span class="fc" id="L124">    long startTime = System.nanoTime();</span>
+<span class="fc" id="L125">    Preconditions.checkNotNull(buf, &quot;buf must not be null&quot;);</span>
+<span class="fc bfc" id="L126" title="All 6 branches covered.">    if (offset &lt; 0 || length &lt; 0 || length &gt; buf.length - offset) {</span>
+<span class="fc" id="L127">      throw new IndexOutOfBoundsException();</span>
+    }
+
+<span class="fc" id="L130">    int numRead = channel.read(ByteBuffer.wrap(buf, offset, length));</span>
+
+<span class="fc bfc" id="L132" title="All 2 branches covered.">    if (numRead &gt; 0) {</span>
+      // -1 means we actually read 0 bytes, but requested at least one byte.
+<span class="fc" id="L134">      statistics.incrementBytesRead(numRead);</span>
+<span class="fc" id="L135">      totalBytesRead += numRead;</span>
+    }
+
+<span class="fc" id="L138">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L139">    ghfs.increment(GoogleHadoopFileSystemBase.Counter.READ);</span>
+<span class="fc" id="L140">    ghfs.increment(GoogleHadoopFileSystemBase.Counter.READ_TIME, duration);</span>
+<span class="fc" id="L141">    return numRead;</span>
+  }
+
+  /**
+   * Reads up to length bytes from the underlying store and stores them starting at the specified
+   * offset in the given buffer. Less than length bytes may be returned. Reading starts at the given
+   * position.
+   *
+   * @param position Data is read from the stream starting at this position.
+   * @param buf The buffer into which data is returned.
+   * @param offset The offset at which data is written.
+   * @param length Maximum number of bytes to read.
+   * @return Number of bytes read or -1 on EOF.
+   * @throws IOException if an IO error occurs.
+   */
+  @Override
+  public synchronized int read(long position, byte[] buf, int offset, int length)
+      throws IOException {
+<span class="fc" id="L159">    long startTime = System.nanoTime();</span>
+<span class="fc" id="L160">    int result = super.read(position, buf, offset, length);</span>
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    if (result &gt; 0) {</span>
+      // -1 means we actually read 0 bytes, but requested at least one byte.
+<span class="fc" id="L164">      statistics.incrementBytesRead(result);</span>
+<span class="fc" id="L165">      totalBytesRead += result;</span>
+    }
+
+<span class="fc" id="L168">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L169">    ghfs.increment(GoogleHadoopFileSystemBase.Counter.READ_POS);</span>
+<span class="fc" id="L170">    ghfs.increment(GoogleHadoopFileSystemBase.Counter.READ_POS_TIME, duration);</span>
+<span class="fc" id="L171">    return result;</span>
+  }
+
+  /**
+   * Gets the current position within the file being read.
+   *
+   * @return The current position within the file being read.
+   * @throws IOException if an IO error occurs.
+   */
+  @Override
+  public synchronized long getPos() throws IOException {
+<span class="fc" id="L182">    long pos = channel.position();</span>
+<span class="fc" id="L183">    logger.atFine().log(&quot;getPos: %d&quot;, pos);</span>
+<span class="fc" id="L184">    return pos;</span>
+  }
+
+  /**
+   * Sets the current position within the file being read.
+   *
+   * @param pos The position to seek to.
+   * @throws IOException if an IO error occurs or if the target position is invalid.
+   */
+  @Override
+  public synchronized void seek(long pos) throws IOException {
+<span class="fc" id="L195">    long startTime = System.nanoTime();</span>
+<span class="fc" id="L196">    logger.atFine().log(&quot;seek: %d&quot;, pos);</span>
+    try {
+<span class="fc" id="L198">      channel.position(pos);</span>
+<span class="nc" id="L199">    } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L200">      throw new IOException(e);</span>
+<span class="fc" id="L201">    }</span>
+<span class="fc" id="L202">    long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L203">    ghfs.increment(GoogleHadoopFileSystemBase.Counter.SEEK);</span>
+<span class="fc" id="L204">    ghfs.increment(GoogleHadoopFileSystemBase.Counter.SEEK_TIME, duration);</span>
+<span class="fc" id="L205">  }</span>
+
+  /**
+   * Seeks a different copy of the data. Not supported.
+   *
+   * @return true if a new source is found, false otherwise.
+   */
+  @Override
+  public synchronized boolean seekToNewSource(long targetPos) throws IOException {
+<span class="fc" id="L214">    return false;</span>
+  }
+
+  /**
+   * Closes the current stream.
+   *
+   * @throws IOException if an IO error occurs.
+   */
+  @Override
+  public synchronized void close() throws IOException {
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">    if (channel != null) {</span>
+<span class="fc" id="L225">      long startTime = System.nanoTime();</span>
+<span class="fc" id="L226">      logger.atFine().log(&quot;close: file: %s, totalBytesRead: %d&quot;, gcsPath, totalBytesRead);</span>
+<span class="fc" id="L227">      channel.close();</span>
+<span class="fc" id="L228">      long duration = System.nanoTime() - startTime;</span>
+<span class="fc" id="L229">      ghfs.increment(GoogleHadoopFileSystemBase.Counter.READ_CLOSE);</span>
+<span class="fc" id="L230">      ghfs.increment(GoogleHadoopFileSystemBase.Counter.READ_CLOSE_TIME, duration);</span>
+<span class="fc" id="L231">      long streamDuration = System.nanoTime() - initTime;</span>
+<span class="fc" id="L232">      ghfs.increment(GoogleHadoopFileSystemBase.Counter.INPUT_STREAM);</span>
+<span class="fc" id="L233">      ghfs.increment(GoogleHadoopFileSystemBase.Counter.INPUT_STREAM_TIME, streamDuration);</span>
+    }
+<span class="fc" id="L235">  }</span>
+
+  /**
+   * Indicates whether this stream supports the 'mark' functionality.
+   *
+   * @return false (functionality not supported).
+   */
+  @Override
+  public boolean markSupported() {
+    // HDFS does not support it either and most Hadoop tools do not expect it.
+<span class="fc" id="L245">    return false;</span>
+  }
+
+  @Override
+  public int available() throws IOException {
+<span class="fc bfc" id="L250" title="All 2 branches covered.">    if (!channel.isOpen()) {</span>
+<span class="fc" id="L251">      throw new ClosedChannelException();</span>
+    }
+<span class="fc" id="L253">    return super.available();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

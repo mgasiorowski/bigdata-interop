@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GoogleHadoopFS.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcs-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.fs.gcs</a> &gt; <span class="el_source">GoogleHadoopFS.java</span></div><h1>GoogleHadoopFS.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 Google Inc. All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.fs.gcs;
+
+import com.google.common.base.Preconditions;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.EnumSet;
+import java.util.StringTokenizer;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.AbstractFileSystem;
+import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.CreateFlag;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileChecksum;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FsServerDefaults;
+import org.apache.hadoop.fs.FsStatus;
+import org.apache.hadoop.fs.Options.ChecksumOpt;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.util.Progressable;
+
+/**
+ * GoogleHadoopFS provides a YARN compatible Abstract File System on top of
+ * Google Cloud Storage (GCS).
+ *
+ * It is implemented as a thin abstraction layer on top of GoogleHadoopFileSystem, but will soon be
+ * refactored to share a common base.
+ */
+public class GoogleHadoopFS extends AbstractFileSystem {
+
+<span class="fc" id="L48">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // Wrapped GoogleHadoopFileSystem instance
+  private GoogleHadoopFileSystem ghfs;
+
+  public GoogleHadoopFS(URI uri, Configuration conf) throws URISyntaxException, IOException {
+<span class="fc" id="L54">    this(new GoogleHadoopFileSystem(), uri, conf);</span>
+<span class="fc" id="L55">  }</span>
+
+  public GoogleHadoopFS(GoogleHadoopFileSystem ghfs, URI uri, Configuration conf)
+      throws URISyntaxException, IOException {
+    // AbstractFileSystem requires authority based AbstractFileSystems to have valid ports.
+    // true == GoogleHadoopFS requires authorities in URIs.
+    // 0 == the fake port passed to AbstractFileSystem.
+<span class="fc" id="L62">    super(uri, ghfs.getScheme(), true, 0);</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">    Preconditions.checkArgument(ghfs != null, &quot;ghfs must not be null&quot;);</span>
+<span class="fc" id="L64">    this.ghfs = ghfs;</span>
+<span class="fc" id="L65">    ghfs.initialize(uri, conf);</span>
+<span class="fc" id="L66">  }</span>
+
+  @Override
+  public FSDataOutputStream createInternal(
+      Path file,
+      EnumSet&lt;CreateFlag&gt; flag,
+      FsPermission absolutePermission,
+      int bufferSize,
+      short replication,
+      long blockSize,
+      Progressable progress,
+      ChecksumOpt checksumOpt,
+      boolean createParent) throws IOException {
+<span class="fc" id="L79">    logger.atFine().log(</span>
+        &quot;createInternal: flag: %s, absolutePermission: %s, bufferSize: %s, replication: %s,&quot;
+            + &quot;blockSize: %s, progress: %s, checksumOpt: %s, createParent: %s&quot;,
+        flag,
+        absolutePermission,
+<span class="fc" id="L84">        bufferSize,</span>
+<span class="fc" id="L85">        replication,</span>
+<span class="fc" id="L86">        blockSize,</span>
+        progress,
+        checksumOpt,
+<span class="fc" id="L89">        createParent);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">    if (!createParent) {</span>
+      // TODO: don't ignore 'createParent' flag
+<span class="fc" id="L92">      logger.atFine().log(&quot;Ignoring createParent=false. Creating parents anyways.&quot;);</span>
+    }
+    // AbstractFileSystems rely on permission to not overwrite.
+<span class="fc" id="L95">    boolean overwriteFile = true;</span>
+<span class="fc" id="L96">    return ghfs.create(</span>
+        file, absolutePermission, overwriteFile, bufferSize, replication, blockSize, progress);
+  }
+
+  @Override
+  public int getUriDefaultPort() {
+<span class="fc" id="L102">    logger.atFine().log(&quot;getUriDefaultPort&quot;);</span>
+<span class="fc" id="L103">    return ghfs.getDefaultPort();</span>
+  }
+
+  /**
+   * This is overridden to use GoogleHadoopFileSystem's URI, because AbstractFileSystem appends the
+   * default port to the authority.
+   */
+  @Override
+  public URI getUri() {
+<span class="fc" id="L112">    return ghfs.getUri();</span>
+  }
+
+  /**
+   * Follow HDFS conventions except allow for ':' in paths.
+   */
+  @Override
+  public boolean isValidName(String src) {
+<span class="fc" id="L120">    StringTokenizer tokens = new StringTokenizer(src, Path.SEPARATOR);</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">    while (tokens.hasMoreTokens()) {</span>
+<span class="fc" id="L122">      String element = tokens.nextToken();</span>
+<span class="fc bfc" id="L123" title="All 4 branches covered.">      if (element.equals(&quot;..&quot;) || element.equals(&quot;.&quot;)) {</span>
+<span class="fc" id="L124">        return false;</span>
+      }
+<span class="fc" id="L126">    }</span>
+<span class="fc" id="L127">    return true;</span>
+  }
+
+  /**
+   * Only accept valid AbstractFileSystem and GoogleHadoopFileSystem Paths.
+   */
+  @Override
+  public void checkPath(Path path) {
+<span class="nc" id="L135">    super.checkPath(path);</span>
+<span class="nc" id="L136">    ghfs.checkPath(path);</span>
+<span class="nc" id="L137">  }</span>
+
+  // TODO(user): Implement GoogleHadoopFileSystemBase.getServerDefaults(Path)
+  @SuppressWarnings(&quot;deprecation&quot;)
+  @Override
+  public FsServerDefaults getServerDefaults() throws IOException {
+<span class="fc" id="L143">    logger.atFine().log(&quot;getServerDefaults&quot;);</span>
+<span class="fc" id="L144">    return ghfs.getServerDefaults();</span>
+  }
+
+
+  @Override
+  public void mkdir(final Path dir, final FsPermission permission, final boolean createParent)
+      throws IOException {
+<span class="fc" id="L151">    logger.atFine().log(</span>
+<span class="fc" id="L152">        &quot;mkdir: dir: %s, permission: %s, createParent %s&quot;, dir, permission, createParent);</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">    if (!createParent) {</span>
+<span class="nc" id="L154">      logger.atFine().log(&quot;Ignoring createParent=false. Creating parents anyways.&quot;);</span>
+    }
+<span class="fc" id="L156">    ghfs.mkdirs(dir, permission);</span>
+<span class="fc" id="L157">  }</span>
+
+  @Override
+  public boolean delete(final Path f, final boolean recursive) throws IOException {
+<span class="fc" id="L161">    logger.atFine().log(&quot;delete&quot;);</span>
+<span class="fc" id="L162">    return ghfs.delete(f, recursive);</span>
+  }
+
+  @Override
+  public FSDataInputStream open(final Path f, int bufferSize) throws IOException {
+<span class="nc" id="L167">    logger.atFine().log(&quot;open&quot;);</span>
+<span class="nc" id="L168">    return ghfs.open(f, bufferSize);</span>
+  }
+
+  @Override
+  public boolean setReplication(final Path f, final short replication) throws IOException {
+<span class="nc" id="L173">    logger.atFine().log(&quot;setReplication&quot;);</span>
+<span class="nc" id="L174">    return ghfs.setReplication(f, replication);</span>
+  }
+
+  @Override
+  public void renameInternal(final Path src, final Path dst) throws IOException {
+<span class="fc" id="L179">    logger.atFine().log(&quot;renameInternal&quot;);</span>
+<span class="fc" id="L180">    ghfs.rename(src, dst);</span>
+<span class="fc" id="L181">  }</span>
+
+  @Override
+  public void setPermission(final Path f, final FsPermission permission) throws IOException {
+<span class="nc" id="L185">    logger.atFine().log(&quot;setPermission&quot;);</span>
+<span class="nc" id="L186">    ghfs.setPermission(f, permission);</span>
+<span class="nc" id="L187">  }</span>
+
+  @Override
+  public void setOwner(final Path f, final String username, final String groupname)
+      throws IOException {
+<span class="nc" id="L192">    logger.atFine().log(&quot;setOwner&quot;);</span>
+<span class="nc" id="L193">    ghfs.setOwner(f, username, groupname);</span>
+<span class="nc" id="L194">  }</span>
+
+  @Override
+  public void setTimes(final Path f, final long mtime, final long atime) throws IOException {
+<span class="nc" id="L198">    logger.atFine().log(&quot;setTimes&quot;);</span>
+<span class="nc" id="L199">    ghfs.setTimes(f, mtime, atime);</span>
+<span class="nc" id="L200">  }</span>
+
+  @Override
+  public FileChecksum getFileChecksum(final Path f) throws IOException {
+<span class="nc" id="L204">    logger.atFine().log(&quot;getFileChecksum&quot;);</span>
+<span class="nc" id="L205">    return ghfs.getFileChecksum(f);</span>
+  }
+
+  @Override
+  public FileStatus getFileStatus(final Path f) throws IOException {
+<span class="fc" id="L210">    logger.atFine().log(&quot;getFileStatus&quot;);</span>
+<span class="fc" id="L211">    return ghfs.getFileStatus(f);</span>
+  }
+
+  @Override
+  public BlockLocation[] getFileBlockLocations(final Path f, final long start, final long len)
+      throws IOException {
+<span class="fc" id="L217">    logger.atFine().log(&quot;getFileBlockLocations&quot;);</span>
+<span class="fc" id="L218">    return ghfs.getFileBlockLocations(f, start, len);</span>
+  }
+
+  @Override
+  public FsStatus getFsStatus() throws IOException {
+<span class="fc" id="L223">    logger.atFine().log(&quot;getFsStatus&quot;);</span>
+<span class="fc" id="L224">    return ghfs.getStatus();</span>
+  }
+
+  @Override
+  public FileStatus[] listStatus(final Path f) throws IOException {
+<span class="fc" id="L229">    logger.atFine().log(&quot;listStatus&quot;);</span>
+<span class="fc" id="L230">    return ghfs.listStatus(f);</span>
+  }
+
+  @Override
+  public void setVerifyChecksum(final boolean verifyChecksum) {
+<span class="nc" id="L235">    logger.atFine().log(&quot;setVerifyChecksum&quot;);</span>
+<span class="nc" id="L236">    ghfs.setVerifyChecksum(verifyChecksum);</span>
+<span class="nc" id="L237">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AccessTokenProvider.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util-hadoop</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">AccessTokenProvider.java</span></div><h1>AccessTokenProvider.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 Google Inc. All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.util;
+
+import java.io.IOException;
+import org.apache.hadoop.conf.Configurable;
+
+/** A provider to provide access token, and upon access token expiration, the utility to refresh. */
+public interface AccessTokenProvider extends Configurable {
+
+  /** An access token and its expiration time. */
+  class AccessToken {
+
+    private final String token;
+    private final Long expirationTimeMilliSeconds;
+
+<span class="fc" id="L29">    public AccessToken(String token, Long expirationTimeMillis) {</span>
+<span class="fc" id="L30">      this.token = token;</span>
+<span class="fc" id="L31">      this.expirationTimeMilliSeconds = expirationTimeMillis;</span>
+<span class="fc" id="L32">    }</span>
+
+    /** @return the Access Token string. */
+    public String getToken() {
+<span class="fc" id="L36">      return token;</span>
+    }
+
+    /** @return the Time when the token will expire, expressed in milliseconds. */
+    public Long getExpirationTimeMilliSeconds() {
+<span class="fc" id="L41">      return expirationTimeMilliSeconds;</span>
+    }
+  }
+
+  /** @return an access token. */
+  AccessToken getAccessToken();
+
+  /**
+   * Force this provider to refresh its access token.
+   *
+   * @throws IOException when refresh fails.
+   */
+  void refresh() throws IOException;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

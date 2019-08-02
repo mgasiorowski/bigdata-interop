@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ShardedInputSplit.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">ShardedInputSplit.java</span></div><h1>ShardedInputSplit.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.mapreduce.InputSplit;
+
+/**
+ * ShardedInputSplit implements Hadoop InputSplit by storing path information for a
+ * logical &quot;shard&quot; corresponding to a single Hadoop task. This shard will own a single subdirectory
+ * of GCS so read in dynamic ordering as a BigQuery export proceeds simultaneously.
+ */
+public class ShardedInputSplit
+    extends InputSplit implements Writable {
+
+  // Directory/file-pattern whose files will be read by the reader created from this split.
+  // The file-pattern portion is the glob expression of the file basename, e.g. data-*.json.
+  private Path shardDirectoryAndPattern;
+
+  // Estimated number of records in this particular split.
+  private long estimatedNumRecords;
+
+  /**
+   * Default constructor for dynamic-classloading deserialization.
+   */
+<span class="fc" id="L42">  public ShardedInputSplit() {</span>
+<span class="fc" id="L43">  }</span>
+
+  /**
+   * For creation of splits in JobClient.
+   */
+<span class="fc" id="L48">  public ShardedInputSplit(Path shardDirectoryAndPattern, long estimatedNumRecords) {</span>
+<span class="fc" id="L49">    this.shardDirectoryAndPattern = shardDirectoryAndPattern;</span>
+<span class="fc" id="L50">    this.estimatedNumRecords = estimatedNumRecords;</span>
+<span class="fc" id="L51">  }</span>
+
+  /**
+   * Accessor for shardDirectoryAndPattern.
+   */
+  public Path getShardDirectoryAndPattern() {
+<span class="fc" id="L57">    return shardDirectoryAndPattern;</span>
+  }
+
+  /**
+   * Estimated number of records to read, *not* the number of bytes.
+   */
+  @Override
+  public long getLength() {
+<span class="fc" id="L65">    return estimatedNumRecords;</span>
+  }
+
+  @Override
+  public String[] getLocations()
+      throws IOException {
+<span class="fc" id="L71">    return new String[0];</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L76">    return String.format(&quot;%s[%d estimated records]&quot;, shardDirectoryAndPattern, estimatedNumRecords);</span>
+  }
+
+  @Override
+  public void write(DataOutput out)
+      throws IOException {
+<span class="fc" id="L82">    Text.writeString(out, shardDirectoryAndPattern.toString());</span>
+<span class="fc" id="L83">    out.writeLong(estimatedNumRecords);</span>
+<span class="fc" id="L84">  }</span>
+
+  @Override
+  public void readFields(DataInput in)
+      throws IOException {
+<span class="fc" id="L89">    shardDirectoryAndPattern = new Path(Text.readString(in));</span>
+<span class="fc" id="L90">    estimatedNumRecords = in.readLong();</span>
+<span class="fc" id="L91">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

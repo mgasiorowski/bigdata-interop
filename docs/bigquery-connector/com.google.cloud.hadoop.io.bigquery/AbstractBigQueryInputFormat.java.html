@@ -1,0 +1,293 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AbstractBigQueryInputFormat.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">AbstractBigQueryInputFormat.java</span></div><h1>AbstractBigQueryInputFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import static com.google.common.flogger.LazyArgs.lazy;
+
+import com.google.api.services.bigquery.Bigquery;
+import com.google.api.services.bigquery.model.Table;
+import com.google.api.services.bigquery.model.TableReference;
+import com.google.cloud.hadoop.util.ConfigurationUtil;
+import com.google.cloud.hadoop.util.HadoopToStringUtil;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.List;
+import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.InputFormat;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.JobID;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+
+/**
+ * Abstract base class for BigQuery input formats. This class is expected to take care of performing
+ * BigQuery exports to temporary tables, BigQuery exports to GCS and cleaning up any files or tables
+ * that either of those processes create.
+ * @param &lt;K&gt; Key type
+ * @param &lt;V&gt; Value type
+ */
+<span class="fc" id="L47">public abstract class AbstractBigQueryInputFormat&lt;K, V&gt;</span>
+    extends InputFormat&lt;K, V&gt; implements DelegateRecordReaderFactory&lt;K, V&gt; {
+
+<span class="fc" id="L50">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+  /**
+   * Configuration key for InputFormat class name.
+   */
+  public static final String INPUT_FORMAT_CLASS_KEY = &quot;mapreduce.inputformat.class&quot;;
+
+  /**
+   * The keyword for the type of BigQueryTable store externally.
+   */
+  public static final String EXTERNAL_TABLE_TYPE = &quot;EXTERNAL&quot;;
+
+  // Used by UnshardedExportToCloudStorage
+  private InputFormat&lt;LongWritable, Text&gt; delegateInputFormat;
+
+  /**
+   * Configure the BigQuery input table for a job
+   */
+  public static void setInputTable(
+      Configuration configuration, String projectId, String datasetId, String tableId)
+      throws IOException {
+<span class="nc" id="L70">    BigQueryConfiguration.configureBigQueryInput(configuration, projectId, datasetId, tableId);</span>
+<span class="nc" id="L71">  }</span>
+
+  /**
+   * Configure the BigQuery input table for a job
+   */
+  public static void setInputTable(Configuration configuration, TableReference tableReference)
+      throws IOException {
+<span class="nc" id="L78">    setInputTable(</span>
+        configuration,
+<span class="nc" id="L80">        tableReference.getProjectId(),</span>
+<span class="nc" id="L81">        tableReference.getDatasetId(),</span>
+<span class="nc" id="L82">        tableReference.getTableId());</span>
+<span class="nc" id="L83">  }</span>
+
+  /**
+   * Configure a directory to which we will export BigQuery data
+   */
+  public static void setTemporaryCloudStorageDirectory(Configuration configuration, String path) {
+<span class="nc" id="L89">    configuration.set(BigQueryConfiguration.TEMP_GCS_PATH_KEY, path);</span>
+<span class="nc" id="L90">  }</span>
+
+  /** Get the ExportFileFormat that this input format supports. */
+  public abstract ExportFileFormat getExportFileFormat();
+
+  @SuppressWarnings(&quot;unchecked&quot;)
+  protected static ExportFileFormat getExportFileFormat(Configuration configuration) {
+<span class="fc" id="L97">    Class&lt;? extends AbstractBigQueryInputFormat&lt;?, ?&gt;&gt; clazz =</span>
+        (Class&lt;? extends AbstractBigQueryInputFormat&lt;?, ?&gt;&gt;)
+<span class="fc" id="L99">            configuration.getClass(INPUT_FORMAT_CLASS_KEY, AbstractBigQueryInputFormat.class);</span>
+<span class="fc" id="L100">    Preconditions.checkState(</span>
+<span class="fc" id="L101">        AbstractBigQueryInputFormat.class.isAssignableFrom(clazz),</span>
+        &quot;Expected input format to derive from AbstractBigQueryInputFormat&quot;);
+<span class="fc" id="L103">    return getExportFileFormat(clazz);</span>
+  }
+
+  protected static ExportFileFormat getExportFileFormat(
+      Class&lt;? extends AbstractBigQueryInputFormat&lt;?, ?&gt;&gt; clazz) {
+    try {
+<span class="fc" id="L109">      AbstractBigQueryInputFormat&lt;?, ?&gt; format = clazz.getConstructor().newInstance();</span>
+<span class="fc" id="L110">      return format.getExportFileFormat();</span>
+<span class="nc" id="L111">    } catch (ReflectiveOperationException e) {</span>
+<span class="nc" id="L112">      throw new RuntimeException(e);</span>
+    }
+  }
+
+  @Override
+  public List&lt;InputSplit&gt; getSplits(JobContext context) throws IOException, InterruptedException {
+<span class="pc" id="L118">    logger.atFine().log(&quot;getSplits(%s)&quot;, lazy(() -&gt; HadoopToStringUtil.toString(context)));</span>
+
+<span class="fc" id="L120">    final Configuration configuration = context.getConfiguration();</span>
+<span class="fc" id="L121">    BigQueryHelper bigQueryHelper = null;</span>
+    try {
+<span class="fc" id="L123">      bigQueryHelper = getBigQueryHelper(configuration);</span>
+<span class="fc" id="L124">    } catch (GeneralSecurityException gse) {</span>
+<span class="fc" id="L125">      throw new IOException(&quot;Failed to create BigQuery client&quot;, gse);</span>
+<span class="fc" id="L126">    }</span>
+
+<span class="fc" id="L128">    String exportPath =</span>
+<span class="fc" id="L129">        BigQueryConfiguration.getTemporaryPathRoot(configuration, context.getJobID());</span>
+<span class="fc" id="L130">    configuration.set(BigQueryConfiguration.TEMP_GCS_PATH_KEY, exportPath);</span>
+
+<span class="fc" id="L132">    Export export = constructExport(</span>
+        configuration,
+<span class="fc" id="L134">        getExportFileFormat(),</span>
+        exportPath,
+        bigQueryHelper,
+        delegateInputFormat);
+<span class="fc" id="L138">    export.prepare();</span>
+
+    // Invoke the export, maybe wait for it to complete.
+    try {
+<span class="fc" id="L142">      export.beginExport();</span>
+<span class="fc" id="L143">      export.waitForUsableMapReduceInput();</span>
+<span class="nc" id="L144">    } catch (IOException | InterruptedException ie) {</span>
+<span class="nc" id="L145">      throw new IOException(&quot;Error while exporting&quot;, ie);</span>
+<span class="fc" id="L146">    }</span>
+
+<span class="fc" id="L148">    List&lt;InputSplit&gt; splits = export.getSplits(context);</span>
+
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">    if (logger.atFine().isEnabled()) {</span>
+      try {
+        // Stringifying a really big list of splits can be expensive, so we guard with
+        // isDebugEnabled().
+<span class="nc" id="L154">        logger.atFine().log(&quot;getSplits -&gt; %s&quot;, HadoopToStringUtil.toString(splits));</span>
+<span class="nc" id="L155">      } catch (InterruptedException e) {</span>
+<span class="nc" id="L156">        logger.atFine().log(&quot;getSplits -&gt; %s&quot;, &quot;*exception on toString()*&quot;);</span>
+<span class="nc" id="L157">      }</span>
+    }
+<span class="fc" id="L159">    return splits;</span>
+  }
+
+  @Override
+  public RecordReader&lt;K, V&gt; createRecordReader(
+      InputSplit inputSplit, TaskAttemptContext taskAttemptContext)
+      throws IOException, InterruptedException {
+<span class="nc" id="L166">    return createRecordReader(inputSplit, taskAttemptContext.getConfiguration());</span>
+  }
+
+  public RecordReader&lt;K, V&gt; createRecordReader(
+      InputSplit inputSplit, Configuration configuration)
+      throws IOException, InterruptedException {
+<span class="fc" id="L172">    Preconditions.checkArgument(</span>
+        inputSplit instanceof UnshardedInputSplit,
+        &quot;Split should be instance of UnshardedInputSplit.&quot;);
+<span class="fc" id="L175">      logger.atFine().log(&quot;createRecordReader -&gt; createDelegateRecordReader()&quot;);</span>
+<span class="fc" id="L176">      return createDelegateRecordReader(inputSplit, configuration);</span>
+  }
+
+  private static Export constructExport(
+      Configuration configuration,
+      ExportFileFormat format,
+      String exportPath,
+      BigQueryHelper bigQueryHelper,
+      InputFormat&lt;LongWritable, Text&gt; delegateInputFormat)
+      throws IOException {
+<span class="fc" id="L186">    logger.atFine().log(&quot;constructExport() with export path %s&quot;, exportPath);</span>
+
+    // Extract relevant configuration settings.
+<span class="fc" id="L189">    Map&lt;String, String&gt; mandatoryConfig = ConfigurationUtil.getMandatoryConfig(</span>
+        configuration, BigQueryConfiguration.MANDATORY_CONFIG_PROPERTIES_INPUT);
+<span class="fc" id="L191">    String jobProjectId = mandatoryConfig.get(BigQueryConfiguration.PROJECT_ID_KEY);</span>
+<span class="fc" id="L192">    String inputProjectId = mandatoryConfig.get(BigQueryConfiguration.INPUT_PROJECT_ID_KEY);</span>
+<span class="fc" id="L193">    String datasetId = mandatoryConfig.get(BigQueryConfiguration.INPUT_DATASET_ID_KEY);</span>
+<span class="fc" id="L194">    String tableName = mandatoryConfig.get(BigQueryConfiguration.INPUT_TABLE_ID_KEY);</span>
+
+<span class="fc" id="L196">    TableReference exportTableReference = new TableReference()</span>
+<span class="fc" id="L197">        .setDatasetId(datasetId)</span>
+<span class="fc" id="L198">        .setProjectId(inputProjectId)</span>
+<span class="fc" id="L199">        .setTableId(tableName);</span>
+<span class="fc" id="L200">    Table table = bigQueryHelper.getTable(exportTableReference);</span>
+
+<span class="fc bfc" id="L202" title="All 2 branches covered.">    if (EXTERNAL_TABLE_TYPE.equals(table.getType())) {</span>
+<span class="fc" id="L203">        logger.atInfo().log(&quot;Table is already external, so skipping export&quot;);</span>
+<span class="fc" id="L204">        return new NoopFederatedExportToCloudStorage(</span>
+            configuration, format, bigQueryHelper, jobProjectId, table, delegateInputFormat);
+    }
+
+<span class="fc" id="L208">    return new UnshardedExportToCloudStorage(</span>
+        configuration,
+        exportPath,
+        format,
+        bigQueryHelper,
+        jobProjectId,
+        table,
+        delegateInputFormat);
+  }
+
+  /**
+   * Cleans up relevant temporary resources associated with a job which used the
+   * GsonBigQueryInputFormat; this should be called explicitly after the completion of the entire
+   * job. Possibly cleans up intermediate export tables if configured to use one due to
+   * specifying a BigQuery &quot;query&quot; for the input. Cleans up the GCS directoriy where BigQuery
+   * exported its files for reading.
+   */
+  public static void cleanupJob(Configuration configuration, JobID jobId) throws IOException {
+<span class="nc" id="L226">    String exportPathRoot = BigQueryConfiguration.getTemporaryPathRoot(configuration, jobId);</span>
+<span class="nc" id="L227">    configuration.set(BigQueryConfiguration.TEMP_GCS_PATH_KEY, exportPathRoot);</span>
+<span class="nc" id="L228">    Bigquery bigquery = null;</span>
+    try {
+<span class="nc" id="L230">      bigquery = new BigQueryFactory().getBigQuery(configuration);</span>
+<span class="nc" id="L231">    } catch (GeneralSecurityException gse) {</span>
+<span class="nc" id="L232">      throw new IOException(&quot;Failed to create Bigquery client&quot;, gse);</span>
+<span class="nc" id="L233">    }</span>
+<span class="nc" id="L234">    cleanupJob(new BigQueryHelper(bigquery), configuration);</span>
+<span class="nc" id="L235">  }</span>
+
+  /**
+   * Similar to {@link #cleanupJob(Configuration, JobID)}, but allows specifying the Bigquery
+   * instance to use.
+   *
+   * @param bigQueryHelper The Bigquery API-client helper instance to use.
+   * @param config The job Configuration object which contains settings such as whether sharded
+   *     export was enabled, which GCS directory the export was performed in, etc.
+   */
+  public static void cleanupJob(BigQueryHelper bigQueryHelper, Configuration config)
+      throws IOException {
+<span class="fc" id="L247">    logger.atFine().log(&quot;cleanupJob(Bigquery, Configuration)&quot;);</span>
+
+<span class="fc" id="L249">    String gcsPath = ConfigurationUtil.getMandatoryConfig(</span>
+        config, BigQueryConfiguration.TEMP_GCS_PATH_KEY);
+
+<span class="fc" id="L252">    Export export = constructExport(</span>
+<span class="fc" id="L253">        config, getExportFileFormat(config), gcsPath, bigQueryHelper, null);</span>
+
+    try {
+<span class="fc" id="L256">      export.cleanupExport();</span>
+<span class="nc" id="L257">    } catch (IOException ioe) {</span>
+      // Error is swallowed as job has completed successfully and the only failure is deleting
+      // temporary data.
+      // This matches the FileOutputCommitter pattern.
+<span class="nc" id="L261">      logger.atWarning().withCause(ioe).log(</span>
+          &quot;Could not delete intermediate data from BigQuery export&quot;);
+<span class="fc" id="L263">    }</span>
+<span class="fc" id="L264">  }</span>
+
+  /**
+   * Helper method to override for testing.
+   *
+   * @return Bigquery.
+   * @throws IOException on IO Error.
+   * @throws GeneralSecurityException on security exception.
+   */
+  protected Bigquery getBigQuery(Configuration config)
+      throws GeneralSecurityException, IOException {
+<span class="nc" id="L275">    BigQueryFactory factory = new BigQueryFactory();</span>
+<span class="nc" id="L276">    return factory.getBigQuery(config);</span>
+  }
+
+  /**
+   * Helper method to override for testing.
+   */
+  protected BigQueryHelper getBigQueryHelper(Configuration config)
+      throws GeneralSecurityException, IOException {
+<span class="nc" id="L284">    BigQueryFactory factory = new BigQueryFactory();</span>
+<span class="nc" id="L285">    return factory.getBigQueryHelper(config);</span>
+  }
+
+  @VisibleForTesting
+  void setDelegateInputFormat(InputFormat inputFormat) {
+<span class="fc" id="L290">    delegateInputFormat = inputFormat;</span>
+<span class="fc" id="L291">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

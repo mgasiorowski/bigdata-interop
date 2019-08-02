@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>FileInfo.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">FileInfo.java</span></div><h1>FileInfo.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio;
+
+import com.google.api.client.util.Clock;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.flogger.GoogleLogger;
+import com.google.common.primitives.Longs;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Contains information about a file or a directory.
+ *
+ * Note:
+ * This class wraps GoogleCloudStorageItemInfo, adds file system specific information and hides
+ * bucket/object specific information. The wrapped type should not be visible to callers of
+ * GoogleCloudStorageFileSystem because it exposes non-file system information (eg, buckets).
+ */
+public class FileInfo {
+
+<span class="fc" id="L40">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // Info about the root path.
+<span class="fc" id="L43">  public static final FileInfo ROOT_INFO = new FileInfo(</span>
+      GoogleCloudStorageFileSystem.GCS_ROOT, GoogleCloudStorageItemInfo.ROOT_INFO);
+
+  // The metadata key used for storing a custom modification time.
+  // The name and value of this attribute count towards storage pricing.
+  public static final String FILE_MODIFICATION_TIMESTAMP_KEY = &quot;system.gcsfs_mts&quot;;
+
+  // Path of this file or directory.
+  private final URI path;
+
+  // Information about the underlying GCS item.
+  private final GoogleCloudStorageItemInfo itemInfo;
+
+  // Custom file attributes, including those used for storing custom modification times, etc
+  private final Map&lt;String, byte[]&gt; attributes;
+
+  /**
+   * Constructs an instance of FileInfo.
+   *
+   * @param itemInfo Information about the underlying item.
+   */
+<span class="fc" id="L64">  private FileInfo(URI path, GoogleCloudStorageItemInfo itemInfo) {</span>
+<span class="fc" id="L65">    this.itemInfo = itemInfo;</span>
+
+    // Construct the path once.
+<span class="fc" id="L68">    this.path = path;</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">    Preconditions.checkArgument(itemInfo.getMetadata() != null);</span>
+
+<span class="fc" id="L71">    this.attributes = itemInfo.getMetadata();</span>
+<span class="fc" id="L72">  }</span>
+
+  /**
+   * Gets the path of this file or directory.
+   */
+  public URI getPath() {
+<span class="fc" id="L78">    return path;</span>
+  }
+
+  /**
+   * Indicates whether this item is a directory.
+   */
+  public boolean isDirectory() {
+<span class="fc" id="L85">    return isDirectory(itemInfo);</span>
+  }
+
+  /**
+   * Indicates whether {@code itemInfo} is a directory; static version of {@link #isDirectory()}
+   * to avoid having to create a FileInfo object just to use this logic.
+   */
+  static boolean isDirectory(GoogleCloudStorageItemInfo itemInfo) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    return isGlobalRoot(itemInfo)</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        || itemInfo.isBucket()</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        || objectHasDirectoryPath(itemInfo.getObjectName());</span>
+  }
+
+  /**
+   * Indicates whether this instance has information about the unique, shared root of the
+   * underlying storage system.
+   */
+  public boolean isGlobalRoot() {
+<span class="fc" id="L103">    return isGlobalRoot(itemInfo);</span>
+  }
+
+  /**
+   * Static version of {@link #isGlobalRoot()} to allow sharing this logic without creating
+   * unnecessary FileInfo instances.
+   */
+  static boolean isGlobalRoot(GoogleCloudStorageItemInfo itemInfo) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    return itemInfo.isRoot()</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        &amp;&amp; itemInfo.exists();</span>
+  }
+
+  /**
+   * Gets creation time of this item.
+   *
+   * Time is expressed as milliseconds since January 1, 1970 UTC.
+   */
+  public long getCreationTime() {
+<span class="fc" id="L121">    return itemInfo.getCreationTime();</span>
+  }
+
+  /**
+   * Gets the size of this file or directory.
+   *
+   * For files, size is in number of bytes.
+   * For directories size is 0.
+   * For items that do not exist, size is -1.
+   */
+  public long getSize() {
+<span class="fc" id="L132">    return itemInfo.getSize();</span>
+  }
+
+  /**
+   * Gets the modification time of this file if one is set, otherwise the value of
+   * {@link #getCreationTime()} is returned.
+   *
+   * Time is expressed as milliseconds since January 1, 1970 UTC.
+   */
+  public long getModificationTime() {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    if (attributes.containsKey(FILE_MODIFICATION_TIMESTAMP_KEY)</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        &amp;&amp; attributes.get(FILE_MODIFICATION_TIMESTAMP_KEY) != null) {</span>
+      try {
+<span class="fc" id="L145">        return Longs.fromByteArray(attributes.get(FILE_MODIFICATION_TIMESTAMP_KEY));</span>
+<span class="fc" id="L146">      } catch (IllegalArgumentException iae) {</span>
+<span class="fc" id="L147">        logger.atFine().log(</span>
+            &quot;Failed to parse modification time '%s' millis for object %s&quot;,
+<span class="fc" id="L149">            attributes.get(FILE_MODIFICATION_TIMESTAMP_KEY), itemInfo.getObjectName());</span>
+      }
+    }
+<span class="fc" id="L152">    return getCreationTime();</span>
+  }
+
+  /**
+   * Retrieve file attributes for this file.
+   * @return A map of file attributes
+   */
+  public Map&lt;String, byte[]&gt; getAttributes() {
+<span class="fc" id="L160">    return attributes;</span>
+  }
+
+  /**
+   * Indicates whether this file or directory exists.
+   */
+  public boolean exists() {
+<span class="fc" id="L167">    return itemInfo.exists();</span>
+  }
+
+  /**
+   * Gets string representation of this instance.
+   */
+  public String toString() {
+<span class="fc bfc" id="L174" title="All 2 branches covered.">    if (exists()) {</span>
+<span class="fc" id="L175">      return getPath() + &quot;: created on: &quot; + new Date(getCreationTime());</span>
+    }
+<span class="fc" id="L177">    return getPath() + &quot;: exists: no&quot;;</span>
+  }
+
+  /**
+   * Gets information about the underlying item.
+   */
+  public GoogleCloudStorageItemInfo getItemInfo() {
+<span class="fc" id="L184">    return itemInfo;</span>
+  }
+
+  /**
+   * Indicates whether the given object name looks like a directory path.
+   *
+   * @param objectName Name of the object to inspect.
+   * @return Whether the given object name looks like a directory path.
+   */
+  static boolean objectHasDirectoryPath(String objectName) {
+<span class="fc" id="L194">    return StorageResourceId.objectHasDirectoryPath(objectName);</span>
+  }
+
+  /**
+   * Converts the given object name to look like a directory path. If the object name already looks
+   * like a directory path then this call is a no-op.
+   *
+   * &lt;p&gt;If the object name is null or empty, it is returned as-is.
+   *
+   * @param objectName Name of the object to inspect.
+   * @return Directory path for the given path.
+   */
+  static String convertToDirectoryPath(String objectName) {
+<span class="fc" id="L207">    return StorageResourceId.convertToDirectoryPath(objectName);</span>
+  }
+
+  /**
+   * Converts the given resourceId to look like a directory path. If the path already looks like a
+   * directory path then this call is a no-op.
+   *
+   * @param resourceId StorageResourceId to convert.
+   * @return A resourceId with a directory path corresponding to the given resourceId.
+   */
+  public static StorageResourceId convertToDirectoryPath(StorageResourceId resourceId) {
+<span class="fc bfc" id="L218" title="All 2 branches covered.">    if (resourceId.isStorageObject()) {</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">      if (!objectHasDirectoryPath(resourceId.getObjectName())) {</span>
+<span class="fc" id="L220">        resourceId =</span>
+            new StorageResourceId(
+<span class="fc" id="L222">                resourceId.getBucketName(), convertToDirectoryPath(resourceId.getObjectName()));</span>
+      }
+    }
+<span class="fc" id="L225">    return resourceId;</span>
+  }
+
+  /**
+   * Converts the given path to look like a directory path. If the path already looks like a
+   * directory path then this call is a no-op.
+   *
+   * @param path Path to convert.
+   * @return Directory path for the given path.
+   */
+  public static URI convertToDirectoryPath(PathCodec pathCodec, URI path) {
+<span class="fc" id="L236">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
+
+<span class="fc bfc" id="L238" title="All 2 branches covered.">    if (resourceId.isStorageObject()) {</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">      if (!objectHasDirectoryPath(resourceId.getObjectName())) {</span>
+<span class="fc" id="L240">        resourceId = convertToDirectoryPath(resourceId);</span>
+<span class="fc" id="L241">        path =</span>
+<span class="fc" id="L242">            pathCodec.getPath(</span>
+<span class="fc" id="L243">                resourceId.getBucketName(),</span>
+<span class="fc" id="L244">                resourceId.getObjectName(),</span>
+                false /* allow empty name */);
+      }
+    }
+<span class="fc" id="L248">    return path;</span>
+  }
+
+  /**
+   * Add a key and value representing the current time, as determined by the passed clock, to the
+   * passed attributes dictionary.
+   *
+   * @param attributes The file attributes map to update
+   * @param clock The clock to retrieve the current time from
+   */
+  public static void addModificationTimeToAttributes(Map&lt;String, byte[]&gt; attributes, Clock clock) {
+<span class="fc" id="L259">    attributes.put(FILE_MODIFICATION_TIMESTAMP_KEY, Longs.toByteArray(clock.currentTimeMillis()));</span>
+<span class="fc" id="L260">  }</span>
+
+  /**
+   * Converts the given object name to look like a file path.
+   * If the object name already looks like a file path then
+   * this call is a no-op.
+   *
+   * If the object name is null or empty, it is returned as-is.
+   *
+   * @param objectName Name of the object to inspect.
+   * @return File path for the given path.
+   */
+  public static String convertToFilePath(String objectName) {
+<span class="fc bfc" id="L273" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(objectName)) {</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">      if (objectHasDirectoryPath(objectName)) {</span>
+<span class="fc" id="L275">        objectName = objectName.substring(0, objectName.length() - 1);</span>
+      }
+    }
+<span class="fc" id="L278">    return objectName;</span>
+  }
+
+  /**
+   * Handy factory method for constructing a FileInfo from a GoogleCloudStorageItemInfo while
+   * potentially returning a singleton instead of really constructing an object for cases like ROOT.
+   */
+  public static FileInfo fromItemInfo(PathCodec pathCodec, GoogleCloudStorageItemInfo itemInfo) {
+<span class="fc bfc" id="L286" title="All 2 branches covered.">    if (itemInfo.isRoot()) {</span>
+<span class="fc" id="L287">      return ROOT_INFO;</span>
+    }
+<span class="fc" id="L289">    URI path = pathCodec.getPath(itemInfo.getBucketName(), itemInfo.getObjectName(), true);</span>
+<span class="fc" id="L290">    return new FileInfo(path, itemInfo);</span>
+  }
+
+  /**
+   * Handy factory method for constructing a list of FileInfo from a list of
+   * GoogleCloudStorageItemInfo.
+   */
+  public static List&lt;FileInfo&gt; fromItemInfos(
+      PathCodec pathCodec, List&lt;GoogleCloudStorageItemInfo&gt; itemInfos) {
+<span class="fc" id="L299">    List&lt;FileInfo&gt; fileInfos = new ArrayList&lt;&gt;(itemInfos.size());</span>
+<span class="fc bfc" id="L300" title="All 2 branches covered.">    for (GoogleCloudStorageItemInfo itemInfo : itemInfos) {</span>
+<span class="fc" id="L301">      fileInfos.add(fromItemInfo(pathCodec, itemInfo));</span>
+<span class="fc" id="L302">    }</span>
+<span class="fc" id="L303">    return fileInfos;</span>
+  }
+
+  /**
+   * Indicates whether the given path looks like a directory path.
+   *
+   * @param path Path to inspect.
+   * @return Whether the path looks like a directory path.
+   */
+  public static boolean isDirectoryPath(URI path) {
+<span class="pc bpc" id="L313" title="1 of 4 branches missed.">    return (path != null) &amp;&amp; path.toString().endsWith(GoogleCloudStorage.PATH_DELIMITER);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

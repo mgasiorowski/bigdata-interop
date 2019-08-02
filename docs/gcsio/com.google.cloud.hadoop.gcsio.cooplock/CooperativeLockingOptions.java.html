@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CooperativeLockingOptions.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio.cooplock</a> &gt; <span class="el_source">CooperativeLockingOptions.java</span></div><h1>CooperativeLockingOptions.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.gcsio.cooplock;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+import com.google.auto.value.AutoValue;
+import java.time.Duration;
+
+/** Options for the GCS Requester Pays feature. */
+@AutoValue
+<span class="fc" id="L23">public abstract class CooperativeLockingOptions {</span>
+
+  /** Default value for {@link #getLockExpirationTimeoutMilli}. */
+<span class="fc" id="L26">  public static final long LOCK_EXPIRATION_TIMEOUT_MS_DEFAULT = Duration.ofMinutes(2).toMillis();</span>
+
+  /** Default value for {@link #getMaxConcurrentOperations}. */
+  public static final int MAX_CONCURRENT_OPERATIONS_DEFAULT = 20;
+
+<span class="fc" id="L31">  public static final CooperativeLockingOptions DEFAULT = builder().build();</span>
+
+<span class="fc" id="L33">  private static final long MIN_LOCK_EXPIRATION_TIMEOUT_MS = Duration.ofSeconds(30).toMillis();</span>
+
+  public static Builder builder() {
+<span class="fc" id="L36">    return new AutoValue_CooperativeLockingOptions.Builder()</span>
+<span class="fc" id="L37">        .setLockExpirationTimeoutMilli(LOCK_EXPIRATION_TIMEOUT_MS_DEFAULT)</span>
+<span class="fc" id="L38">        .setMaxConcurrentOperations(MAX_CONCURRENT_OPERATIONS_DEFAULT);</span>
+  }
+
+  public abstract long getLockExpirationTimeoutMilli();
+
+  public abstract int getMaxConcurrentOperations();
+
+  public abstract Builder toBuilder();
+
+  /** Builder for {@link CooperativeLockingOptions} */
+  @AutoValue.Builder
+<span class="fc" id="L49">  public abstract static class Builder {</span>
+    public abstract Builder setLockExpirationTimeoutMilli(long timeoutMilli);
+
+    public abstract Builder setMaxConcurrentOperations(int operationsCount);
+
+    abstract CooperativeLockingOptions autoBuild();
+
+    public CooperativeLockingOptions build() {
+<span class="fc" id="L57">      CooperativeLockingOptions options = autoBuild();</span>
+<span class="fc" id="L58">      checkArgument(</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">          options.getLockExpirationTimeoutMilli() &gt;= MIN_LOCK_EXPIRATION_TIMEOUT_MS,</span>
+          &quot;lockExpirationTimeoutMs should be greater or equal to %s ms, but was %s&quot;,
+<span class="fc" id="L61">          MIN_LOCK_EXPIRATION_TIMEOUT_MS,</span>
+<span class="fc" id="L62">          options.getLockExpirationTimeoutMilli());</span>
+<span class="fc" id="L63">      checkArgument(</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">          options.getMaxConcurrentOperations() &gt; 0,</span>
+          &quot;maxConcurrentOperations should be greater than 0, but was %s&quot;,
+<span class="fc" id="L66">          options.getMaxConcurrentOperations());</span>
+<span class="fc" id="L67">      return options;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

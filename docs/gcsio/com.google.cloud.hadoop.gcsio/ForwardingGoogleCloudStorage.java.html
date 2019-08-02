@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ForwardingGoogleCloudStorage.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">ForwardingGoogleCloudStorage.java</span></div><h1>ForwardingGoogleCloudStorage.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file
+ * except in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.gcsio;
+
+import com.google.common.base.Preconditions;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
+import java.util.List;
+
+/** A class that wraps a {@link GoogleCloudStorage} object, delegating all calls to it. */
+public class ForwardingGoogleCloudStorage implements GoogleCloudStorage {
+
+<span class="fc" id="L26">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  /** The stored delegate. */
+  private final GoogleCloudStorage delegate;
+
+  /** The simple name of the delegate's class. Used for debug logging. */
+  private final String delegateClassName;
+
+  /**
+   * Creates a new GoogleCloudStorageWrapper.
+   *
+   * @param delegate the {@link GoogleCloudStorage} to delegate calls to.
+   */
+<span class="fc" id="L39">  public ForwardingGoogleCloudStorage(GoogleCloudStorage delegate) {</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">    Preconditions.checkArgument(delegate != null, &quot;delegate must not be null.&quot;);</span>
+
+<span class="fc" id="L42">    this.delegate = delegate;</span>
+<span class="fc" id="L43">    delegateClassName = delegate.getClass().getSimpleName();</span>
+<span class="fc" id="L44">  }</span>
+
+  @Override
+  public GoogleCloudStorageOptions getOptions() {
+<span class="fc" id="L48">    logger.atFine().log(&quot;%s.getOptions()&quot;, delegateClassName);</span>
+<span class="fc" id="L49">    return delegate.getOptions();</span>
+  }
+
+  @Override
+  public WritableByteChannel create(StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L54">    logger.atFine().log(&quot;%s.create(%s)&quot;, delegateClassName, resourceId);</span>
+<span class="fc" id="L55">    return delegate.create(resourceId);</span>
+  }
+
+  @Override
+  public WritableByteChannel create(StorageResourceId resourceId, CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L61">    logger.atFine().log(&quot;%s.create(%s, %s)&quot;, delegateClassName, resourceId, options);</span>
+<span class="fc" id="L62">    return delegate.create(resourceId, options);</span>
+  }
+
+  @Override
+  public void create(String bucketName) throws IOException {
+<span class="fc" id="L67">    logger.atFine().log(&quot;%s.create(%s)&quot;, delegateClassName, bucketName);</span>
+<span class="fc" id="L68">    delegate.create(bucketName);</span>
+<span class="fc" id="L69">  }</span>
+
+  @Override
+  public void create(String bucketName, CreateBucketOptions options) throws IOException {
+<span class="fc" id="L73">    logger.atFine().log(&quot;%s.create(%s, %s)&quot;, delegateClassName, bucketName, options);</span>
+<span class="fc" id="L74">    delegate.create(bucketName, options);</span>
+<span class="fc" id="L75">  }</span>
+
+  @Override
+  public void createEmptyObject(StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L79">    logger.atFine().log(&quot;%s.createEmptyObject(%s)&quot;, delegateClassName, resourceId);</span>
+<span class="fc" id="L80">    delegate.createEmptyObject(resourceId);</span>
+<span class="fc" id="L81">  }</span>
+
+  @Override
+  public void createEmptyObject(StorageResourceId resourceId, CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L86">    logger.atFine().log(&quot;%s.createEmptyObject(%s, %s)&quot;, delegateClassName, resourceId, options);</span>
+<span class="fc" id="L87">    delegate.createEmptyObject(resourceId, options);</span>
+<span class="fc" id="L88">  }</span>
+
+  @Override
+  public void createEmptyObjects(List&lt;StorageResourceId&gt; resourceIds) throws IOException {
+<span class="fc" id="L92">    logger.atFine().log(&quot;%s.createEmptyObjects(%s)&quot;, delegateClassName, resourceIds);</span>
+<span class="fc" id="L93">    delegate.createEmptyObjects(resourceIds);</span>
+<span class="fc" id="L94">  }</span>
+
+  @Override
+  public void createEmptyObjects(List&lt;StorageResourceId&gt; resourceIds, CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L99">    logger.atFine().log(&quot;%s.createEmptyObjects(%s, %s)&quot;, delegateClassName, resourceIds, options);</span>
+<span class="fc" id="L100">    delegate.createEmptyObjects(resourceIds, options);</span>
+<span class="fc" id="L101">  }</span>
+
+  @Override
+  public SeekableByteChannel open(StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L105">    logger.atFine().log(&quot;%s.open(%s)&quot;, delegateClassName, resourceId);</span>
+<span class="fc" id="L106">    return delegate.open(resourceId);</span>
+  }
+
+  @Override
+  public SeekableByteChannel open(
+      StorageResourceId resourceId, GoogleCloudStorageReadOptions readOptions) throws IOException {
+<span class="fc" id="L112">    logger.atFine().log(&quot;%s.open(%s, %s)&quot;, delegateClassName, resourceId, readOptions);</span>
+<span class="fc" id="L113">    return delegate.open(resourceId, readOptions);</span>
+  }
+
+  @Override
+  public void deleteBuckets(List&lt;String&gt; bucketNames) throws IOException {
+<span class="fc" id="L118">    logger.atFine().log(&quot;%s.deleteBuckets(%s)&quot;, delegateClassName, bucketNames);</span>
+<span class="fc" id="L119">    delegate.deleteBuckets(bucketNames);</span>
+<span class="fc" id="L120">  }</span>
+
+  @Override
+  public void deleteObjects(List&lt;StorageResourceId&gt; fullObjectNames) throws IOException {
+<span class="fc" id="L124">    logger.atFine().log(&quot;%s.deleteObjects(%s)&quot;, delegateClassName, fullObjectNames);</span>
+<span class="fc" id="L125">    delegate.deleteObjects(fullObjectNames);</span>
+<span class="fc" id="L126">  }</span>
+
+  @Override
+  public void copy(
+      String srcBucketName,
+      List&lt;String&gt; srcObjectNames,
+      String dstBucketName,
+      List&lt;String&gt; dstObjectNames)
+      throws IOException {
+<span class="fc" id="L135">    logger.atFine().log(</span>
+        &quot;%s.copy(%s, %s, %s, %s)&quot;,
+        delegateClassName, srcBucketName, srcObjectNames, dstBucketName, dstObjectNames);
+<span class="fc" id="L138">    delegate.copy(srcBucketName, srcObjectNames, dstBucketName, dstObjectNames);</span>
+<span class="fc" id="L139">  }</span>
+
+  @Override
+  public List&lt;String&gt; listBucketNames() throws IOException {
+<span class="fc" id="L143">    logger.atFine().log(&quot;%s.listBucketNames()&quot;, delegateClassName);</span>
+<span class="fc" id="L144">    return delegate.listBucketNames();</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listBucketInfo() throws IOException {
+<span class="fc" id="L149">    logger.atFine().log(&quot;%s.listBucketInfo()&quot;, delegateClassName);</span>
+<span class="fc" id="L150">    return delegate.listBucketInfo();</span>
+  }
+
+  @Override
+  public List&lt;String&gt; listObjectNames(String bucketName, String objectNamePrefix, String delimiter)
+      throws IOException {
+<span class="fc" id="L156">    logger.atFine().log(</span>
+        &quot;%s.listObjectNames(%s, %s, %s)&quot;,
+        delegateClassName, bucketName, objectNamePrefix, delimiter);
+<span class="fc" id="L159">    return delegate.listObjectNames(bucketName, objectNamePrefix, delimiter);</span>
+  }
+
+  @Override
+  public List&lt;String&gt; listObjectNames(
+      String bucketName, String objectNamePrefix, String delimiter, long maxResults)
+      throws IOException {
+<span class="fc" id="L166">    logger.atFine().log(</span>
+        &quot;%s.listObjectNames(%s, %s, %s, %s)&quot;,
+<span class="fc" id="L168">        delegateClassName, bucketName, objectNamePrefix, delimiter, maxResults);</span>
+<span class="fc" id="L169">    return delegate.listObjectNames(bucketName, objectNamePrefix, delimiter, maxResults);</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(
+      String bucketName, String objectNamePrefix, String delimiter) throws IOException {
+<span class="fc" id="L175">    logger.atFine().log(</span>
+        &quot;%s.listObjectInfo(%s, %s, %s)&quot;,
+        delegateClassName, bucketName, objectNamePrefix, delimiter);
+<span class="fc" id="L178">    return delegate.listObjectInfo(bucketName, objectNamePrefix, delimiter);</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(
+      String bucketName, String objectNamePrefix, String delimiter, long maxResults)
+      throws IOException {
+<span class="fc" id="L185">    logger.atFine().log(</span>
+        &quot;%s.listObjectInfo(%s, %s, %s, %s)&quot;,
+<span class="fc" id="L187">        delegateClassName, bucketName, objectNamePrefix, delimiter, maxResults);</span>
+<span class="fc" id="L188">    return delegate.listObjectInfo(bucketName, objectNamePrefix, delimiter, maxResults);</span>
+  }
+
+  @Override
+  public ListPage&lt;GoogleCloudStorageItemInfo&gt; listObjectInfoPage(
+      String bucketName, String objectNamePrefix, String delimiter, String pageToken)
+      throws IOException {
+<span class="nc" id="L195">    logger.atFine().log(</span>
+        &quot;%s.listObjectInfoPage(%s, %s, %s, %s)&quot;,
+        delegateClassName, bucketName, objectNamePrefix, delimiter, pageToken);
+<span class="nc" id="L198">    return delegate.listObjectInfoPage(bucketName, objectNamePrefix, delimiter, pageToken);</span>
+  }
+
+  @Override
+  public GoogleCloudStorageItemInfo getItemInfo(StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L203">    logger.atFine().log(&quot;%s.getItemInfo(%s)&quot;, delegateClassName, resourceId);</span>
+<span class="fc" id="L204">    return delegate.getItemInfo(resourceId);</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; getItemInfos(List&lt;StorageResourceId&gt; resourceIds)
+      throws IOException {
+<span class="fc" id="L210">    logger.atFine().log(&quot;%s.getItemInfos(%s)&quot;, delegateClassName, resourceIds);</span>
+<span class="fc" id="L211">    return delegate.getItemInfos(resourceIds);</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; updateItems(List&lt;UpdatableItemInfo&gt; itemInfoList)
+      throws IOException {
+<span class="fc" id="L217">    logger.atFine().log(&quot;%s.updateItems(%s)&quot;, delegateClassName, itemInfoList);</span>
+<span class="fc" id="L218">    return delegate.updateItems(itemInfoList);</span>
+  }
+
+  @Override
+  public void close() {
+<span class="fc" id="L223">    logger.atFine().log(&quot;%s.close()&quot;, delegateClassName);</span>
+<span class="fc" id="L224">    delegate.close();</span>
+<span class="fc" id="L225">  }</span>
+
+  @Override
+  public void waitForBucketEmpty(String bucketName) throws IOException {
+<span class="fc" id="L229">    logger.atFine().log(&quot;%s.waitForBucketEmpty(%s)&quot;, delegateClassName, bucketName);</span>
+<span class="fc" id="L230">    delegate.waitForBucketEmpty(bucketName);</span>
+<span class="fc" id="L231">  }</span>
+
+  @Override
+  public void compose(
+      String bucketName, List&lt;String&gt; sources, String destination, String contentType)
+      throws IOException {
+<span class="fc" id="L237">    logger.atFine().log(</span>
+        &quot;%s.compose(%s, %s, %s, %s)&quot;,
+        delegateClassName, bucketName, sources, destination, contentType);
+<span class="fc" id="L240">    delegate.compose(bucketName, sources, destination, contentType);</span>
+<span class="fc" id="L241">  }</span>
+
+  @Override
+  public GoogleCloudStorageItemInfo composeObjects(
+      List&lt;StorageResourceId&gt; sources, StorageResourceId destination, CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L247">    logger.atFine().log(</span>
+        &quot;%s.composeObjects(%s, %s, %s)&quot;, delegateClassName, sources, destination, options);
+<span class="fc" id="L249">    return delegate.composeObjects(sources, destination, options);</span>
+  }
+
+  /**
+   * Gets the {@link GoogleCloudStorage} objected wrapped by this class.
+   *
+   * @return the {@link GoogleCloudStorage} objected wrapped by this class.
+   */
+  public GoogleCloudStorage getDelegate() {
+<span class="fc" id="L258">    return delegate;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

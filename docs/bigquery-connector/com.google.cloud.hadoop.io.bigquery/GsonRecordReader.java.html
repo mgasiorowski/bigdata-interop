@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GsonRecordReader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">GsonRecordReader.java</span></div><h1>GsonRecordReader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import com.google.cloud.hadoop.util.HadoopToStringUtil;
+import com.google.common.base.Preconditions;
+import com.google.common.flogger.GoogleLogger;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+import org.apache.hadoop.mapreduce.lib.input.LineRecordReader;
+
+/**
+ * The GsonRecordReader reads records from GCS through GHFS. It takes newline-delimited Json files
+ * in GCS and reads them through LineRecordReader. It parses each line in the file split into
+ * key/value pairs with the line number as the key and the jsonObject represented by the line as the
+ * value. These pairs are passed as input to the Mapper.
+ */
+<span class="fc" id="L36">public class GsonRecordReader extends RecordReader&lt;LongWritable, JsonObject&gt; {</span>
+<span class="fc" id="L37">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // A LineRecordReader which handles most calls. The GsonRecordReader just provides a wrapper which
+  // translates the results of LineRecordReader into Json objects.
+  private LineRecordReader lineReader;
+
+  // Current key.
+<span class="fc" id="L44">  private LongWritable currentKey = new LongWritable(0L);</span>
+
+  // Current value.
+  private JsonObject currentValue;
+
+  // Total key, value pairs read.
+  private int count;
+
+  // Used to parse the JsonObject from the LineRecordReader output.
+  private JsonParser jsonParser;
+
+  /**
+   * Called once at initialization to initialize the RecordReader.
+   *
+   * @param genericSplit the split that defines the range of records to read.
+   * @param context the information about the task.
+   * @throws IOException on IO Error.
+   */
+  @Override
+  public void initialize(InputSplit genericSplit, TaskAttemptContext context)
+      throws IOException {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">    if (logger.atFine().isEnabled()) {</span>
+      try {
+<span class="nc" id="L67">        logger.atFine().log(</span>
+            &quot;initialize('%s', '%s')&quot;,
+<span class="nc" id="L69">            HadoopToStringUtil.toString(genericSplit), HadoopToStringUtil.toString(context));</span>
+<span class="nc" id="L70">      } catch (InterruptedException ie) {</span>
+<span class="nc" id="L71">        logger.atFine().withCause(ie).log(</span>
+            &quot;InterruptedException during HadoopToStringUtil.toString&quot;);
+<span class="nc" id="L73">      }</span>
+    }
+<span class="fc" id="L75">    Preconditions.checkArgument(genericSplit instanceof FileSplit,</span>
+        &quot;InputSplit genericSplit should be an instance of FileSplit.&quot;);
+    // Get FileSplit.
+<span class="fc" id="L78">    FileSplit fileSplit = (FileSplit) genericSplit;</span>
+    // Create the JsonParser.
+<span class="fc" id="L80">    jsonParser = new JsonParser();</span>
+    // Initialize the LineRecordReader.
+<span class="fc" id="L82">    lineReader = new LineRecordReader();</span>
+<span class="fc" id="L83">    lineReader.initialize(fileSplit, context);</span>
+<span class="fc" id="L84">  }</span>
+
+  /**
+   * Reads the next key, value pair. Gets next line and parses Json object.
+   *
+   * @return true if a key/value pair was read.
+   * @throws IOException on IO Error.
+   */
+  @Override
+  public boolean nextKeyValue()
+      throws IOException {
+    // If there is no next value, return false. Set current key and value to null.
+    // Different Hadoop recordreaders have different behavior for calling current key and value
+    // after nextKeyValue returns false.
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    if (!lineReader.nextKeyValue()) {</span>
+<span class="fc" id="L99">      logger.atFine().log(&quot;All values read: record reader read %s key, value pairs.&quot;, count);</span>
+<span class="fc" id="L100">      return false;</span>
+    }
+    // Get the next line.
+<span class="fc" id="L103">    currentKey.set(lineReader.getCurrentKey().get());</span>
+<span class="fc" id="L104">    Text lineValue = lineReader.getCurrentValue();</span>
+<span class="fc" id="L105">    currentValue = jsonParser.parse(lineValue.toString()).getAsJsonObject();</span>
+    // Increment count of key, value pairs.
+<span class="fc" id="L107">    count++;</span>
+<span class="fc" id="L108">    return true;</span>
+  }
+
+  /**
+   * Gets the current key.
+   *
+   * @return the current key or null if there is no current key.
+   */
+  @Override
+  public LongWritable getCurrentKey() {
+<span class="fc" id="L118">    return currentKey;</span>
+  }
+
+  /**
+   * Gets the current value.
+   *
+   * @return the current value or null if there is no current value.
+   */
+  @Override
+  public JsonObject getCurrentValue() {
+<span class="fc" id="L128">    return currentValue;</span>
+  }
+
+  /**
+   * Returns the current progress of the record reader through its data.
+   *
+   * @return a number between 0.0 and 1.0 that is the fraction of the data read.
+   * @throws IOException on IO Error.
+   */
+  @Override
+  public float getProgress()
+      throws IOException {
+<span class="fc" id="L140">    return lineReader.getProgress();</span>
+  }
+
+  /**
+   * Closes the record reader.
+   *
+   * @throws IOException on IO Error.
+   */
+  @Override
+  public void close()
+      throws IOException {
+<span class="fc" id="L151">    lineReader.close();</span>
+<span class="fc" id="L152">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

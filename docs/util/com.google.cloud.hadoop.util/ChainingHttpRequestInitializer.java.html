@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ChainingHttpRequestInitializer.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">ChainingHttpRequestInitializer.java</span></div><h1>ChainingHttpRequestInitializer.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 Google Inc. All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.util;
+
+import com.google.api.client.http.HttpExecuteInterceptor;
+import com.google.api.client.http.HttpIOExceptionHandler;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestInitializer;
+import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpResponseInterceptor;
+import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
+import com.google.common.collect.ImmutableList;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * {@link HttpRequestInitializer} that composes handlers and interceptors
+ * supplied by component handlers. All interceptors in a chain are executed.
+ * All handlers are executed until a handler returns true from its handle
+ * method. If an initializer configures other parameters on request, last
+ * initializer to do so wins.
+ */
+public class ChainingHttpRequestInitializer implements HttpRequestInitializer {
+
+  private final List&lt;HttpRequestInitializer&gt; initializers;
+
+<span class="nc" id="L41">  public ChainingHttpRequestInitializer(HttpRequestInitializer...initializers) {</span>
+<span class="nc" id="L42">    this.initializers = ImmutableList.copyOf(initializers);</span>
+<span class="nc" id="L43">  }</span>
+
+  @Override
+  public void initialize(HttpRequest request) throws IOException {
+<span class="nc" id="L47">    List&lt;HttpIOExceptionHandler&gt; ioExceptionHandlers = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L48">    List&lt;HttpUnsuccessfulResponseHandler&gt; unsuccessfulResponseHandlers = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L49">    List&lt;HttpExecuteInterceptor&gt; interceptors = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L50">    List&lt;HttpResponseInterceptor&gt; responseInterceptors = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">    for (HttpRequestInitializer initializer : initializers) {</span>
+<span class="nc" id="L52">      initializer.initialize(request);</span>
+<span class="nc bnc" id="L53" title="All 2 branches missed.">      if (request.getIOExceptionHandler() != null) {</span>
+<span class="nc" id="L54">        ioExceptionHandlers.add(request.getIOExceptionHandler());</span>
+<span class="nc" id="L55">        request.setIOExceptionHandler(null);</span>
+      }
+<span class="nc bnc" id="L57" title="All 2 branches missed.">      if (request.getUnsuccessfulResponseHandler() != null) {</span>
+<span class="nc" id="L58">        unsuccessfulResponseHandlers.add(request.getUnsuccessfulResponseHandler());</span>
+<span class="nc" id="L59">        request.setUnsuccessfulResponseHandler(null);</span>
+      }
+<span class="nc bnc" id="L61" title="All 2 branches missed.">      if (request.getInterceptor() != null) {</span>
+<span class="nc" id="L62">        interceptors.add(request.getInterceptor());</span>
+<span class="nc" id="L63">        request.setInterceptor(null);</span>
+      }
+<span class="nc bnc" id="L65" title="All 2 branches missed.">      if (request.getResponseInterceptor() != null) {</span>
+<span class="nc" id="L66">        responseInterceptors.add(request.getResponseInterceptor());</span>
+<span class="nc" id="L67">        request.setResponseInterceptor(null);</span>
+      }
+<span class="nc" id="L69">    }</span>
+<span class="nc" id="L70">    request.setIOExceptionHandler(</span>
+<span class="nc" id="L71">        makeIoExceptionHandler(ioExceptionHandlers));</span>
+<span class="nc" id="L72">    request.setUnsuccessfulResponseHandler(</span>
+<span class="nc" id="L73">        makeUnsuccessfulResponseHandler(unsuccessfulResponseHandlers));</span>
+<span class="nc" id="L74">    request.setInterceptor(</span>
+<span class="nc" id="L75">        makeInterceptor(interceptors));</span>
+<span class="nc" id="L76">    request.setResponseInterceptor(</span>
+<span class="nc" id="L77">        makeResponseInterceptor(responseInterceptors));</span>
+<span class="nc" id="L78">  }</span>
+
+  private HttpResponseInterceptor makeResponseInterceptor(
+      final Iterable&lt;HttpResponseInterceptor&gt; responseInterceptors) {
+<span class="nc" id="L82">    return new HttpResponseInterceptor() {</span>
+      @Override
+      public void interceptResponse(HttpResponse response) throws IOException {
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        for (HttpResponseInterceptor interceptor : responseInterceptors) {</span>
+<span class="nc" id="L86">          interceptor.interceptResponse(response);</span>
+<span class="nc" id="L87">        }</span>
+<span class="nc" id="L88">      }</span>
+    };
+  }
+
+  private HttpExecuteInterceptor makeInterceptor(
+      final Iterable&lt;HttpExecuteInterceptor&gt; interceptors) {
+<span class="nc" id="L94">    return new HttpExecuteInterceptor() {</span>
+      @Override
+      public void intercept(HttpRequest request) throws IOException {
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        for (HttpExecuteInterceptor interceptor : interceptors) {</span>
+<span class="nc" id="L98">          interceptor.intercept(request);</span>
+<span class="nc" id="L99">        }</span>
+<span class="nc" id="L100">      }</span>
+    };
+  }
+
+  private HttpUnsuccessfulResponseHandler makeUnsuccessfulResponseHandler(
+      final Iterable&lt;HttpUnsuccessfulResponseHandler&gt; unsuccessfulResponseHandlers) {
+<span class="nc" id="L106">    return new HttpUnsuccessfulResponseHandler() {</span>
+      @Override
+      public boolean handleResponse(HttpRequest request, HttpResponse response,
+          boolean supportsRetry) throws IOException {
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        for (HttpUnsuccessfulResponseHandler handler : unsuccessfulResponseHandlers) {</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">          if (handler.handleResponse(request, response, supportsRetry)) {</span>
+<span class="nc" id="L112">            return true;</span>
+          }
+<span class="nc" id="L114">        }</span>
+<span class="nc" id="L115">        return false;</span>
+      }
+    };
+  }
+
+  private HttpIOExceptionHandler makeIoExceptionHandler(
+      final Iterable&lt;HttpIOExceptionHandler&gt; ioExceptionHandlers) {
+<span class="nc" id="L122">    return new HttpIOExceptionHandler() {</span>
+      @Override
+      public boolean handleIOException(HttpRequest request, boolean supportsRetry)
+          throws IOException {
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        for (HttpIOExceptionHandler handler : ioExceptionHandlers) {</span>
+<span class="nc bnc" id="L127" title="All 2 branches missed.">          if (handler.handleIOException(request, supportsRetry)) {</span>
+<span class="nc" id="L128">            return true;</span>
+          }
+<span class="nc" id="L130">        }</span>
+<span class="nc" id="L131">        return false;</span>
+      }
+    };
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

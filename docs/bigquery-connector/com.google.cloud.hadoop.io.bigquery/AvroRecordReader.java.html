@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AvroRecordReader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">AvroRecordReader.java</span></div><h1>AvroRecordReader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import com.google.common.base.Preconditions;
+import java.io.IOException;
+import org.apache.avro.Schema;
+import org.apache.avro.file.DataFileReader;
+import org.apache.avro.file.FileReader;
+import org.apache.avro.file.SeekableInput;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+
+/**
+ * RecordReader for avro BigQuery exports.
+ */
+<span class="fc" id="L38">public class AvroRecordReader extends RecordReader&lt;LongWritable, GenericData.Record&gt; {</span>
+
+<span class="fc" id="L40">  final LongWritable currentKey = new LongWritable();</span>
+  FileReader&lt;GenericData.Record&gt; dataFileReader;
+  Schema schema;
+  GenericData.Record currentRecord;
+  long inputFileLength;
+  long splitStart;
+  long splitLength;
+
+  @Override
+  public void initialize(InputSplit inputSplit, TaskAttemptContext taskAttemptContext)
+      throws IOException, InterruptedException {
+<span class="nc" id="L51">    initializeInternal(inputSplit, taskAttemptContext.getConfiguration());</span>
+<span class="nc" id="L52">  }</span>
+
+  protected void initializeInternal(InputSplit inputSplit, Configuration conf)
+      throws IOException, InterruptedException {
+<span class="fc" id="L56">    Preconditions.checkState(</span>
+        inputSplit instanceof FileSplit, &quot;AvroRecordReader requires FileSplit input splits.&quot;);
+<span class="fc" id="L58">    FileSplit fileSplit = (FileSplit) inputSplit;</span>
+<span class="fc" id="L59">    splitStart = fileSplit.getStart();</span>
+<span class="fc" id="L60">    splitLength = fileSplit.getLength();</span>
+
+<span class="fc" id="L62">    Path filePath = fileSplit.getPath();</span>
+<span class="fc" id="L63">    FileSystem fs = filePath.getFileSystem(conf);</span>
+<span class="fc" id="L64">    FileStatus status = fs.getFileStatus(filePath);</span>
+<span class="fc" id="L65">    inputFileLength = status.getLen();</span>
+
+<span class="fc" id="L67">    final FSDataInputStream stream = fs.open(filePath);</span>
+<span class="fc" id="L68">    dataFileReader = DataFileReader.openReader(</span>
+<span class="fc" id="L69">        new SeekableInput() {</span>
+          @Override
+          public void seek(long offset) throws IOException {
+<span class="fc" id="L72">            stream.seek(offset);</span>
+<span class="fc" id="L73">          }</span>
+
+          @Override
+          public long tell() throws IOException {
+<span class="fc" id="L77">            return stream.getPos();</span>
+          }
+          @Override
+          public long length() throws IOException {
+<span class="fc" id="L81">            return inputFileLength;</span>
+          }
+
+          @Override
+          public int read(byte[] bytes, int offset, int length) throws IOException {
+<span class="fc" id="L86">            return stream.read(bytes, offset, length);</span>
+          }
+
+          @Override
+          public void close() throws IOException {
+<span class="fc" id="L91">            stream.close();</span>
+<span class="fc" id="L92">          }</span>
+        }, new GenericDatumReader&lt;GenericData.Record&gt;());
+    // Sync to the first sync point after the start of the split:
+<span class="fc" id="L95">    dataFileReader.sync(fileSplit.getStart());</span>
+<span class="fc" id="L96">    schema = dataFileReader.getSchema();</span>
+<span class="fc" id="L97">    currentRecord = new GenericData.Record(schema);</span>
+<span class="fc" id="L98">  }</span>
+
+  @Override
+  public boolean nextKeyValue() throws IOException, InterruptedException {
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">    Preconditions.checkState(currentRecord != null);</span>
+    // Stop reading as soon as we hit a sync point out of our split:
+<span class="fc bfc" id="L104" title="All 4 branches covered.">    if (dataFileReader.hasNext() &amp;&amp; !dataFileReader.pastSync(splitStart + splitLength)) {</span>
+<span class="fc" id="L105">      currentKey.set(currentKey.get() + 1);</span>
+<span class="fc" id="L106">      dataFileReader.next(currentRecord);</span>
+<span class="fc" id="L107">      return true;</span>
+    } else {
+<span class="fc" id="L109">      return false;</span>
+    }
+  }
+
+  @Override
+  public LongWritable getCurrentKey() throws IOException, InterruptedException {
+<span class="nc" id="L115">    return currentKey;</span>
+  }
+
+  @Override
+  public GenericData.Record getCurrentValue() throws IOException, InterruptedException {
+<span class="nc" id="L120">    return currentRecord;</span>
+  }
+
+  @Override
+  public float getProgress() throws IOException, InterruptedException {
+<span class="nc bnc" id="L125" title="All 2 branches missed.">    Preconditions.checkState(dataFileReader != null);</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">    if (splitLength == 0) {</span>
+<span class="nc" id="L127">      return 1.0f;</span>
+    }
+<span class="nc" id="L129">    float splitRelativeLocation = dataFileReader.tell() - splitStart;</span>
+<span class="nc" id="L130">    return splitRelativeLocation / splitLength;</span>
+  }
+
+  @Override
+  public void close() throws IOException {
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">    Preconditions.checkState(dataFileReader != null);</span>
+<span class="fc" id="L136">    dataFileReader.close();</span>
+<span class="fc" id="L137">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

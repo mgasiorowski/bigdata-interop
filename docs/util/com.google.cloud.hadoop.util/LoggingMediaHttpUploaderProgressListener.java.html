@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>LoggingMediaHttpUploaderProgressListener.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">LoggingMediaHttpUploaderProgressListener.java</span></div><h1>LoggingMediaHttpUploaderProgressListener.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2015 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.util;
+
+import com.google.api.client.googleapis.media.MediaHttpUploader;
+import com.google.api.client.googleapis.media.MediaHttpUploader.UploadState;
+import com.google.api.client.googleapis.media.MediaHttpUploaderProgressListener;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+
+/**
+ * Logs the status of uploads. At the beginning, during, and at the end of the upload, emits
+ * relevant statistics such as how many bytes uploaded and the rate at which the upload is
+ * progressing.
+ *
+ * &lt;p&gt;A new instance of this progress listener should be used for each MediaHttpUploader.
+ */
+public class LoggingMediaHttpUploaderProgressListener implements MediaHttpUploaderProgressListener {
+<span class="fc" id="L34">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  private static final double BYTES_IN_MB = 1024 * 1024;
+
+  private final long minLoggingInterval;
+  private final String name;
+  private long startTime;
+  private long prevTime;
+  private long prevUploadedBytes;
+
+  /**
+   * Creates a upload progress listener that emits relevant statistics about the progress of the
+   * upload.
+   *
+   * @param name The name of the resource being uploaded.
+   * @param minLoggingInterval The minimum amount of time (millis) between logging upload progress.
+   */
+<span class="fc" id="L51">  public LoggingMediaHttpUploaderProgressListener(String name, long minLoggingInterval) {</span>
+<span class="fc" id="L52">    this.name = name;</span>
+<span class="fc" id="L53">    this.minLoggingInterval = minLoggingInterval;</span>
+<span class="fc" id="L54">  }</span>
+
+  @Override
+  public void progressChanged(MediaHttpUploader uploader) throws IOException {
+<span class="fc" id="L58">    progressChanged(</span>
+<span class="fc" id="L59">        uploader.getUploadState(), uploader.getNumBytesUploaded(), System.currentTimeMillis());</span>
+<span class="fc" id="L60">  }</span>
+
+  @VisibleForTesting
+  void progressChanged(UploadState uploadState, long bytesUploaded, long currentTime) {
+<span class="fc bfc" id="L64" title="All 4 branches covered.">    switch (uploadState) {</span>
+      case INITIATION_STARTED:
+<span class="fc" id="L66">        startTime = currentTime;</span>
+<span class="fc" id="L67">        prevTime = currentTime;</span>
+<span class="fc" id="L68">        logger.atFine().log(&quot;Uploading: %s&quot;, name);</span>
+<span class="fc" id="L69">        break;</span>
+      case MEDIA_IN_PROGRESS:
+        // Limit messages to be emitted for in progress uploads.
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (currentTime &gt; prevTime + minLoggingInterval) {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">          if (logger.atFine().isEnabled()) {</span>
+<span class="fc" id="L74">            double megaBytesUploaded = bytesUploaded / BYTES_IN_MB;</span>
+<span class="fc" id="L75">            double averageRate = megaBytesUploaded / ((currentTime - startTime) / 1000.0);</span>
+<span class="fc" id="L76">            double currentRate =</span>
+                ((bytesUploaded - prevUploadedBytes) / BYTES_IN_MB)
+                    / ((currentTime - prevTime) / 1000.0);
+<span class="fc" id="L79">            logger.atFine().log(</span>
+                &quot;Uploading: %s Average Rate: %.3f MiB/s, Current Rate: %.3f MiB/s, Total: %.3f MiB&quot;,
+<span class="fc" id="L81">                name, averageRate, currentRate, megaBytesUploaded);</span>
+          }
+<span class="fc" id="L83">          prevTime = currentTime;</span>
+<span class="fc" id="L84">          prevUploadedBytes = bytesUploaded;</span>
+        }
+        break;
+      case MEDIA_COMPLETE:
+<span class="fc" id="L88">        logger.atFine().log(&quot;Finished Uploading: %s&quot;, name);</span>
+<span class="fc" id="L89">        break;</span>
+      default:
+    }
+<span class="fc" id="L92">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

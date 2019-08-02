@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GoogleHadoopFileSystemConfigurationProperty.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcs-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.fs.gcs</a> &gt; <span class="el_source">GoogleHadoopFileSystemConfigurationProperty.java</span></div><h1>GoogleHadoopFileSystemConfigurationProperty.java</h1><pre class="source lang-java linenums">package com.google.cloud.hadoop.fs.gcs;
+
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Strings.nullToEmpty;
+
+import com.google.common.base.Joiner;
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.BiFunction;
+import org.apache.hadoop.conf.Configuration;
+
+/** GHFS configuration property */
+public class GoogleHadoopFileSystemConfigurationProperty&lt;T&gt; {
+
+<span class="fc" id="L19">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+<span class="fc" id="L21">  private static final Joiner COMMA_JOINER = Joiner.on(',');</span>
+<span class="fc" id="L22">  private static final Splitter COMMA_SPLITTER = Splitter.on(',');</span>
+
+  private final String key;
+  private final List&lt;String&gt; deprecatedKeys;
+  private final T defaultValue;
+
+  public GoogleHadoopFileSystemConfigurationProperty(String key) {
+<span class="fc" id="L29">    this(key, null);</span>
+<span class="fc" id="L30">  }</span>
+
+  public GoogleHadoopFileSystemConfigurationProperty(
+<span class="fc" id="L33">      String key, T defaultValue, String... deprecatedKeys) {</span>
+<span class="fc" id="L34">    this.key = key;</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">    this.deprecatedKeys =</span>
+<span class="fc" id="L36">        deprecatedKeys == null ? ImmutableList.of() : ImmutableList.copyOf(deprecatedKeys);</span>
+<span class="fc" id="L37">    this.defaultValue = defaultValue;</span>
+<span class="fc" id="L38">  }</span>
+
+  public String getKey() {
+<span class="fc" id="L41">    return key;</span>
+  }
+
+  public T getDefault() {
+<span class="fc" id="L45">    return defaultValue;</span>
+  }
+
+  T get(Configuration config, BiFunction&lt;String, T, T&gt; getterFn) {
+<span class="fc" id="L49">    String lookupKey = getLookupKey(config, key, deprecatedKeys);</span>
+<span class="fc" id="L50">    return logProperty(lookupKey, getterFn.apply(lookupKey, defaultValue));</span>
+  }
+
+  String getPassword(Configuration config) {
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">    checkState(defaultValue == null || defaultValue instanceof String, &quot;Not a string property&quot;);</span>
+<span class="fc" id="L55">    String lookupKey = getLookupKey(config, key, deprecatedKeys);</span>
+    char[] value;
+    try {
+<span class="fc" id="L58">      value = config.getPassword(lookupKey);</span>
+<span class="nc" id="L59">    } catch (IOException e) {</span>
+<span class="nc" id="L60">      throw new RuntimeException(e);</span>
+<span class="fc" id="L61">    }</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">    return logProperty(lookupKey, value == null ? (String) defaultValue : String.valueOf(value));</span>
+  }
+
+  Collection&lt;String&gt; getStringCollection(Configuration config) {
+<span class="pc bpc" id="L66" title="1 of 4 branches missed.">    checkState(</span>
+        defaultValue == null || defaultValue instanceof Collection, &quot;Not a collection property&quot;);
+<span class="fc" id="L68">    String lookupKey = getLookupKey(config, key, deprecatedKeys);</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">    String valueString =</span>
+<span class="fc" id="L70">        config.get(</span>
+            lookupKey,
+<span class="fc" id="L72">            defaultValue == null ? null : COMMA_JOINER.join((Collection&lt;?&gt;) defaultValue));</span>
+<span class="fc" id="L73">    List&lt;String&gt; value = COMMA_SPLITTER.splitToList(nullToEmpty(valueString));</span>
+<span class="fc" id="L74">    return logProperty(lookupKey, value);</span>
+  }
+
+  private static String getLookupKey(
+      Configuration config, String key, List&lt;String&gt; deprecatedKeys) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (config.get(key) != null) {</span>
+<span class="fc" id="L80">      return key;</span>
+    }
+<span class="fc bfc" id="L82" title="All 2 branches covered.">    for (String deprecatedKey : deprecatedKeys) {</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">      if (config.get(deprecatedKey) != null) {</span>
+<span class="fc" id="L84">        logger.atWarning().log(</span>
+            &quot;Using deprecated key '%s', use '%s' key instead.&quot;, deprecatedKey, key);
+<span class="fc" id="L86">        return deprecatedKey;</span>
+      }
+<span class="fc" id="L88">    }</span>
+<span class="fc" id="L89">    return key;</span>
+  }
+
+  private static &lt;S&gt; S logProperty(String key, S value) {
+<span class="fc" id="L93">    logger.atFine().log(&quot;%s = %s&quot;, key, value);</span>
+<span class="fc" id="L94">    return value;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

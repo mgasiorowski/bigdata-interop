@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>BigQueryConfiguration.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">BigQueryConfiguration.java</span></div><h1>BigQueryConfiguration.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+
+import com.google.api.services.bigquery.model.TableReference;
+import com.google.cloud.hadoop.util.ConfigurationUtil;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import javax.annotation.Nullable;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapreduce.JobID;
+
+/**
+ * A container for configuration property names for jobs with BigQuery input/output.
+ *
+ *  The job can be configured programmatically using the static methods in this class,
+ * GsonBigQueryInputFormat, and BigqueryOutputFormat}.
+ *
+ * Alternatively, the properties can be set in the configuration xml files with proper values.
+ */
+<span class="fc" id="L39">public class BigQueryConfiguration {</span>
+  /**
+   * Configuration key for project ID on whose behalf to perform BigQuery operations, and the
+   * default project for referencing datasets when input/output datasets are not explicitly
+   * specified.
+   */
+  public static final String PROJECT_ID_KEY = &quot;mapred.bq.project.id&quot;;
+
+  // Configuration keys for input connector.
+
+  /** Configuration key for project ID of the dataset accessed by this input connector. */
+  public static final String INPUT_PROJECT_ID_KEY = &quot;mapred.bq.input.project.id&quot;;
+
+  /** Configuration key for ID of the dataset accessed by this input connector. */
+  public static final String INPUT_DATASET_ID_KEY = &quot;mapred.bq.input.dataset.id&quot;;
+
+  /** Configuration key for ID of the table written by this input connector. */
+  public static final String INPUT_TABLE_ID_KEY = &quot;mapred.bq.input.table.id&quot;;
+
+  /** Configuration key for the GCS temp path this connector uses. */
+  public static final String TEMP_GCS_PATH_KEY = &quot;mapred.bq.temp.gcs.path&quot;;
+
+  /** Configuration key for the GCS bucket holding TEMP_GCS_PATH_KEY */
+  public static final String GCS_BUCKET_KEY = &quot;mapred.bq.gcs.bucket&quot;;
+
+  /** Configuration key for whether to delete the intermediate GCS-export files. */
+  public static final String DELETE_EXPORT_FILES_FROM_GCS_KEY =
+      &quot;mapred.bq.input.export.files.delete&quot;;
+  public static final boolean DELETE_EXPORT_FILES_FROM_GCS_DEFAULT = true;
+
+  /**
+   * Number of milliseconds to wait between listStatus calls inside of nextKeyValue when no
+   * new files are available yet for reading; not that this polling is not done when files
+   * are already available for reading.
+   */
+  public static final String DYNAMIC_FILE_LIST_RECORD_READER_POLL_INTERVAL_MS_KEY =
+      &quot;mapred.bq.dynamic.file.list.record.reader.poll.interval&quot;;
+  public static final int DYNAMIC_FILE_LIST_RECORD_READER_POLL_INTERVAL_MS_DEFAULT = 10000;
+
+  /** A list of all necessary Configuration keys for input connector. */
+<span class="fc" id="L79">  public static final ImmutableList&lt;String&gt; MANDATORY_CONFIG_PROPERTIES_INPUT =</span>
+<span class="fc" id="L80">      ImmutableList.of(</span>
+          PROJECT_ID_KEY, INPUT_PROJECT_ID_KEY, INPUT_DATASET_ID_KEY, INPUT_TABLE_ID_KEY);
+
+  // Configuration keys for output connector.
+
+  /**
+   * Configuration key for the output project ID of the dataset accessed by the output format. This
+   * key is stored as a {@link String}.
+   */
+  public static final String OUTPUT_PROJECT_ID_KEY = &quot;mapred.bq.output.project.id&quot;;
+
+  /**
+   * Configuration key for numeric ID of the output dataset accessed by the output format. This key
+   * is stored as a {@link String}.
+   */
+  public static final String OUTPUT_DATASET_ID_KEY = &quot;mapred.bq.output.dataset.id&quot;;
+
+  /**
+   * Configuration key for numeric ID of the output table written by the output format. This key is
+   * stored as a {@link String}.
+   */
+  public static final String OUTPUT_TABLE_ID_KEY = &quot;mapred.bq.output.table.id&quot;;
+
+  /**
+   * Configuration key for the output table schema used by the output format. This key is stored as
+   * a {@link String}.
+   */
+  public static final String OUTPUT_TABLE_SCHEMA_KEY = &quot;mapred.bq.output.table.schema&quot;;
+
+  /**
+   * Configuration key for the output table partitioning used by the output format. This key is
+   * stored as a {@link String}.
+   */
+  public static final String OUTPUT_TABLE_PARTITIONING_KEY = &quot;mapred.bq.output.table.partitioning&quot;;
+
+  /**
+   * Configuration key for the Cloud KMS encryption key that will be used to protect output BigQuery
+   * table. This key is stored as a {@link String}.
+   */
+  public static final String OUTPUT_TABLE_KMS_KEY_NAME_KEY = &quot;mapred.bq.output.table.kmskeyname&quot;;
+
+  /**
+   * Configuration key for the write disposition of the output table. This specifies the action that
+   * occurs if the destination table already exists. This key is stored as a {@link String}.
+   */
+  public static final String OUTPUT_TABLE_WRITE_DISPOSITION_KEY =
+      &quot;mapred.bq.output.table.writedisposition&quot;;
+
+  /**
+   * The default write disposition for the output table. By default, if the table already exists,
+   * BigQuery appends data to the output table.
+   */
+  public static final String OUTPUT_TABLE_WRITE_DISPOSITION_DEFAULT = &quot;WRITE_APPEND&quot;;
+
+  /**
+   * Configuration key for the file format of the files outputted by the wrapped FileOutputFormat.
+   * This key is stored as a serialized {@link BigQueryFileFormat}.
+   */
+  public static final String OUTPUT_FILE_FORMAT_KEY = &quot;mapred.bq.output.gcs.fileformat&quot;;
+
+  /**
+   * Configuration key for the FileOutputFormat class that's going to be wrapped by the output
+   * format. This key is stored as a {@link Class}.
+   */
+  public static final String OUTPUT_FORMAT_CLASS_KEY = &quot;mapred.bq.output.gcs.outputformatclass&quot;;
+
+  /**
+   * Configuration key indicating whether temporary data stored in GCS should be deleted after the
+   * output job is complete. This is true by default. This key is ignored when using federated
+   * storage. This key is stored as a {@link Boolean}.
+   */
+  public static final String OUTPUT_CLEANUP_TEMP_KEY = &quot;mapred.bq.output.gcs.cleanup&quot;;
+
+  /** Size of the output buffer, in bytes, to use for BigQuery output. */
+  public static final String OUTPUT_WRITE_BUFFER_SIZE_KEY = &quot;mapred.bq.output.buffer.size&quot;;
+
+  /** 64MB default write buffer size. */
+  public static final int OUTPUT_WRITE_BUFFER_SIZE_DEFAULT = 64 * 1024 * 1024;
+
+  /**
+   * Configure the location of the temporary dataset.
+   * Currently supported values are &quot;US&quot; and &quot;EU&quot;.
+   */
+  public static final String DATA_LOCATION_KEY = &quot;mapred.bq.output.location&quot;;
+
+    /** The default dataset location is US */
+  public static final String DATA_LOCATION_DEFAULT = &quot;US&quot;;
+
+  /** A list of all necessary Configuration keys. */
+<span class="fc" id="L169">  public static final ImmutableList&lt;String&gt; MANDATORY_CONFIG_PROPERTIES_OUTPUT =</span>
+<span class="fc" id="L170">      ImmutableList.of(</span>
+          PROJECT_ID_KEY,
+          OUTPUT_PROJECT_ID_KEY,
+          OUTPUT_DATASET_ID_KEY,
+          OUTPUT_TABLE_ID_KEY,
+          OUTPUT_TABLE_SCHEMA_KEY);
+
+  public static final String SQL_FILTER_KEY = &quot;mapred.bq.input.sql.filter&quot;;
+  public static final String SELECTED_FIELDS_KEY = &quot;mapred.bq.input.selected.fields&quot;;
+  public static final String SKEW_LIMIT_KEY = &quot;mapred.bq.input.skew.limit&quot;;
+  public static final double SKEW_LIMIT_DEFAULT = 1.5;
+
+<span class="fc" id="L182">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  /**
+   * Sets the Bigquery access related fields in the JobConf for input connector.
+   *
+   * @param config the job configuration.
+   * @param projectId the project containing the table to read the intermediate results to.
+   * @param datasetId the dataset to write the intermediate results to.
+   * @param tableId the table to write the intermediate results to.
+   */
+  public static void configureBigQueryInput(
+      Configuration config,
+      String projectId,
+      String datasetId,
+      String tableId)
+      throws IOException {
+    // Check preconditions.
+<span class="fc" id="L199">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(datasetId), &quot;datasetId must not be null or empty.&quot;);</span>
+<span class="fc" id="L201">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableId), &quot;tableId must not be null or empty.&quot;);</span>
+
+    // Project is optional, if not set use default project.
+<span class="fc bfc" id="L205" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(projectId)) {</span>
+<span class="fc" id="L206">      logger.atInfo().log(&quot;Using specified project-id '%s' for input&quot;, projectId);</span>
+<span class="fc" id="L207">      config.set(INPUT_PROJECT_ID_KEY, projectId);</span>
+
+      // For user-friendliness, we'll helpfully backfill the input-specific projectId into the
+      // &quot;global&quot; projectId for now.
+      // TODO(user): Maybe don't try to be user-friendly here.
+<span class="fc bfc" id="L212" title="All 2 branches covered.">      if (Strings.isNullOrEmpty(config.get(PROJECT_ID_KEY))) {</span>
+<span class="fc" id="L213">        logger.atWarning().log(</span>
+            &quot;No job-level projectId specified in '%s', using '%s' for it.&quot;,
+            PROJECT_ID_KEY, projectId);
+<span class="fc" id="L216">        config.set(PROJECT_ID_KEY, projectId);</span>
+      }
+    } else {
+<span class="fc" id="L219">      String defaultProjectId = ConfigurationUtil.getMandatoryConfig(config, PROJECT_ID_KEY);</span>
+<span class="fc" id="L220">      logger.atInfo().log(</span>
+          &quot;Using default project-id '%s' since none specified for input.&quot;, defaultProjectId);
+<span class="fc" id="L222">      config.set(INPUT_PROJECT_ID_KEY, defaultProjectId);</span>
+    }
+<span class="fc" id="L224">    config.set(INPUT_DATASET_ID_KEY, datasetId);</span>
+<span class="fc" id="L225">    config.set(INPUT_TABLE_ID_KEY, tableId);</span>
+<span class="fc" id="L226">  }</span>
+
+  /**
+   * Sets the Bigquery access related fields in the JobConf for input connector.
+   *
+   * @param config the job configuration.
+   * @param fullyQualifiedInputTableId input-table id of the form
+   *     [optional projectId]:[datasetId].[tableId]
+   */
+  public static void configureBigQueryInput(
+      Configuration config, String fullyQualifiedInputTableId)
+      throws IOException {
+<span class="fc" id="L238">    TableReference parsedTable = BigQueryStrings.parseTableReference(fullyQualifiedInputTableId);</span>
+<span class="fc" id="L239">    configureBigQueryInput(</span>
+<span class="fc" id="L240">        config, parsedTable.getProjectId(), parsedTable.getDatasetId(), parsedTable.getTableId());</span>
+<span class="fc" id="L241">  }</span>
+
+  /**
+   * Sets the Bigquery access related fields in the JobConf for output connector.
+   *
+   * @param config the job configuration.
+   * @param projectId the project containing the table to write the results to.
+   * @param datasetId the dataset to write the results to.
+   * @param tableId the table to write the results to.
+   * @param tableSchema the output table schema used by this output connector.
+   */
+  public static void configureBigQueryOutput(
+      Configuration config,
+      String projectId,
+      String datasetId,
+      String tableId,
+      String tableSchema)
+      throws IOException {
+    // Check preconditions.
+<span class="fc" id="L260">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(datasetId), &quot;datasetId must not be null or empty.&quot;);</span>
+<span class="fc" id="L262">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableId), &quot;tableId must not be null or empty.&quot;);</span>
+<span class="fc" id="L264">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableSchema), &quot;tableSchema must not be null or empty.&quot;);</span>
+
+    // Project is optional, if not set use default project.
+<span class="fc bfc" id="L268" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(projectId)) {</span>
+<span class="fc" id="L269">      logger.atInfo().log(&quot;Using specified project-id '%s' for output&quot;, projectId);</span>
+<span class="fc" id="L270">      config.set(OUTPUT_PROJECT_ID_KEY, projectId);</span>
+
+      // For user-friendliness, we'll helpfully backfill the input-specific projectId into the
+      // &quot;global&quot; projectId for now.
+      // TODO(user): Maybe don't try to be user-friendly here.
+<span class="fc bfc" id="L275" title="All 2 branches covered.">      if (Strings.isNullOrEmpty(config.get(PROJECT_ID_KEY))) {</span>
+<span class="fc" id="L276">        logger.atWarning().log(</span>
+            &quot;No job-level projectId specified in '%s', using '%s' for it.&quot;,
+            PROJECT_ID_KEY, projectId);
+<span class="fc" id="L279">        config.set(PROJECT_ID_KEY, projectId);</span>
+      }
+    } else {
+<span class="fc" id="L282">      String defaultProjectId = ConfigurationUtil.getMandatoryConfig(config, PROJECT_ID_KEY);</span>
+<span class="fc" id="L283">      logger.atInfo().log(</span>
+          &quot;Using default project-id '%s' since none specified for output.&quot;, defaultProjectId);
+<span class="fc" id="L285">      config.set(OUTPUT_PROJECT_ID_KEY, defaultProjectId);</span>
+    }
+<span class="fc" id="L287">    config.set(OUTPUT_DATASET_ID_KEY, datasetId);</span>
+<span class="fc" id="L288">    config.set(OUTPUT_TABLE_ID_KEY, tableId);</span>
+<span class="fc" id="L289">    config.set(OUTPUT_TABLE_SCHEMA_KEY, tableSchema);</span>
+<span class="fc" id="L290">  }</span>
+
+  /**
+   * Sets the Bigquery access related fields in the JobConf for output connector.
+   *
+   * @param config the job configuration.
+   * @param fullyQualifiedOutputTableId output-table id of the form
+   *     [optional projectId]:[datasetId].[tableId]
+   * @param tableSchema the output table schema used by this output connector.
+   */
+  public static void configureBigQueryOutput(
+      Configuration config, String fullyQualifiedOutputTableId, String tableSchema)
+      throws IOException {
+<span class="fc" id="L303">    TableReference parsedTable = BigQueryStrings.parseTableReference(fullyQualifiedOutputTableId);</span>
+<span class="fc" id="L304">    configureBigQueryOutput(</span>
+<span class="fc" id="L305">        config, parsedTable.getProjectId(), parsedTable.getDatasetId(), parsedTable.getTableId(),</span>
+        tableSchema);
+<span class="fc" id="L307">  }</span>
+
+  /**
+   * Resolves to provided {@link #TEMP_GCS_PATH_KEY} or fallbacks to a temporary path based on
+   * {@link #GCS_BUCKET_KEY} and {@code jobId}.
+   *
+   * @param conf the configuration to fetch the keys from.
+   * @param jobId the ID of the job requesting a working path. Optional (could be {@code null}) if
+   *     {@link #TEMP_GCS_PATH_KEY} is provided.
+   * @return the temporary directory path.
+   * @throws IOException if the file system of the derived working path isn't GCS.
+   */
+  public static String getTemporaryPathRoot(Configuration conf, @Nullable JobID jobId)
+      throws IOException {
+    // Try using the temporary gcs path.
+<span class="fc" id="L322">    String pathRoot = conf.get(BigQueryConfiguration.TEMP_GCS_PATH_KEY);</span>
+
+<span class="fc bfc" id="L324" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(pathRoot)) {</span>
+<span class="fc" id="L325">      checkNotNull(jobId, &quot;jobId is required if '%s' is not set&quot;, TEMP_GCS_PATH_KEY);</span>
+<span class="fc" id="L326">      logger.atInfo().log(</span>
+          &quot;Fetching key '%s' since '%s' isn't set explicitly.&quot;, GCS_BUCKET_KEY, TEMP_GCS_PATH_KEY);
+
+<span class="fc" id="L329">      String gcsBucket = conf.get(GCS_BUCKET_KEY);</span>
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">      if (Strings.isNullOrEmpty(gcsBucket)) {</span>
+<span class="nc" id="L331">        throw new IOException(&quot;Must supply a value for configuration setting: &quot; + GCS_BUCKET_KEY);</span>
+      }
+
+<span class="fc" id="L334">      pathRoot = String.format(&quot;gs://%s/hadoop/tmp/bigquery/%s&quot;, gcsBucket, jobId);</span>
+    }
+
+<span class="fc" id="L337">    logger.atInfo().log(&quot;Using working path: '%s'&quot;, pathRoot);</span>
+<span class="fc" id="L338">    Path workingPath = new Path(pathRoot);</span>
+
+<span class="fc" id="L340">    FileSystem fs = workingPath.getFileSystem(conf);</span>
+<span class="fc" id="L341">    Preconditions.checkState(&quot;gs&quot;.equals(fs.getScheme()), &quot;Export FS must be GCS ('gs' scheme).&quot;);</span>
+<span class="fc" id="L342">    return pathRoot;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

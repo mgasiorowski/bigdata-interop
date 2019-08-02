@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>ForwardingBigQueryFileOutputFormat.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery.output</a> &gt; <span class="el_source">ForwardingBigQueryFileOutputFormat.java</span></div><h1>ForwardingBigQueryFileOutputFormat.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery.output;
+
+import com.google.cloud.hadoop.io.bigquery.BigQueryFactory;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import org.apache.hadoop.classification.InterfaceStability;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapred.FileAlreadyExistsException;
+import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.OutputCommitter;
+import org.apache.hadoop.mapreduce.OutputFormat;
+import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+/**
+ * An OutputFormat to interact with Google Cloud Storage and BigQuery. This acts as a wrapper around
+ * an existing FileOutputFormat.
+ */
+@InterfaceStability.Unstable
+<span class="fc" id="L38">public class ForwardingBigQueryFileOutputFormat&lt;K, V&gt; extends OutputFormat&lt;K, V&gt; {</span>
+
+<span class="fc" id="L40">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  /**
+   * Cached reference to the delegate, this may be null at any time. Use getDelegate to get a
+   * non-null reference.
+   */
+<span class="fc" id="L46">  private FileOutputFormat&lt;K, V&gt; delegate = null;</span>
+
+  /**
+   * Cached reference to the committer, this may be null at any time. Use getOutputCommitter to get
+   * a non-null reference.
+   */
+<span class="fc" id="L52">  private OutputCommitter committer = null;</span>
+
+  /**
+   * Checks to make sure the configuration is valid, the output path doesn't already exist, and that
+   * a connection to BigQuery can be established.
+   */
+  @Override
+  public void checkOutputSpecs(JobContext job) throws FileAlreadyExistsException, IOException {
+<span class="fc" id="L60">    Configuration conf = job.getConfiguration();</span>
+
+    // Validate the output configuration.
+<span class="fc" id="L63">    BigQueryOutputConfiguration.validateConfiguration(conf);</span>
+
+    // Get the output path.
+<span class="fc" id="L66">    Path outputPath = BigQueryOutputConfiguration.getGcsOutputPath(conf);</span>
+<span class="fc" id="L67">    logger.atInfo().log(&quot;Using output path '%s'.&quot;, outputPath);</span>
+
+    // Error if the output path already exists.
+<span class="fc" id="L70">    FileSystem outputFileSystem = outputPath.getFileSystem(conf);</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">    if (outputFileSystem.exists(outputPath)) {</span>
+<span class="fc" id="L72">      throw new IOException(&quot;The output path '&quot; + outputPath + &quot;' already exists.&quot;);</span>
+    }
+
+    // Error if compression is set as there's mixed support in BigQuery.
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    if (FileOutputFormat.getCompressOutput(job)) {</span>
+<span class="fc" id="L77">      throw new IOException(&quot;Compression isn't supported for this OutputFormat.&quot;);</span>
+    }
+
+    // Error if unable to create a BigQuery helper.
+    try {
+<span class="fc" id="L82">      new BigQueryFactory().getBigQueryHelper(conf);</span>
+<span class="nc" id="L83">    } catch (GeneralSecurityException gse) {</span>
+<span class="nc" id="L84">      throw new IOException(&quot;Failed to create BigQuery client&quot;, gse);</span>
+<span class="fc" id="L85">    }</span>
+
+    // Let delegate process its checks.
+<span class="fc" id="L88">    getDelegate(conf).checkOutputSpecs(job);</span>
+<span class="fc" id="L89">  }</span>
+
+  /** Gets the cached OutputCommitter, creating a new one if it doesn't exist. */
+  @Override
+  public synchronized OutputCommitter getOutputCommitter(TaskAttemptContext context)
+      throws IOException {
+    // Cache the committer.
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">    if (committer == null) {</span>
+<span class="fc" id="L97">      committer = createCommitter(context);</span>
+    }
+<span class="fc" id="L99">    return committer;</span>
+  }
+
+  /** Gets the RecordWriter from the wrapped FileOutputFormat. */
+  @Override
+  public RecordWriter&lt;K, V&gt; getRecordWriter(TaskAttemptContext context)
+      throws IOException, InterruptedException {
+<span class="fc" id="L106">    Configuration conf = context.getConfiguration();</span>
+<span class="fc" id="L107">    return getDelegate(conf).getRecordWriter(context);</span>
+  }
+
+  /**
+   * Create a new OutputCommitter for this OutputFormat.
+   *
+   * @param context the context to create the OutputCommitter from.
+   * @return the new OutputCommitter for this format.
+   * @throws IOException if there's an issue while creating the OutputCommitter.
+   */
+  protected OutputCommitter createCommitter(TaskAttemptContext context) throws IOException {
+<span class="fc" id="L118">    Configuration conf = context.getConfiguration();</span>
+<span class="fc" id="L119">    return getDelegate(conf).getOutputCommitter(context);</span>
+  }
+
+  /**
+   * Gets a reference to the underlying delegate used by this OutputFormat.
+   *
+   * @param conf the configuration to derive the delegate from.
+   * @return the underlying wrapped delegate.
+   * @throws IOException if unable to get the delegate.
+   */
+  @SuppressWarnings(&quot;unchecked&quot;)
+  protected synchronized FileOutputFormat&lt;K, V&gt; getDelegate(Configuration conf) throws IOException {
+<span class="fc bfc" id="L131" title="All 2 branches covered.">    if (delegate == null) {</span>
+<span class="fc" id="L132">      delegate = BigQueryOutputConfiguration.getFileOutputFormat(conf);</span>
+<span class="fc" id="L133">      logger.atInfo().log(&quot;Delegating functionality to '%s'.&quot;, delegate.getClass().getSimpleName());</span>
+    }
+<span class="fc" id="L135">    return delegate;</span>
+  }
+
+  /**
+   * Sets delegate that this OutputFormat will wrap. This is exposed for testing purposes.
+   *
+   * @param delegate that this OutputFormat will wrap.
+   */
+  @VisibleForTesting
+  synchronized void setDelegate(FileOutputFormat&lt;K, V&gt; delegate) {
+<span class="fc" id="L145">    this.delegate = delegate;</span>
+<span class="fc" id="L146">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

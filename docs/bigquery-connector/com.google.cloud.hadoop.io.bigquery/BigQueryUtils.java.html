@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>BigQueryUtils.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">BigQueryUtils.java</span></div><h1>BigQueryUtils.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+import com.google.api.client.util.BackOff;
+import com.google.api.client.util.ExponentialBackOff;
+import com.google.api.client.util.Sleeper;
+import com.google.api.services.bigquery.Bigquery;
+import com.google.api.services.bigquery.Bigquery.Jobs.Get;
+import com.google.api.services.bigquery.model.Job;
+import com.google.api.services.bigquery.model.JobReference;
+import com.google.api.services.bigquery.model.TableFieldSchema;
+import com.google.cloud.hadoop.util.ResilientOperation;
+import com.google.cloud.hadoop.util.RetryDeterminer;
+import com.google.common.flogger.GoogleLogger;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.apache.hadoop.util.Progressable;
+
+/** Helper methods to interact with BigQuery. */
+<span class="fc" id="L40">public class BigQueryUtils {</span>
+<span class="fc" id="L41">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // Initial wait interval
+<span class="fc" id="L44">  public static final int POLL_WAIT_INITIAL_MILLIS =</span>
+<span class="fc" id="L45">      (int) TimeUnit.MILLISECONDS.convert(10, TimeUnit.SECONDS);</span>
+  // Maximum interval:
+<span class="fc" id="L47">  public static final int POLL_WAIT_INTERVAL_MAX_MILLIS =</span>
+<span class="fc" id="L48">      (int) TimeUnit.MILLISECONDS.convert(180, TimeUnit.SECONDS);</span>
+  // Maximum time to wait for a job to complete. This value has
+  // no basis in reality. The intention of using this value was to
+  // pick a value greater than the default backoff max elapsed
+  // time of 900 seconds.
+<span class="fc" id="L53">  public static final int POLL_WAIT_MAX_ELAPSED_MILLIS =</span>
+<span class="fc" id="L54">      (int) TimeUnit.MILLISECONDS.convert(1, TimeUnit.DAYS);</span>
+
+  /**
+   * Polls job until it is completed.
+   *
+   * @param bigquery the Bigquery instance to poll.
+   * @param projectId the project that is polling.
+   * @param jobReference the job to poll.
+   * @param progressable to get progress of task.
+   * @throws IOException on IO Error.
+   * @throws InterruptedException on sleep interrupt.
+   */
+  public static void waitForJobCompletion(
+      Bigquery bigquery, String projectId, JobReference jobReference, Progressable progressable)
+      throws IOException, InterruptedException {
+
+<span class="fc" id="L70">    Sleeper sleeper = Sleeper.DEFAULT;</span>
+<span class="fc" id="L71">    BackOff pollBackOff =</span>
+        new ExponentialBackOff.Builder()
+<span class="fc" id="L73">            .setMaxIntervalMillis(POLL_WAIT_INTERVAL_MAX_MILLIS)</span>
+<span class="fc" id="L74">            .setInitialIntervalMillis(POLL_WAIT_INITIAL_MILLIS)</span>
+<span class="fc" id="L75">            .setMaxElapsedTimeMillis(POLL_WAIT_MAX_ELAPSED_MILLIS)</span>
+<span class="fc" id="L76">            .build();</span>
+
+    // Get starting time.
+<span class="fc" id="L79">    long startTime = System.currentTimeMillis();</span>
+<span class="fc" id="L80">    long elapsedTime = 0;</span>
+<span class="fc" id="L81">    boolean notDone = true;</span>
+
+    // While job is incomplete continue to poll.
+<span class="fc bfc" id="L84" title="All 2 branches covered.">    while (notDone) {</span>
+<span class="fc" id="L85">      BackOff operationBackOff = new ExponentialBackOff.Builder().build();</span>
+<span class="fc" id="L86">      Get get =</span>
+          bigquery
+<span class="fc" id="L88">              .jobs()</span>
+<span class="fc" id="L89">              .get(projectId, jobReference.getJobId())</span>
+<span class="fc" id="L90">              .setLocation(jobReference.getLocation());</span>
+
+<span class="fc" id="L92">      Job pollJob =</span>
+<span class="fc" id="L93">          ResilientOperation.retry(</span>
+<span class="fc" id="L94">              ResilientOperation.getGoogleRequestCallable(get),</span>
+              operationBackOff,
+              RetryDeterminer.RATE_LIMIT_ERRORS,
+              IOException.class,
+              sleeper);
+
+<span class="fc" id="L100">      elapsedTime = System.currentTimeMillis() - startTime;</span>
+<span class="fc" id="L101">      logger.atFine().log(</span>
+          &quot;Job status (%s ms) %s: %s&quot;,
+<span class="fc" id="L103">          elapsedTime, jobReference.getJobId(), pollJob.getStatus().getState());</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">      if (pollJob.getStatus().getState().equals(&quot;DONE&quot;)) {</span>
+<span class="fc" id="L105">        notDone = false;</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (pollJob.getStatus().getErrorResult() != null) {</span>
+<span class="fc" id="L107">          throw new IOException(</span>
+<span class="fc" id="L108">              String.format(</span>
+                  &quot;Job %s failed: %s&quot;,
+<span class="fc" id="L110">                  jobReference.getJobId(), pollJob.getStatus().getErrorResult()));</span>
+        }
+      } else {
+<span class="fc" id="L113">        long millisToWait = pollBackOff.nextBackOffMillis();</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        if (millisToWait == BackOff.STOP) {</span>
+<span class="nc" id="L115">          throw new IOException(</span>
+<span class="nc" id="L116">              String.format(</span>
+                  &quot;Job %s failed to complete after %s millis.&quot;,
+<span class="nc" id="L118">                  jobReference.getJobId(), elapsedTime));</span>
+        }
+        // Pause execution for the configured duration before polling job status again.
+<span class="fc" id="L121">        Thread.sleep(millisToWait);</span>
+        // Call progress to ensure task doesn't time out.
+<span class="fc" id="L123">        progressable.progress();</span>
+      }
+<span class="fc" id="L125">    }</span>
+<span class="fc" id="L126">  }</span>
+
+  /**
+   * Parses the given JSON string and returns the extracted schema.
+   *
+   * @param fields a string to read the TableSchema from.
+   * @return the List of TableFieldSchema described by the string fields.
+   */
+  public static List&lt;TableFieldSchema&gt; getSchemaFromString(String fields) {
+<span class="fc" id="L135">    logger.atFine().log(&quot;getSchemaFromString('%s')&quot;, fields);</span>
+
+    // Parse the output schema for Json from fields.
+<span class="fc" id="L138">    JsonParser jsonParser = new JsonParser();</span>
+<span class="fc" id="L139">    JsonArray json = jsonParser.parse(fields).getAsJsonArray();</span>
+<span class="fc" id="L140">    List&lt;TableFieldSchema&gt; fieldsList = new ArrayList&lt;&gt;();</span>
+
+    // For each item in the list of fields.
+<span class="fc bfc" id="L143" title="All 2 branches covered.">    for (JsonElement jsonElement : json) {</span>
+<span class="fc" id="L144">      checkArgument(</span>
+<span class="fc" id="L145">          jsonElement.isJsonObject(), &quot;Expected JsonObject for element, got '%s'.&quot;, jsonElement);</span>
+<span class="fc" id="L146">      JsonObject jsonObject = jsonElement.getAsJsonObject();</span>
+
+      // Set the name and type.
+<span class="fc" id="L149">      checkArgument(</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">          jsonObject.get(&quot;name&quot;) != null,</span>
+          &quot;Expected non-null entry for key 'name' in JsonObject '%s'&quot;, jsonObject);
+<span class="fc" id="L152">      checkArgument(</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">          jsonObject.get(&quot;type&quot;) != null,</span>
+          &quot;Expected non-null entry for key 'type' in JsonObject '%s'&quot;, jsonObject);
+<span class="fc" id="L155">      TableFieldSchema fieldDef = new TableFieldSchema();</span>
+<span class="fc" id="L156">      fieldDef.setName(jsonObject.get(&quot;name&quot;).getAsString());</span>
+<span class="fc" id="L157">      fieldDef.setType(jsonObject.get(&quot;type&quot;).getAsString());</span>
+
+      // If mode is not null, set mode.
+<span class="fc bfc" id="L160" title="All 2 branches covered.">      if (jsonObject.get(&quot;mode&quot;) != null) {</span>
+<span class="fc" id="L161">        fieldDef.setMode(jsonObject.get(&quot;mode&quot;).getAsString());</span>
+      }
+
+      // If the type is RECORD set the fields.
+<span class="fc bfc" id="L165" title="All 2 branches covered.">      if (jsonObject.get(&quot;type&quot;).getAsString().equals(&quot;RECORD&quot;)) {</span>
+<span class="fc" id="L166">        checkArgument(</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">            jsonObject.get(&quot;fields&quot;) != null,</span>
+            &quot;Expected non-null entry for key 'fields' in JsonObject of type RECORD: '%s'&quot;,
+            jsonObject);
+<span class="fc" id="L170">        fieldDef.setFields(getSchemaFromString(jsonObject.get(&quot;fields&quot;).toString()));</span>
+      }
+
+<span class="fc" id="L173">      fieldsList.add(fieldDef);</span>
+<span class="fc" id="L174">    }</span>
+    // Return list of TableFieldSchema.
+<span class="fc" id="L176">    return fieldsList;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

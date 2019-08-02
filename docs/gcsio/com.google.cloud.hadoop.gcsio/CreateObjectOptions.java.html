@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CreateObjectOptions.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">CreateObjectOptions.java</span></div><h1>CreateObjectOptions.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
+package com.google.cloud.hadoop.gcsio;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import java.util.Map;
+
+/**
+ * Options for creating objects in GCS.
+ */
+public class CreateObjectOptions {
+  public static final ImmutableMap&lt;String, byte[]&gt; EMPTY_METADATA =
+<span class="fc" id="L29">      ImmutableMap.&lt;String, byte[]&gt;of();</span>
+  public static final String DEFAULT_CONTENT_TYPE = &quot;application/octet-stream&quot;;
+<span class="fc" id="L31">  public static final CreateObjectOptions DEFAULT = new CreateObjectOptions(true);</span>
+
+  private final boolean overwriteExisting;
+  private final String contentType;
+  private final Map&lt;String, byte[]&gt; metadata;
+  private final boolean requireMetadataMatchForEmptyObjects;
+
+  /**
+   * Construct a new CreateObjectOptions with empty metadata and the default content-type.
+   * Since no metadata was explicitly provided, we will set metadata-match for
+   * empty objects to false.
+   *
+   * @param overwriteExisting True to overwrite any existing objects with the same name.
+   */
+  public CreateObjectOptions(boolean overwriteExisting) {
+<span class="fc" id="L46">    this(overwriteExisting, DEFAULT_CONTENT_TYPE, EMPTY_METADATA, false);</span>
+<span class="fc" id="L47">  }</span>
+
+  /**
+   * Construct a new CreateObjectOptions with the specified metadata, and default content-type.
+   * Since metadata was explicitly provided, even if empty, we will set metadata-match for
+   * empty objects to true.
+   * 
+   *
+   * @param overwriteExisting True to overwrite any existing objects with the same name.
+   * @param metadata A dictionary of metadata to apply to created objects.
+   */
+  public CreateObjectOptions(boolean overwriteExisting, Map&lt;String, byte[]&gt; metadata) {
+<span class="fc" id="L59">    this(overwriteExisting, DEFAULT_CONTENT_TYPE, metadata, true);</span>
+<span class="fc" id="L60">  }</span>
+
+  /**
+   * Construct a new CreateObjectOptions with the spec metadata and content-type.
+   * Since metadata was explicitly provided, even if empty, we will set metadata-match for
+   * empty objects to true.
+   *
+   * @param overwriteExisting True to overwrite any existing objects with the same name
+   * @param contentType content-type for the created file
+   * @param metadata A dictionary of metadata to apply to created objects
+   */
+  public CreateObjectOptions(
+      boolean overwriteExisting, String contentType, Map&lt;String, byte[]&gt; metadata) {
+<span class="fc" id="L73">    this(overwriteExisting, contentType, metadata, true);</span>
+<span class="fc" id="L74">  }</span>
+
+  /**
+   * Construct a new CreateObjectOptions with the spec metadata and content-type.
+   *
+   * @param overwriteExisting True to overwrite any existing objects with the same name
+   * @param contentType content-type for the created file
+   * @param metadata A dictionary of metadata to apply to created objects
+   * @param requireMetadataMatchForEmptyObjects if true, when creating an empty object and
+   *     certain types of errors occur, any existing object is checked for an exact metadata
+   *     match to the metadata in this CreateObjectOptions before accepting the creation as
+   *     successful. If false, then on error for creating empty objects, as long as an
+   *     appropriate empty object already exists, even if it holds different metadata than
+   *     provided in this CreateObjectOptions instance, it may be considered created
+   *     successfully.
+   */
+  public CreateObjectOptions(
+      boolean overwriteExisting, String contentType, Map&lt;String, byte[]&gt; metadata,
+<span class="fc" id="L92">      boolean requireMetadataMatchForEmptyObjects) {</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">    Preconditions.checkArgument(!metadata.containsKey(&quot;Content-Type&quot;),</span>
+        &quot;The Content-Type metadata must be provided explicitly via the 'contentType' parameter&quot;);
+<span class="fc" id="L95">    this.overwriteExisting = overwriteExisting;</span>
+<span class="fc" id="L96">    this.contentType = contentType;</span>
+<span class="fc" id="L97">    this.metadata = metadata;</span>
+<span class="fc" id="L98">    this.requireMetadataMatchForEmptyObjects = requireMetadataMatchForEmptyObjects;</span>
+<span class="fc" id="L99">  }</span>
+
+  /**
+   * Get the value of overwriteExisting.
+   */
+  public boolean overwriteExisting() {
+<span class="fc" id="L105">    return overwriteExisting;</span>
+  }
+
+  /**
+   * Content type to set when creating a file.
+   */
+  public String getContentType() {
+<span class="fc" id="L112">    return contentType;</span>
+  }
+
+  /**
+   * Custom metadata to apply to this object.
+   */
+  public Map&lt;String, byte[]&gt; getMetadata() {
+<span class="fc" id="L119">    return metadata;</span>
+  }
+
+  /**
+   * See constructor param for details.
+   */
+  public boolean getRequireMetadataMatchForEmptyObjects() {
+<span class="fc" id="L126">    return requireMetadataMatchForEmptyObjects;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

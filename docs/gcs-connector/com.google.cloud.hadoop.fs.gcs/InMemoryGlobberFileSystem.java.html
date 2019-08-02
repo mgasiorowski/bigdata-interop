@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>InMemoryGlobberFileSystem.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcs-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.fs.gcs</a> &gt; <span class="el_source">InMemoryGlobberFileSystem.java</span></div><h1>InMemoryGlobberFileSystem.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2018 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.fs.gcs;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+
+import com.google.common.collect.Maps;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.util.Progressable;
+
+/**
+ * InMemoryGlobberFileSystem overrides the behavior of {@link FileSystem} to manifest a temporary
+ * FileSystem suitable only for list/get methods for retrieving file statuses, based on an
+ * collection of provided file statuses at construction time. Can be used as a heavyweight cache
+ * which behaves just like a normal filesystem for such metadata-read operations and lives in the
+ * context of a single complex top-level method call, like globStatus.
+ *
+ * &lt;p&gt;Note that this class is &lt;b&gt;not&lt;/b&gt; intended to be used as a general-usage {@link FileSystem}.
+ */
+class InMemoryGlobberFileSystem extends FileSystem {
+
+  /**
+   * Factory method for constructing and initializing an instance of InMemoryGlobberFileSystem which
+   * is ready to list/get FileStatus entries corresponding to {@code fileStatuses}.
+   */
+  public static FileSystem createInstance(
+      Configuration config, Path workingDirectory, Collection&lt;FileStatus&gt; fileStatuses) {
+<span class="fc" id="L54">    checkNotNull(config, &quot;configuration can not be null&quot;);</span>
+
+<span class="fc" id="L56">    FileSystem fileSystem = new InMemoryGlobberFileSystem(workingDirectory, fileStatuses);</span>
+<span class="fc" id="L57">    fileSystem.setConf(config);</span>
+
+<span class="fc" id="L59">    return fileSystem;</span>
+  }
+
+  private final Path workingDirectory;
+  private final URI uri;
+  private final Map&lt;Path, FileStatus&gt; fileStatusesByPath;
+  private final Map&lt;Path, List&lt;FileStatus&gt;&gt; fileStatusesByParentPath;
+
+  /**
+   * Constructs an instance of InMemoryGlobberFileSystem using the provided collection of {@link
+   * FileStatus} objects; {@code initialize()} will not re-initialize it.
+   */
+<span class="fc" id="L71">  private InMemoryGlobberFileSystem(Path workingDirectory, Collection&lt;FileStatus&gt; fileStatuses) {</span>
+<span class="fc" id="L72">    this.workingDirectory = workingDirectory;</span>
+<span class="fc" id="L73">    this.uri = workingDirectory.toUri();</span>
+
+<span class="fc" id="L75">    this.fileStatusesByPath = Maps.newHashMapWithExpectedSize(fileStatuses.size());</span>
+<span class="fc" id="L76">    this.fileStatusesByParentPath = Maps.newHashMapWithExpectedSize(fileStatuses.size() / 5);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">    for (FileStatus fileStatus : fileStatuses) {</span>
+<span class="fc" id="L78">      this.fileStatusesByPath.put(fileStatus.getPath(), fileStatus);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">      if (fileStatus.getPath().getParent() != null) {</span>
+<span class="fc" id="L80">        this.fileStatusesByParentPath</span>
+<span class="fc" id="L81">            .computeIfAbsent(fileStatus.getPath().getParent(), k -&gt; new ArrayList&lt;&gt;())</span>
+<span class="fc" id="L82">            .add(fileStatus);</span>
+      }
+<span class="fc" id="L84">    }</span>
+<span class="fc" id="L85">  }</span>
+
+  /** @inheritDoc */
+  @Override
+  public URI getUri() {
+<span class="fc" id="L90">    return uri;</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public Path getWorkingDirectory() {
+<span class="fc" id="L96">    return workingDirectory;</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public FileStatus[] listStatus(Path f) throws FileNotFoundException, IOException {
+<span class="fc" id="L102">    Path qualifiedPath = makeQualified(f);</span>
+<span class="fc" id="L103">    List&lt;FileStatus&gt; fileStatuses = fileStatusesByParentPath.get(qualifiedPath);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">    if (fileStatuses == null) {</span>
+<span class="fc" id="L105">      throw new FileNotFoundException(</span>
+<span class="fc" id="L106">          String.format(&quot;Path '%s' (qualified: '%s') does not exist.&quot;, f, qualifiedPath));</span>
+    }
+<span class="fc" id="L108">    return fileStatuses.toArray(new FileStatus[0]);</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public FileStatus getFileStatus(Path f) throws IOException {
+<span class="fc" id="L114">    Path qualifiedPath = makeQualified(f);</span>
+<span class="fc" id="L115">    FileStatus fileStatus = fileStatusesByPath.get(f);</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">    if (fileStatus == null) {</span>
+<span class="fc" id="L117">      throw new FileNotFoundException(</span>
+<span class="fc" id="L118">          String.format(&quot;Path '%s' (qualified: '%s') does not exist.&quot;, f, qualifiedPath));</span>
+    }
+<span class="fc" id="L120">    return fileStatus;</span>
+  }
+
+  // Below are unsupported methods that are not used in 'globStatus' calls
+
+  /** @inheritDoc */
+  @Override
+  public FSDataInputStream open(Path f, int bufferSize) throws IOException {
+<span class="nc" id="L128">    throw new UnsupportedOperationException();</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public FSDataOutputStream create(
+      Path f,
+      FsPermission permission,
+      boolean overwrite,
+      int bufferSize,
+      short replication,
+      long blockSize,
+      Progressable progress)
+      throws IOException {
+<span class="nc" id="L142">    throw new UnsupportedOperationException();</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public FSDataOutputStream append(Path f, int bufferSize, Progressable progress)
+      throws IOException {
+<span class="nc" id="L149">    throw new UnsupportedOperationException();</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public boolean rename(Path src, Path dst) throws IOException {
+<span class="nc" id="L155">    throw new UnsupportedOperationException();</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public boolean delete(Path f) throws IOException {
+<span class="nc" id="L161">    throw new UnsupportedOperationException();</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public boolean delete(Path f, boolean recursive) throws IOException {
+<span class="nc" id="L167">    throw new UnsupportedOperationException();</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public void setWorkingDirectory(Path newDir) {
+<span class="nc" id="L173">    throw new UnsupportedOperationException();</span>
+  }
+
+  /** @inheritDoc */
+  @Override
+  public boolean mkdirs(Path f, FsPermission permission) throws IOException {
+<span class="nc" id="L179">    throw new UnsupportedOperationException();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

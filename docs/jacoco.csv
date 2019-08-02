@@ -1,0 +1,212 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,FederatedBigQueryOutputCommitter,1,50,1,1,0,16,1,3,0,3
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryTableSchema,7,74,2,4,2,19,3,7,1,6
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryOutputConfiguration,39,363,9,27,6,109,9,29,0,20
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,IndirectBigQueryOutputFormat,0,20,0,0,0,5,0,2,0,2
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryTimePartitioning,35,61,2,0,9,19,7,10,6,10
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,ForwardingBigQueryFileOutputFormat,7,121,1,7,2,30,1,11,0,8
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryTableHelper,3,36,0,0,1,8,1,4,1,4
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,IndirectBigQueryOutputCommitter,2,81,2,2,0,25,2,3,0,3
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryTableFieldSchema,66,41,2,0,18,10,11,6,10,6
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,FederatedBigQueryOutputFormat,0,20,0,0,0,5,0,2,0,2
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,ForwardingBigQueryFileOutputCommitter,20,156,5,7,4,43,5,15,0,14
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryOutputConfiguration.JobConfigurationAdapter,0,9,0,0,0,4,0,2,0,2
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,DirectBigQueryRecordReader.AvroRecordIterator,14,34,0,2,4,6,0,4,0,3
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,GsonBigQueryInputFormat,0,17,0,0,0,5,0,4,0,4
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,BigQueryHelper,100,451,20,20,19,103,21,14,3,12
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,BigQueryFactory,16,102,2,2,3,27,2,6,0,6
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,ShardedInputSplit,0,60,0,0,0,16,0,8,0,8
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,BigQueryFileFormat,3,121,0,4,1,20,1,6,1,4
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,UnshardedExportToCloudStorage,1,115,1,5,0,25,1,7,0,5
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,AbstractBigQueryInputFormat,113,206,1,3,33,55,9,10,8,9
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,GsonRecordReader,19,94,1,3,5,23,1,9,0,8
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,DynamicFileListRecordReader,59,492,5,45,11,112,4,37,0,16
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,BigQueryUtils,18,247,1,19,3,65,1,13,0,4
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,BigQueryStrings,3,114,0,8,1,18,1,7,1,3
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,BigQueryConfiguration,10,251,6,16,1,61,6,12,0,7
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,UnshardedExportToCloudStorage.new Progressable() {...},1,6,0,0,1,1,1,1,1,1
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,AvroBigQueryInputFormat,13,0,0,0,4,0,3,0,3,0
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,AvroRecordReader,42,118,6,6,9,25,8,6,4,4
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,JsonTextBigQueryInputFormat,17,0,0,0,5,0,4,0,4,0
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,DirectBigQueryInputFormat,18,176,2,2,5,48,4,7,2,7
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,DirectBigQueryRecordReader,5,133,0,10,3,28,3,10,3,5
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,NoopFederatedExportToCloudStorage,4,67,0,2,2,17,2,6,2,5
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,ExportFileFormat,0,57,0,0,0,10,0,4,0,4
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,AbstractExportToCloudStorage,41,158,2,4,8,41,2,6,0,5
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,DirectBigQueryInputFormat.DirectBigQueryInputSplit,77,50,1,1,14,11,8,6,7,6
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,AvroRecordReader.new SeekableInput() {...},0,33,0,0,0,8,0,6,0,6
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery,UnshardedInputSplit,0,14,0,0,0,4,0,2,0,2
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.samples,DirectBigQueryWordCount,97,0,2,0,27,0,4,0,3,0
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.samples,DirectBigQueryWordCount.Reduce,24,0,0,0,6,0,2,0,2,0
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.samples,DirectBigQueryWordCount.Map,37,0,0,0,8,0,3,0,3,0
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.OutputStreamType,0,24,0,0,0,3,0,1,0,1
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFSInputStream,31,282,2,16,5,71,2,18,0,11
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFS,91,198,2,10,22,47,10,19,8,15
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemConfigurationProperty,9,171,3,17,2,37,3,17,0,10
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystem,4,223,3,11,1,40,4,15,1,11
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemConfiguration,4,992,1,1,1,175,2,9,1,9
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopOutputStream,0,183,0,4,0,46,0,10,0,8
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.GcsFileChecksumType,0,57,0,0,0,10,0,4,0,4
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.ParentTimestampUpdateIncludePredicate,0,97,0,10,0,23,0,8,0,3
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsckRunner.new ByteSource() {...},0,17,0,0,0,2,0,2,0,2
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,InMemoryGlobberFileSystem,32,144,0,8,8,31,8,11,8,7
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsckRunner,153,773,11,35,26,173,15,35,5,21
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase,195,3073,40,184,26,655,41,167,7,87
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.Counter,0,444,0,0,0,45,0,1,0,1
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.GcsFileChecksum,13,55,3,3,4,11,5,5,2,5
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopSyncableOutputStream,39,370,3,13,6,92,4,18,1,13
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsck,12,107,0,6,3,19,0,7,0,4
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs.auth,AbstractDelegationTokenBinding.TokenSecretManager,7,14,0,0,2,3,2,2,2,2
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs.auth,GcsDelegationTokens,119,179,14,10,27,48,12,16,2,14
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs.auth,AbstractDelegationTokenBinding,14,72,2,2,4,20,3,7,2,6
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs.auth,DelegationTokenIOException,51,0,0,0,9,0,4,0,4,0
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,InMemoryGoogleCloudStorage.new SeekableByteChannel() {...},46,0,0,0,13,0,9,0,9,0
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,TestConfiguration.LazyHolder,0,5,0,0,0,1,0,1,0,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,InMemoryObjectEntry.new ByteArrayOutputStream() {...},0,87,0,0,0,17,0,2,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,InMemoryObjectEntry.new InMemoryObjectReadChannel() {...},2,20,1,1,0,2,1,2,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,TestConfiguration,0,5,0,0,0,2,0,2,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,TestConfiguration.EnvironmentBasedTestConfiguration,0,12,0,0,0,4,0,4,0,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,InMemoryBucketEntry,10,71,3,3,1,14,4,7,1,7
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,InMemoryObjectEntry.WritableByteChannelImpl,6,32,2,2,2,10,2,5,0,5
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,InMemoryObjectEntry,40,228,6,14,9,51,7,14,1,10
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,InMemoryObjectReadChannel,23,40,5,1,4,10,5,2,2,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio.testing,InMemoryGoogleCloudStorage,110,920,19,103,18,203,19,76,0,34
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockUtils,0,17,0,2,0,3,0,2,0,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,AutoValue_CooperativeLockingOptions.Builder,43,37,3,3,7,13,4,4,1,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CooperativeLockingOptions,0,23,0,0,0,7,0,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockRecord,0,87,0,0,0,28,0,14,0,14
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,DeleteOperation,29,50,4,4,5,11,6,7,2,7
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationDao,64,477,3,3,16,108,3,17,1,16
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,AutoValue_CooperativeLockingOptions,79,15,8,0,15,6,8,3,4,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationDelete,63,100,1,1,12,25,2,6,1,6
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockRecords,27,36,1,1,7,9,3,4,2,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationType,0,24,0,0,0,3,0,1,0,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationRename,81,134,1,1,16,31,2,7,1,7
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CooperativeLockingOptions.Builder,2,29,2,2,0,10,2,2,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,RenameOperation,48,77,6,6,7,18,8,11,2,11
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockRecordsDao,66,679,13,29,9,155,17,31,4,23
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadOptions.Builder,0,20,0,2,0,6,0,3,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageItemInfo,81,322,11,33,12,63,12,36,1,25
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadOptions.Fadvise,0,34,0,0,0,4,0,1,0,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_GoogleCloudStorageReadOptions,280,69,28,0,42,24,18,12,4,12
+coverage/gcsio,com.google.cloud.hadoop.gcsio,PrefixMappedItemCache.PrefixKey,73,60,12,8,16,11,10,9,3,6
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorage.ListPage,0,15,0,0,0,6,0,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new JsonBatchCallback() {...},0,81,0,2,0,12,0,4,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_PerformanceCachingGoogleCloudStorageOptions.Builder,43,37,3,3,7,13,4,4,1,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new JsonBatchCallback() {...},0,52,0,0,0,7,0,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new JsonBatchCallback() {...},0,79,0,2,0,10,0,4,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new JsonBatchCallback() {...},32,79,3,3,3,10,2,4,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_GoogleCloudStorageReadOptions.Builder,177,145,14,14,27,49,15,13,1,13
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new GoogleCloudStorageReadChannel() {...},0,31,0,0,0,3,0,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,ForwardingGoogleCloudStorage,19,415,0,2,2,75,1,31,1,30
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new JsonBatchCallback() {...},17,103,1,3,4,17,2,3,1,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_GoogleCloudStorageFileSystemOptions,237,63,36,0,35,21,21,11,3,11
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new JsonBatchCallback() {...},20,79,1,1,2,12,1,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.BackOffFactory.new GoogleCloudStorageImpl.BackOffFactory() {...},0,7,0,0,0,2,0,2,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageFileSystemOptions,2,32,0,0,1,13,1,4,1,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio,CreateObjectOptions,0,65,0,2,0,19,0,10,0,9
+coverage/gcsio,com.google.cloud.hadoop.gcsio,FileInfo,1,271,3,35,0,63,3,39,0,23
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new GoogleCloudStorageWriteChannel() {...},0,29,0,0,0,2,0,2,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new CacheLoader() {...},22,10,0,0,8,2,1,1,1,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadChannel,337,1931,58,196,61,392,54,121,4,44
+coverage/gcsio,com.google.cloud.hadoop.gcsio,BatchHelper,29,293,8,32,8,72,8,26,0,14
+coverage/gcsio,com.google.cloud.hadoop.gcsio,LegacyPathCodec,25,127,5,7,4,30,4,6,0,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio,PrefixMappedItemCache.CacheValue,17,15,0,0,1,6,1,3,1,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,StorageResourceId,19,324,13,47,3,71,12,39,0,21
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new JsonBatchCallback() {...},20,59,1,1,2,9,1,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,UpdatableItemInfo,0,15,0,0,0,6,0,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,PrefixMappedItemCache,1,430,3,31,1,94,3,32,0,18
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageExceptions,0,64,0,10,0,14,0,8,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,CreateFileOptions,6,79,0,2,2,23,1,12,1,11
+coverage/gcsio,com.google.cloud.hadoop.gcsio,PrefixMappedItemCache.Config,0,20,0,0,0,8,0,5,0,5
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.BackOffFactory,0,5,0,0,0,1,0,1,0,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadOptions.GenerationReadConsistency,0,34,0,0,0,4,0,1,0,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_GoogleCloudStorageOptions.Builder,199,372,24,24,24,112,24,26,0,26
+coverage/gcsio,com.google.cloud.hadoop.gcsio,PerformanceCachingGoogleCloudStorageOptions,0,15,0,0,0,5,0,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageStrings,0,61,0,14,0,14,0,9,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio,ThrottledGoogleCloudStorage,35,267,1,3,12,68,6,29,5,28
+coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_GoogleCloudStorageFileSystemOptions.Builder,104,159,13,13,13,50,13,12,0,12
+coverage/gcsio,com.google.cloud.hadoop.gcsio,VerificationAttributes,19,39,4,4,5,10,5,4,1,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio,ThrottledGoogleCloudStorage.StorageOperation,0,114,0,0,0,12,0,1,0,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageWriteChannel,13,119,1,5,2,29,2,7,1,5
+coverage/gcsio,com.google.cloud.hadoop.gcsio,CreateBucketOptions,0,25,0,0,0,9,0,5,0,5
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadOptions,0,37,0,0,0,16,0,3,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageOptions,2,57,0,2,1,23,1,5,1,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadChannel.new Object() {...},0,16,0,0,0,3,0,2,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio,BatchHelper.Factory,0,95,0,10,0,14,0,8,0,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageFileSystemOptions.Builder,0,21,0,2,0,3,0,3,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl,171,3158,44,240,39,722,40,174,2,70
+coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_PerformanceCachingGoogleCloudStorageOptions,83,15,10,0,15,6,9,3,4,3
+coverage/gcsio,com.google.cloud.hadoop.gcsio,PerformanceCachingGoogleCloudStorage,49,526,10,68,10,127,8,48,0,17
+coverage/gcsio,com.google.cloud.hadoop.gcsio,UriEncodingPathCodec,18,102,1,11,3,20,1,9,0,4
+coverage/gcsio,com.google.cloud.hadoop.gcsio,PerformanceCachingGoogleCloudStorageOptions.Builder,0,3,0,0,0,1,0,1,0,1
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageFileSystem,136,2680,43,249,29,620,41,165,0,60
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageOptions.Builder,0,59,0,16,0,12,0,10,0,2
+coverage/gcsio,com.google.cloud.hadoop.gcsio,ObjectWriteConditions,12,50,1,3,2,16,2,8,1,7
+coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_GoogleCloudStorageOptions,585,147,86,0,77,49,46,25,3,25
+coverage/util,com.google.cloud.hadoop.util,EntriesCredentialConfiguration.EntriesBuilder,0,11,0,0,0,3,0,3,0,3
+coverage/util,com.google.cloud.hadoop.util,EntriesCredentialConfiguration,12,425,2,54,1,89,2,32,0,6
+coverage/util,com.google.cloud.hadoop.util,ResilientOperation.AbstractGoogleClientRequestExecutor,0,10,0,0,0,4,0,2,0,2
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.ExecutingFutureImpl.Cancelled,1,20,0,0,1,6,1,6,1,6
+coverage/util,com.google.cloud.hadoop.util,RetryBoundedBackOff,2,49,1,5,1,15,1,5,0,3
+coverage/util,com.google.cloud.hadoop.util,CredentialConfiguration,2,511,4,32,0,131,4,51,0,37
+coverage/util,com.google.cloud.hadoop.util,AutoValue_AsyncWriteChannelOptions,108,27,14,0,20,10,10,5,3,5
+coverage/util,com.google.cloud.hadoop.util,HttpTransportFactory,78,218,17,32,11,45,18,15,1,7
+coverage/util,com.google.cloud.hadoop.util,RequesterPaysOptions.RequesterPaysMode,0,44,0,0,0,5,0,1,0,1
+coverage/util,com.google.cloud.hadoop.util,AbstractGoogleAsyncWriteChannel,24,228,9,13,6,61,11,15,2,13
+coverage/util,com.google.cloud.hadoop.util,AsyncWriteChannelOptions.Builder,0,3,0,0,0,1,0,1,0,1
+coverage/util,com.google.cloud.hadoop.util,RetryHttpInitializer,0,121,1,3,0,31,1,6,0,5
+coverage/util,com.google.cloud.hadoop.util,AutoValue_AsyncWriteChannelOptions.Builder,48,61,5,5,5,21,5,6,0,6
+coverage/util,com.google.cloud.hadoop.util,RetryHttpInitializer.LoggingResponseHandler,14,77,1,5,2,16,1,5,0,3
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.CompletionCheckTask,26,22,1,1,7,8,1,2,0,2
+coverage/util,com.google.cloud.hadoop.util,ChainingHttpRequestInitializer,135,0,10,0,35,0,11,0,6,0
+coverage/util,com.google.cloud.hadoop.util,ChainingHttpRequestInitializer.new HttpExecuteInterceptor() {...},25,0,2,0,5,0,3,0,2,0
+coverage/util,com.google.cloud.hadoop.util,ChainingHttpRequestInitializer.new HttpResponseInterceptor() {...},25,0,2,0,5,0,3,0,2,0
+coverage/util,com.google.cloud.hadoop.util,LoggingMediaHttpUploaderProgressListener,0,112,0,8,0,25,0,9,0,4
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.ExecutingFutureImpl,6,21,0,0,2,4,1,2,1,2
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.StartExecutionTask,0,12,0,0,0,5,0,2,0,2
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.ExecutingFutureImpl.Created,48,90,3,3,11,19,6,6,3,6
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.ExecutingFutureImpl.Delegated,13,24,1,1,4,7,4,4,3,4
+coverage/util,com.google.cloud.hadoop.util,HttpTransportFactory.HttpTransportType,0,24,0,0,0,3,0,1,0,1
+coverage/util,com.google.cloud.hadoop.util,CredentialFactory.CredentialHttpRetryInitializer,0,22,0,0,0,4,0,2,0,2
+coverage/util,com.google.cloud.hadoop.util,ChainingHttpRequestInitializer.new HttpIOExceptionHandler() {...},30,0,4,0,6,0,4,0,2,0
+coverage/util,com.google.cloud.hadoop.util,ChainingHttpRequestInitializer.new HttpUnsuccessfulResponseHandler() {...},31,0,4,0,6,0,4,0,2,0
+coverage/util,com.google.cloud.hadoop.util,CredentialFactory.GoogleCredentialWithRetry,64,91,3,1,19,25,3,2,1,2
+coverage/util,com.google.cloud.hadoop.util,PropertyUtil,15,49,0,4,4,12,1,4,1,2
+coverage/util,com.google.cloud.hadoop.util,ResilientOperation,29,72,3,7,7,21,4,7,2,4
+coverage/util,com.google.cloud.hadoop.util,AutoValue_RequesterPaysOptions,115,15,16,0,20,6,14,2,6,2
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService,23,364,2,30,4,78,5,30,3,16
+coverage/util,com.google.cloud.hadoop.util,RetryDeterminer,0,28,0,0,0,9,0,4,0,4
+coverage/util,com.google.cloud.hadoop.util,CredentialFactory.ComputeCredentialWithRetry,34,0,0,0,9,0,2,0,2,0
+coverage/util,com.google.cloud.hadoop.util,ExceptionToIoExceptionFunction,27,0,6,0,7,0,5,0,2,0
+coverage/util,com.google.cloud.hadoop.util,EntriesCredentialConfiguration.Builder,6,51,2,2,2,15,3,4,1,4
+coverage/util,com.google.cloud.hadoop.util,RetryHttpInitializer.CredentialOrBackoffResponseHandler.new HttpBackOffUnsuccessfulResponseHandler.BackOffRequired() {...},0,21,0,4,0,3,0,4,0,2
+coverage/util,com.google.cloud.hadoop.util,AbstractGoogleAsyncWriteChannel.UploadOperation,11,33,1,1,2,10,1,2,0,2
+coverage/util,com.google.cloud.hadoop.util,RequesterPaysOptions,0,19,0,0,0,7,0,3,0,3
+coverage/util,com.google.cloud.hadoop.util,AutoValue_RequesterPaysOptions.Builder,56,43,4,4,11,14,6,5,2,5
+coverage/util,com.google.cloud.hadoop.util,RequesterPaysOptions.Builder,0,3,0,0,0,1,0,1,0,1
+coverage/util,com.google.cloud.hadoop.util,ClientRequestHelper,0,18,0,0,0,6,0,4,0,4
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.ExecutingFutureImpl.InbetweenStates,49,12,2,0,12,2,7,1,6,1
+coverage/util,com.google.cloud.hadoop.util,ApiErrorExtractor,31,453,15,91,5,112,15,74,1,35
+coverage/util,com.google.cloud.hadoop.util,AsyncWriteChannelOptions,0,21,0,0,0,8,0,4,0,4
+coverage/util,com.google.cloud.hadoop.util,RetryDeterminer.new RetryDeterminer() {...},0,22,0,6,0,5,0,5,0,2
+coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.ExecutingFutureImpl.Created.new Callable() {...},0,21,0,0,0,3,0,2,0,2
+coverage/util,com.google.cloud.hadoop.util,RetryDeterminer.new RetryDeterminer() {...},0,11,0,0,0,2,0,2,0,2
+coverage/util,com.google.cloud.hadoop.util,RetryDeterminer.new RetryDeterminer() {...},0,21,0,4,0,5,0,4,0,2
+coverage/util,com.google.cloud.hadoop.util,HttpTransportFactory.new Authenticator() {...},31,0,6,0,6,0,5,0,2,0
+coverage/util,com.google.cloud.hadoop.util,RetryDeterminer.new RetryDeterminer() {...},0,11,0,0,0,2,0,2,0,2
+coverage/util,com.google.cloud.hadoop.util,CredentialFactory,253,60,18,0,58,17,16,4,7,4
+coverage/util,com.google.cloud.hadoop.util,RetryHttpInitializer.CredentialOrBackoffResponseHandler,35,57,9,7,8,13,5,5,0,2
+coverage/util-hadoop,com.google.cloud.hadoop.util.testing,TestingAccessTokenProvider,3,18,0,0,1,6,1,5,1,5
+coverage/util-hadoop,com.google.cloud.hadoop.util.testing,EntriesCredentialConfigurationUtil,3,17,0,0,1,6,1,2,1,2
+coverage/util-hadoop,com.google.cloud.hadoop.util.testing,CredentialConfigurationUtil,3,17,0,0,1,6,1,2,1,2
+coverage/util-hadoop,com.google.cloud.hadoop.util.testing,EntriesCredentialConfigurationUtil.TestEntries,0,41,0,2,0,10,0,6,0,5
+coverage/util-hadoop,com.google.cloud.hadoop.util,HadoopToStringUtil,82,73,8,2,18,11,8,2,3,2
+coverage/util-hadoop,com.google.cloud.hadoop.util,HadoopCredentialConfiguration,7,20,0,0,2,6,1,3,1,3
+coverage/util-hadoop,com.google.cloud.hadoop.util,ConfigurationUtil,3,81,0,8,1,17,1,6,1,2
+coverage/util-hadoop,com.google.cloud.hadoop.util,CredentialFromAccessTokenProviderClassFactory.GoogleCredentialWithAccessTokenProvider,2,68,1,1,0,23,1,3,0,3
+coverage/util-hadoop,com.google.cloud.hadoop.util,AccessTokenProviderClassFromConfigFactory,0,25,0,0,0,5,0,3,0,3
+coverage/util-hadoop,com.google.cloud.hadoop.util,HadoopCredentialConfiguration.ConfigurationEntriesAdapter,6,35,0,2,2,10,0,6,0,5
+coverage/util-hadoop,com.google.cloud.hadoop.util,CredentialFromAccessTokenProviderClassFactory,19,53,1,3,3,15,2,5,1,4
+coverage/util-hadoop,com.google.cloud.hadoop.util,HadoopCredentialConfiguration.Builder,0,20,0,0,0,5,0,4,0,4
+coverage/util-hadoop,com.google.cloud.hadoop.util,AccessTokenProvider.AccessToken,0,15,0,0,0,6,0,3,0,3

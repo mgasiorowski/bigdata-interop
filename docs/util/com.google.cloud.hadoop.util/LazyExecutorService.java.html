@@ -1,0 +1,593 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>LazyExecutorService.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">LazyExecutorService.java</span></div><h1>LazyExecutorService.java</h1><pre class="source lang-java linenums">// Copyright 2007 Google Inc. All Rights Reserved.
+
+package com.google.cloud.hadoop.util;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
+import com.google.common.annotations.GwtIncompatible;
+import com.google.common.collect.Lists;
+import com.google.common.collect.MapMaker;
+import com.google.common.util.concurrent.ForwardingFuture;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+import javax.annotation.Nullable;
+
+/**
+ * Defers execution to the time that a method that expresses interest in the result (get or isDone)
+ * is called on the Future. Execution is performed by a backing ExecutorService.
+ *
+ * &lt;p&gt;In essence, a returned Future represents a &quot;canned&quot; method call and once the call has been
+ * performed, the Future returns the cached result.
+ *
+ * &lt;p&gt;Both this class and the returned Future are thread-safe.
+ *
+ * @author tobe@google.com (Torbjorn Gannholm)
+ * @author jlevy@google.com (Jared Levy)
+ * @author cpovirk@google.com (Chris Povirk)
+ */
+@GwtIncompatible
+public final class LazyExecutorService implements ExecutorService {
+<span class="fc" id="L47">  private volatile boolean shutdown = false;</span>
+  private final ExecutorService backingService;
+<span class="fc" id="L49">  private final CountDownLatch terminated = new CountDownLatch(1);</span>
+
+  /**
+   * Creates an instance using a {@link MoreExecutors#newDirectExecutorService()} for the backing
+   * service.
+   */
+<span class="fc" id="L55">  public LazyExecutorService() {</span>
+<span class="fc" id="L56">    backingService = MoreExecutors.newDirectExecutorService();</span>
+<span class="fc" id="L57">  }</span>
+
+  /**
+   * Creates an instance using the given {@code ExecutorService} as the backing service.
+   *
+   * &lt;p&gt;The backing service will only be used to execute tasks and it may be shared by several
+   * instances or used for other purposes. Shutdowns of this instance will not shut down the backing
+   * service.
+   *
+   * &lt;p&gt;If you shut down the backing service, this instance will be shut down automatically and all
+   * tasks submitted to this instance that have not yet been submitted to the backing service will
+   * be considered cancelled.
+   */
+<span class="fc" id="L70">  public LazyExecutorService(ExecutorService backingService) {</span>
+<span class="fc" id="L71">    this.backingService = backingService;</span>
+<span class="fc" id="L72">  }</span>
+
+  /**
+   * A set of all submitted uncompleted tasks so that we can cancel them on {@code shutdownNow()}.
+   * The tasks need to be wrapped in weak references so that tasks that are just dropped can be
+   * gc:ed. The set needs to be safe for concurrent access.
+   */
+<span class="fc" id="L79">  private final Set&lt;ExecutingFuture&lt;?&gt;&gt; pendingTasks =</span>
+<span class="fc" id="L80">      Collections.newSetFromMap(new MapMaker().weakKeys().&lt;ExecutingFuture&lt;?&gt;, Boolean&gt;makeMap());</span>
+
+  /**
+   * Manages compound conditions involving changing the size of {@code pendingTasks} and the value
+   * of {@code shutdown}.
+   */
+<span class="fc" id="L86">  private final ReentrantLock tasksAndTerminationLock = new ReentrantLock();</span>
+
+  /**
+   * Should be called when a task is completed or cancelled.
+   *
+   * @param f The completed or cancelled task to remove.
+   */
+  private void removePendingTask(ExecutingFutureImpl&lt;?&gt; f) {
+<span class="fc" id="L94">    pendingTasks.remove(f);</span>
+<span class="fc" id="L95">    updateTerminationState();</span>
+<span class="fc" id="L96">  }</span>
+
+  private void updateTerminationState() {
+<span class="fc" id="L99">    tasksAndTerminationLock.lock();</span>
+    try {
+<span class="fc bfc" id="L101" title="All 4 branches covered.">      if (shutdown &amp;&amp; pendingTasks.isEmpty()) {</span>
+<span class="fc" id="L102">        terminated.countDown();</span>
+      }
+    } finally {
+<span class="fc" id="L105">      tasksAndTerminationLock.unlock();</span>
+    }
+<span class="fc" id="L107">  }</span>
+
+  /** Shuts this service down, but leaves the backing service untouched. */
+  @Override
+  public void shutdown() {
+<span class="fc" id="L112">    shutdown = true;</span>
+<span class="fc" id="L113">    updateTerminationState();</span>
+<span class="fc" id="L114">  }</span>
+
+  /**
+   * Trying to interpret the assumptions about the contract of this method in the light of this
+   * implementation, it seems most reasonable to take the view that all tasks are running, even if
+   * the processing has not actually started. Therefore, unfinished tasks will be cancelled and an
+   * empty list will be returned.
+   */
+  @CanIgnoreReturnValue
+  @Override
+  public List&lt;Runnable&gt; shutdownNow() {
+<span class="fc" id="L125">    shutdown();</span>
+    // Cancel all unfinished tasks.
+    // Get a snapshot because future.cancel modifies pendingTasks.
+<span class="fc" id="L128">    Future&lt;?&gt;[] runningTasks = pendingTasks.toArray(new Future[0]);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">    for (Future&lt;?&gt; future : runningTasks) {</span>
+      // Cancel may not succeed, but it's best effort.
+<span class="fc" id="L131">      future.cancel(true);</span>
+    }
+<span class="fc" id="L133">    return Lists.newLinkedList();</span>
+  }
+
+  @Override
+  public boolean isShutdown() {
+<span class="fc" id="L138">    checkBackingService();</span>
+<span class="fc" id="L139">    return shutdown;</span>
+  }
+
+  /**
+   * Checks if this service has been implicitly shut down through a shutdown on the backing service
+   * and make the state reflect that.
+   */
+  private void checkBackingService() {
+<span class="fc bfc" id="L147" title="All 2 branches covered.">    if (backingService.isShutdown()) {</span>
+      // This service is logically also shut down.
+<span class="fc" id="L149">      shutdown();</span>
+      // Notify the unfinished Futures.
+<span class="fc" id="L151">      ExecutingFuture&lt;?&gt;[] runningTasks = pendingTasks.toArray(new ExecutingFuture&lt;?&gt;[0]);</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">      for (ExecutingFuture&lt;?&gt; future : runningTasks) {</span>
+<span class="nc" id="L153">        future.backingServiceDied();</span>
+      }
+    }
+<span class="fc" id="L156">  }</span>
+
+  @Override
+  public boolean isTerminated() {
+<span class="pc bpc" id="L160" title="1 of 4 branches missed.">    return isShutdown() &amp;&amp; terminated.getCount() == 0;</span>
+  }
+
+  @Override
+  public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    if (isTerminated()) {</span>
+<span class="fc" id="L166">      return true;</span>
+    }
+<span class="fc" id="L168">    return terminated.await(timeout, unit);</span>
+  }
+
+  @Override
+  public &lt;T&gt; Future&lt;T&gt; submit(final Callable&lt;T&gt; task) {
+<span class="fc" id="L173">    checkNotNull(task, &quot;Null task submitted.&quot;);</span>
+<span class="fc" id="L174">    tasksAndTerminationLock.lock();</span>
+    try {
+<span class="fc bfc" id="L176" title="All 2 branches covered.">      if (isShutdown()) {</span>
+<span class="fc" id="L177">        throw new RejectedExecutionException(&quot;ExecutorService is shutdown&quot;);</span>
+      }
+<span class="fc" id="L179">      ExecutingFuture&lt;T&gt; future = new ExecutingFutureImpl&lt;T&gt;(task);</span>
+<span class="fc" id="L180">      pendingTasks.add(future);</span>
+<span class="fc" id="L181">      return future;</span>
+    } finally {
+<span class="fc" id="L183">      tasksAndTerminationLock.unlock();</span>
+    }
+  }
+
+  @Override
+  public &lt;T&gt; Future&lt;T&gt; submit(Runnable task, T result) {
+<span class="fc" id="L189">    return submit(Executors.callable(task, result));</span>
+  }
+
+  @Override
+  public Future&lt;?&gt; submit(Runnable command) {
+<span class="fc" id="L194">    return submit(Executors.callable(command));</span>
+  }
+
+  /**
+   * ExecutorService requires that this method should not return until all tasks are completed,
+   * which precludes lazy execution. Tasks are run in parallel, as far as the backing service
+   * allows.
+   *
+   * &lt;p&gt;This method makes sense from a cached result perspective but not from a lazy execution
+   * perspective.
+   */
+  @CanIgnoreReturnValue
+  @Override
+  public &lt;T&gt; List&lt;Future&lt;T&gt;&gt; invokeAll(Collection&lt;? extends Callable&lt;T&gt;&gt; tasks)
+      throws InterruptedException {
+<span class="fc" id="L209">    List&lt;Future&lt;T&gt;&gt; result = Lists.newLinkedList();</span>
+    try {
+<span class="fc bfc" id="L211" title="All 2 branches covered.">      for (Callable&lt;T&gt; task : tasks) {</span>
+<span class="fc" id="L212">        result.add(submit(task));</span>
+<span class="fc" id="L213">      }</span>
+<span class="fc" id="L214">      List&lt;Callable&lt;Void&gt;&gt; monitorTasks = createMonitorTasksFor(result, 0, null);</span>
+<span class="fc" id="L215">      backingService.invokeAll(monitorTasks);</span>
+    } finally {
+      // Clean up. These are no-ops for completed tasks.
+<span class="fc bfc" id="L218" title="All 2 branches covered.">      for (Future&lt;T&gt; future : result) {</span>
+<span class="fc" id="L219">        future.cancel(true);</span>
+<span class="fc" id="L220">      }</span>
+    }
+<span class="fc" id="L222">    return result;</span>
+  }
+
+  /**
+   * ExecutorService requires that this method should not return until all tasks are completed or
+   * the timeout expires, which precludes lazy execution. Tasks are run in parallel, as far as the
+   * backing service allows. Timeout is done as a best-effort in case of the default same thread
+   * executor.
+   *
+   * &lt;p&gt;This method makes sense from a cached result perspective but not from a lazy execution
+   * perspective.
+   */
+  @CanIgnoreReturnValue
+  @Override
+  public &lt;T&gt; List&lt;Future&lt;T&gt;&gt; invokeAll(
+      Collection&lt;? extends Callable&lt;T&gt;&gt; tasks, final long timeout, final TimeUnit unit)
+      throws InterruptedException {
+<span class="fc" id="L239">    checkNotNull(unit);</span>
+<span class="fc" id="L240">    final List&lt;Future&lt;T&gt;&gt; result = Lists.newLinkedList();</span>
+    try {
+<span class="fc bfc" id="L242" title="All 2 branches covered.">      for (Callable&lt;T&gt; task : tasks) {</span>
+<span class="fc" id="L243">        result.add(submit(task));</span>
+<span class="fc" id="L244">      }</span>
+<span class="fc" id="L245">      List&lt;Callable&lt;Void&gt;&gt; monitorTasks = createMonitorTasksFor(result, timeout, unit);</span>
+<span class="fc" id="L246">      backingService.invokeAll(monitorTasks, timeout, unit);</span>
+    } finally {
+      // Clean up, even when interrupted. These are no-ops on normal exit.
+<span class="fc bfc" id="L249" title="All 2 branches covered.">      for (Future&lt;T&gt; future : result) {</span>
+<span class="fc" id="L250">        future.cancel(true);</span>
+<span class="fc" id="L251">      }</span>
+    }
+<span class="fc" id="L253">    return result;</span>
+  }
+
+  private static &lt;T&gt; List&lt;Callable&lt;Void&gt;&gt; createMonitorTasksFor(
+      List&lt;Future&lt;T&gt;&gt; futures, long timeout, @Nullable TimeUnit unit) {
+<span class="fc" id="L258">    List&lt;Callable&lt;Void&gt;&gt; monitorTasks = Lists.newLinkedList();</span>
+    // A null unit means 0 means &quot;unbounded.&quot;
+<span class="fc bfc" id="L260" title="All 2 branches covered.">    long deadline = unit == null ? 0 : System.nanoTime() + NANOSECONDS.convert(timeout, unit);</span>
+    // We need to add tasks for both starting and checking completion.
+    // In the case of a direct executor, the starting tasks will be slow
+    // and actually perform the task, while the checks are instant.
+    // In the case of a ThreadPoolExecutor, the start tasks are instant and
+    // the checks await completion.
+    // We want to add all the start tasks before the completion check tasks.
+    // TODO(user): This assumes tasks are executed in order. Verify or fix.
+<span class="fc bfc" id="L268" title="All 2 branches covered.">    for (Future&lt;T&gt; future : futures) {</span>
+<span class="fc" id="L269">      monitorTasks.add(new StartExecutionTask(future));</span>
+<span class="fc" id="L270">    }</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">    for (Future&lt;T&gt; future : futures) {</span>
+<span class="fc" id="L272">      monitorTasks.add(new CompletionCheckTask(future, deadline));</span>
+<span class="fc" id="L273">    }</span>
+<span class="fc" id="L274">    return monitorTasks;</span>
+  }
+
+  private static class StartExecutionTask implements Callable&lt;Void&gt; {
+    private final Future&lt;?&gt; future;
+
+<span class="fc" id="L280">    StartExecutionTask(Future&lt;?&gt; future) {</span>
+<span class="fc" id="L281">      this.future = future;</span>
+<span class="fc" id="L282">    }</span>
+
+    @Override
+    public Void call() {
+<span class="fc" id="L286">      future.isDone();</span>
+<span class="fc" id="L287">      return null;</span>
+    }
+  }
+
+  private static class CompletionCheckTask implements Callable&lt;Void&gt; {
+    private final Future&lt;?&gt; future;
+    private final long deadline;
+
+<span class="fc" id="L295">    CompletionCheckTask(Future&lt;?&gt; future, long deadline) {</span>
+<span class="fc" id="L296">      this.future = future;</span>
+<span class="fc" id="L297">      this.deadline = deadline;</span>
+<span class="fc" id="L298">    }</span>
+
+    @Override
+    public Void call() {
+      try {
+<span class="pc bpc" id="L303" title="1 of 2 branches missed.">        if (deadline == 0) {</span>
+<span class="fc" id="L304">          future.get();</span>
+        } else {
+          /* The timeout here is just a safeguard. The timing is really done
+           * in the invoking code. */
+<span class="nc" id="L308">          future.get(deadline - System.nanoTime(), NANOSECONDS);</span>
+        }
+<span class="nc" id="L310">      } catch (ExecutionException e) {</span>
+        // We don't care at this point.
+<span class="nc" id="L312">      } catch (InterruptedException e) {</span>
+        // Propagate the interrupt.
+<span class="nc" id="L314">        Thread.currentThread().interrupt();</span>
+        // Interrupt execution
+<span class="nc" id="L316">        future.cancel(true);</span>
+<span class="nc" id="L317">      } catch (TimeoutException e) {</span>
+        // Interrupt execution
+<span class="nc" id="L319">        future.cancel(true);</span>
+<span class="pc" id="L320">      }</span>
+<span class="fc" id="L321">      return null;</span>
+    }
+  }
+
+  /**
+   * Always throws a RejectedExecutionException because using this method does not make sense from
+   * either a lazy execution perspective or a cached result perspective.
+   */
+  @Override
+  public &lt;T&gt; T invokeAny(Collection&lt;? extends Callable&lt;T&gt;&gt; tasks) {
+<span class="nc" id="L331">    throw new RejectedExecutionException(&quot;Use another ExecutorService implementation.&quot;);</span>
+  }
+
+  /**
+   * Always throws a RejectedExecutionException because using this method does not make sense from
+   * either a lazy execution perspective or a cached result perspective.
+   */
+  @Override
+  public &lt;T&gt; T invokeAny(
+      final Collection&lt;? extends Callable&lt;T&gt;&gt; tasks, long timeout, TimeUnit unit) {
+<span class="nc" id="L341">    throw new RejectedExecutionException(&quot;Use another ExecutorService implementation.&quot;);</span>
+  }
+
+  /**
+   * Always throws a RejectedExecutionException because using this method does not make sense from
+   * either a lazy execution perspective or a cached result perspective.
+   */
+  @Override
+  public void execute(Runnable command) {
+<span class="nc" id="L350">    throw new RejectedExecutionException(&quot;Use submit instead of execute.&quot;);</span>
+  }
+
+  private static interface ExecutingFuture&lt;T&gt; extends Future&lt;T&gt; {
+    void backingServiceDied();
+  }
+
+  /**
+   * Executes the task when get() or isDone() are called, unless the job has been cancelled or the
+   * execution service is shutdown.
+   */
+  private class ExecutingFutureImpl&lt;T&gt; extends ForwardingFuture&lt;T&gt; implements ExecutingFuture&lt;T&gt; {
+    private final AtomicReference&lt;ExecutingFuture&lt;T&gt;&gt; state;
+
+<span class="fc" id="L364">    ExecutingFutureImpl(Callable&lt;T&gt; task) {</span>
+<span class="fc" id="L365">      state = new AtomicReference&lt;ExecutingFuture&lt;T&gt;&gt;(new Created(task));</span>
+<span class="fc" id="L366">    }</span>
+
+    @Override
+    protected Future&lt;T&gt; delegate() {
+<span class="fc" id="L370">      return state.get();</span>
+    }
+
+    @Override
+    public void backingServiceDied() {
+<span class="nc" id="L375">      state.get().backingServiceDied();</span>
+<span class="nc" id="L376">    }</span>
+
+    /*
+     * States and transitions are defined such that they guarantee that only
+     * one thread will be changing the internal state of the object at a time
+     * and no thread will access inconsistent internal state.
+     *
+     * &lt;p&gt;Simple state changes are just a CAS of the AtomicReference holding the
+     * current state. Complex state changes are synchronized on the object whose
+     * state is being changed and the object is in the special InbetweenStates
+     * state until the internal state is consistent.
+     */
+
+    /** Initial state. */
+    private class Created implements ExecutingFuture&lt;T&gt; {
+      private final Callable&lt;T&gt; task;
+
+<span class="fc" id="L393">      Created(Callable&lt;T&gt; task) {</span>
+<span class="fc" id="L394">        this.task = task;</span>
+<span class="fc" id="L395">      }</span>
+
+      @Override
+      public boolean cancel(boolean mayInterruptIfRunning) {
+<span class="pc bpc" id="L399" title="1 of 2 branches missed.">        if (transitionToCancelled()) {</span>
+<span class="fc" id="L400">          return true;</span>
+        } else {
+<span class="nc" id="L402">          return state.get().cancel(mayInterruptIfRunning);</span>
+        }
+      }
+
+      @Override
+      public boolean isCancelled() {
+<span class="nc" id="L408">        return false;</span>
+      }
+
+      @Override
+      public boolean isDone() {
+<span class="fc" id="L413">        transitionToDelegated();</span>
+<span class="fc" id="L414">        return state.get().isDone();</span>
+      }
+
+      @Override
+      public T get() throws ExecutionException, InterruptedException {
+<span class="fc" id="L419">        transitionToDelegated();</span>
+<span class="fc" id="L420">        return state.get().get();</span>
+      }
+
+      @Override
+      public T get(long timeout, TimeUnit unit)
+          throws ExecutionException, InterruptedException, TimeoutException {
+<span class="nc" id="L426">        transitionToDelegated();</span>
+<span class="nc" id="L427">        return state.get().get(timeout, unit);</span>
+      }
+
+      @Override
+      public void backingServiceDied() {
+<span class="nc" id="L432">        transitionToCancelled();</span>
+<span class="nc" id="L433">      }</span>
+
+      private void transitionToDelegated() {
+<span class="fc" id="L436">        InbetweenStates transitionGuard = new InbetweenStates();</span>
+<span class="pc bpc" id="L437" title="1 of 2 branches missed.">        if (state.compareAndSet(this, transitionGuard)) {</span>
+          try {
+<span class="fc" id="L439">            Future&lt;T&gt; backingFuture =</span>
+<span class="fc" id="L440">                backingService.submit(</span>
+<span class="fc" id="L441">                    new Callable&lt;T&gt;() {</span>
+                      @Override
+                      public T call() throws Exception {
+                        try {
+<span class="fc" id="L445">                          return task.call();</span>
+                        } finally {
+<span class="fc" id="L447">                          removePendingTask(ExecutingFutureImpl.this);</span>
+                        }
+                      }
+                    });
+<span class="fc" id="L451">            state.set(new Delegated(backingFuture));</span>
+<span class="nc" id="L452">          } catch (RejectedExecutionException e) {</span>
+<span class="nc" id="L453">            state.set(new Cancelled());</span>
+<span class="nc" id="L454">            removePendingTask(ExecutingFutureImpl.this);</span>
+<span class="nc" id="L455">            checkBackingService();</span>
+          } finally {
+<span class="fc" id="L457">            transitionGuard.latch.countDown();</span>
+          }
+        }
+<span class="fc" id="L460">      }</span>
+
+      @CanIgnoreReturnValue
+      private boolean transitionToCancelled() {
+<span class="pc bpc" id="L464" title="1 of 2 branches missed.">        if (state.compareAndSet(this, new Cancelled())) {</span>
+<span class="fc" id="L465">          removePendingTask(ExecutingFutureImpl.this);</span>
+<span class="fc" id="L466">          return true;</span>
+        }
+<span class="nc" id="L468">        return false;</span>
+      }
+    }
+
+    /** Represents the state where the Future was cancelled before execution started. */
+<span class="fc" id="L473">    private class Cancelled implements ExecutingFuture&lt;T&gt; {</span>
+      @Override
+      public boolean isDone() {
+<span class="fc" id="L476">        return true;</span>
+      }
+
+      @Override
+      public boolean isCancelled() {
+<span class="fc" id="L481">        return true;</span>
+      }
+
+      @Override
+      public T get(long timeout, TimeUnit unit) {
+<span class="fc" id="L486">        throw new CancellationException();</span>
+      }
+
+      @Override
+      public T get() {
+<span class="fc" id="L491">        throw new CancellationException();</span>
+      }
+
+      @Override
+      public boolean cancel(boolean mayInterruptIfRunning) {
+<span class="fc" id="L496">        return false;</span>
+      }
+
+      @Override
+<span class="nc" id="L500">      public void backingServiceDied() {}</span>
+    }
+
+    /** Execution has started and everything is delegated to the backingFuture. */
+    private class Delegated implements ExecutingFuture&lt;T&gt; {
+      private final Future&lt;T&gt; backingFuture;
+
+<span class="fc" id="L507">      Delegated(Future&lt;T&gt; backingFuture) {</span>
+<span class="fc" id="L508">        this.backingFuture = backingFuture;</span>
+<span class="fc" id="L509">      }</span>
+
+      @Override
+      public boolean isDone() {
+<span class="fc" id="L513">        return backingFuture.isDone();</span>
+      }
+
+      @Override
+      public boolean isCancelled() {
+<span class="nc" id="L518">        return backingFuture.isCancelled();</span>
+      }
+
+      @Override
+      public T get(long timeout, TimeUnit unit)
+          throws ExecutionException, InterruptedException, TimeoutException {
+<span class="nc" id="L524">        return backingFuture.get(timeout, unit);</span>
+      }
+
+      @Override
+      public T get() throws ExecutionException, InterruptedException {
+<span class="fc" id="L529">        return backingFuture.get();</span>
+      }
+
+      @Override
+      public boolean cancel(boolean mayInterruptIfRunning) {
+<span class="pc bpc" id="L534" title="1 of 2 branches missed.">        if (!mayInterruptIfRunning) {</span>
+          // Task is logically running already.
+<span class="nc" id="L536">          return false;</span>
+        }
+<span class="fc" id="L538">        return backingFuture.cancel(mayInterruptIfRunning);</span>
+      }
+
+      @Override
+<span class="nc" id="L542">      public void backingServiceDied() {}</span>
+    }
+
+    /**
+     * Temporary state protecting a state transition until the object is in a consistent state. Each
+     * method here is synchronized and the thread performing the transition should always be first
+     * to hold the lock.
+     */
+<span class="fc" id="L550">    private class InbetweenStates implements ExecutingFuture&lt;T&gt; {</span>
+<span class="fc" id="L551">      public final CountDownLatch latch = new CountDownLatch(1);</span>
+
+      @Override
+      public boolean isCancelled() {
+<span class="nc" id="L555">        return false; // Can only be true in a terminal state. Not there yet.</span>
+      }
+
+      @Override
+      public boolean isDone() {
+<span class="nc" id="L560">        return false; // Can only be true in a terminal state. Not there yet.</span>
+      }
+
+      @Override
+      public T get(long timeout, TimeUnit unit)
+          throws ExecutionException, InterruptedException, TimeoutException {
+<span class="nc" id="L566">        long startWait = System.nanoTime();</span>
+<span class="nc bnc" id="L567" title="All 2 branches missed.">        if (!latch.await(timeout, unit)) {</span>
+<span class="nc" id="L568">          throw new TimeoutException();</span>
+        }
+<span class="nc" id="L570">        long endWait = System.nanoTime();</span>
+<span class="nc" id="L571">        timeout -= unit.convert(endWait - startWait, NANOSECONDS);</span>
+<span class="nc" id="L572">        return state.get().get(timeout, unit);</span>
+      }
+
+      @Override
+      public T get() throws ExecutionException, InterruptedException {
+<span class="nc" id="L577">        latch.await();</span>
+<span class="nc" id="L578">        return state.get().get();</span>
+      }
+
+      @Override
+      public boolean cancel(boolean mayInterruptIfRunning) {
+<span class="nc" id="L583">        return false; // Cancellation may fail for any reason. This is one.</span>
+      }
+
+      @Override
+      public void backingServiceDied() {
+        // Only relevant in the initial Created state, and we've left that.
+<span class="nc" id="L589">      }</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

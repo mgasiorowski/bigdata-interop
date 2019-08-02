@@ -1,0 +1,563 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>InMemoryGoogleCloudStorage.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio.testing</a> &gt; <span class="el_source">InMemoryGoogleCloudStorage.java</span></div><h1>InMemoryGoogleCloudStorage.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 Google Inc. All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio.testing;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+import com.google.api.client.util.Clock;
+import com.google.cloud.hadoop.gcsio.CreateBucketOptions;
+import com.google.cloud.hadoop.gcsio.CreateObjectOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorage;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageExceptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageImpl;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageItemInfo;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageReadOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageStrings;
+import com.google.cloud.hadoop.gcsio.StorageResourceId;
+import com.google.cloud.hadoop.gcsio.UpdatableItemInfo;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
+import java.nio.file.FileAlreadyExistsException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * InMemoryGoogleCloudStorage overrides the public methods of GoogleCloudStorage by implementing all
+ * the equivalent bucket/object semantics with local in-memory storage.
+ */
+public class InMemoryGoogleCloudStorage implements GoogleCloudStorage {
+
+  // Mapping from bucketName to structs representing a bucket.
+<span class="fc" id="L54">  private final Map&lt;String, InMemoryBucketEntry&gt; bucketLookup = new HashMap&lt;&gt;();</span>
+  private final GoogleCloudStorageOptions storageOptions;
+  private final Clock clock;
+
+<span class="fc" id="L58">  public InMemoryGoogleCloudStorage() {</span>
+<span class="fc" id="L59">    storageOptions = GoogleCloudStorageOptions.builder().setAppName(&quot;GHFS/in-memory&quot;).build();</span>
+<span class="fc" id="L60">    clock = Clock.SYSTEM;</span>
+<span class="fc" id="L61">  }</span>
+
+<span class="fc" id="L63">  public InMemoryGoogleCloudStorage(GoogleCloudStorageOptions options) {</span>
+<span class="fc" id="L64">    storageOptions = options;</span>
+<span class="fc" id="L65">    clock = Clock.SYSTEM;</span>
+<span class="fc" id="L66">  }</span>
+
+<span class="fc" id="L68">  public InMemoryGoogleCloudStorage(GoogleCloudStorageOptions storageOptions, Clock clock) {</span>
+<span class="fc" id="L69">    this.storageOptions = storageOptions;</span>
+<span class="fc" id="L70">    this.clock = clock;</span>
+<span class="fc" id="L71">  }</span>
+
+  @Override
+  public GoogleCloudStorageOptions getOptions() {
+<span class="fc" id="L75">    return storageOptions;</span>
+  }
+
+  private boolean validateBucketName(String bucketName) {
+    // Validation as per https://developers.google.com/storage/docs/bucketnaming
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">    if (Strings.isNullOrEmpty(bucketName)) {</span>
+<span class="nc" id="L81">      return false;</span>
+    }
+
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">    if (bucketName.length() &lt; 3) {</span>
+<span class="nc" id="L85">      return false;</span>
+    }
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    if (!bucketName.matches(&quot;^[a-z0-9][a-z0-9_.-]*[a-z0-9]$&quot;)) {</span>
+<span class="fc" id="L89">      return false;</span>
+    }
+
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">    if (bucketName.length() &gt; 63) {</span>
+<span class="nc" id="L93">      return false;</span>
+    }
+
+    // TODO(user): Handle dots and names longer than 63, but less than 222.
+<span class="fc" id="L97">    return true;</span>
+  }
+
+  private boolean validateObjectName(String objectName) {
+    // Validation as per https://developers.google.com/storage/docs/bucketnaming
+    // Object names must be less than 1024 bytes and may not contain
+    // CR or LF characters.
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">    return !(objectName.length() &gt; 1024</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        || objectName.indexOf((char) 0x0A) &gt; -1</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        || objectName.indexOf((char) 0x0D) &gt; -1);</span>
+  }
+
+  @Override
+  public synchronized WritableByteChannel create(StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L111">    return create(resourceId, CreateObjectOptions.DEFAULT);</span>
+  }
+
+  @Override
+  public synchronized WritableByteChannel create(
+      StorageResourceId resourceId, final CreateObjectOptions options) throws IOException {
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">    if (!bucketLookup.containsKey(resourceId.getBucketName())) {</span>
+<span class="nc" id="L118">      throw new IOException(</span>
+<span class="nc" id="L119">          String.format(</span>
+              &quot;Tried to insert object '%s' into nonexistent bucket '%s'&quot;,
+<span class="nc" id="L121">              resourceId.getObjectName(), resourceId.getBucketName()));</span>
+    }
+<span class="fc bfc" id="L123" title="All 2 branches covered.">    if (!validateObjectName(resourceId.getObjectName())) {</span>
+<span class="fc" id="L124">      throw new IOException(&quot;Error creating object. Invalid name: &quot; + resourceId.getObjectName());</span>
+    }
+<span class="fc bfc" id="L126" title="All 4 branches covered.">    if (resourceId.hasGenerationId() &amp;&amp; resourceId.getGenerationId() != 0L) {</span>
+<span class="fc" id="L127">      GoogleCloudStorageItemInfo itemInfo = getItemInfo(resourceId);</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">      if (itemInfo.getContentGeneration() != resourceId.getGenerationId()) {</span>
+<span class="nc" id="L129">        throw new IOException(</span>
+<span class="nc" id="L130">            String.format(</span>
+                &quot;Required generationId '%d' doesn't match existing '%d' for '%s'&quot;,
+<span class="nc" id="L132">                resourceId.getGenerationId(), itemInfo.getContentGeneration(), resourceId));</span>
+      }
+    }
+<span class="pc bpc" id="L135" title="1 of 4 branches missed.">    if (!options.overwriteExisting() || resourceId.getGenerationId() == 0L) {</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">      if (getItemInfo(resourceId).exists()) {</span>
+<span class="fc" id="L137">        throw new FileAlreadyExistsException(String.format(&quot;%s exists.&quot;, resourceId));</span>
+      }
+    }
+<span class="fc" id="L140">    InMemoryObjectEntry entry =</span>
+        new InMemoryObjectEntry(
+<span class="fc" id="L142">            resourceId.getBucketName(),</span>
+<span class="fc" id="L143">            resourceId.getObjectName(),</span>
+<span class="fc" id="L144">            clock.currentTimeMillis(),</span>
+<span class="fc" id="L145">            options.getContentType(),</span>
+<span class="fc" id="L146">            options.getMetadata());</span>
+<span class="fc" id="L147">    bucketLookup.get(resourceId.getBucketName()).add(entry);</span>
+<span class="fc" id="L148">    return entry.getWriteChannel();</span>
+  }
+
+  @Override
+  public synchronized void create(String bucketName) throws IOException {
+<span class="fc" id="L153">    create(bucketName, CreateBucketOptions.DEFAULT);</span>
+<span class="fc" id="L154">  }</span>
+
+  @Override
+  public synchronized void create(String bucketName, CreateBucketOptions options)
+      throws IOException {
+<span class="fc bfc" id="L159" title="All 2 branches covered.">    if (!validateBucketName(bucketName)) {</span>
+<span class="fc" id="L160">      throw new IOException(&quot;Error creating bucket. Invalid name: &quot; + bucketName);</span>
+    }
+<span class="fc bfc" id="L162" title="All 2 branches covered.">    if (!bucketLookup.containsKey(bucketName)) {</span>
+<span class="fc" id="L163">      bucketLookup.put(</span>
+<span class="fc" id="L164">          bucketName, new InMemoryBucketEntry(bucketName, clock.currentTimeMillis(), options));</span>
+    } else {
+<span class="fc" id="L166">      throw new IOException(&quot;Bucket '&quot; + bucketName + &quot;'already exists&quot;);</span>
+    }
+<span class="fc" id="L168">  }</span>
+
+  @Override
+  public synchronized void createEmptyObject(StorageResourceId resourceId) throws IOException {
+<span class="fc" id="L172">    createEmptyObject(resourceId, CreateObjectOptions.DEFAULT);</span>
+<span class="fc" id="L173">  }</span>
+
+  @Override
+  public synchronized void createEmptyObject(
+      StorageResourceId resourceId, CreateObjectOptions options) throws IOException {
+    // TODO(user): Since this class is not performance-tuned, we'll just delegate to the
+    // write-channel version of the method.
+<span class="fc" id="L180">    create(resourceId, options).close();</span>
+<span class="fc" id="L181">  }</span>
+
+  @Override
+  public synchronized void createEmptyObjects(List&lt;StorageResourceId&gt; resourceIds)
+      throws IOException {
+<span class="fc" id="L186">    createEmptyObjects(resourceIds, CreateObjectOptions.DEFAULT);</span>
+<span class="fc" id="L187">  }</span>
+
+  @Override
+  public synchronized void createEmptyObjects(
+      List&lt;StorageResourceId&gt; resourceIds,
+      CreateObjectOptions options)
+      throws IOException {
+<span class="fc bfc" id="L194" title="All 2 branches covered.">    for (StorageResourceId resourceId : resourceIds) {</span>
+<span class="fc" id="L195">      createEmptyObject(resourceId, options);</span>
+<span class="fc" id="L196">    }</span>
+<span class="fc" id="L197">  }</span>
+
+  @Override
+  public synchronized SeekableByteChannel open(StorageResourceId resourceId)
+      throws IOException {
+<span class="fc" id="L202">    return open(resourceId, GoogleCloudStorageReadOptions.DEFAULT);</span>
+  }
+
+  @Override
+  public SeekableByteChannel open(
+      StorageResourceId resourceId, GoogleCloudStorageReadOptions readOptions) throws IOException {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">    if (!getItemInfo(resourceId).exists()) {</span>
+<span class="fc" id="L209">      final IOException notFoundException =</span>
+<span class="fc" id="L210">          GoogleCloudStorageExceptions.getFileNotFoundException(</span>
+<span class="fc" id="L211">              resourceId.getBucketName(), resourceId.getObjectName());</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">      if (readOptions.getFastFailOnNotFound()) {</span>
+<span class="fc" id="L213">        throw notFoundException;</span>
+      } else {
+        // We'll need to simulate a lazy-evaluating byte channel which only detects nonexistence
+        // on size() and read(ByteBuffer) calls.
+<span class="nc" id="L217">        return new SeekableByteChannel() {</span>
+<span class="nc" id="L218">          private long position = 0;</span>
+<span class="nc" id="L219">          private boolean isOpen = true;</span>
+
+          @Override
+          public long position() {
+<span class="nc" id="L223">            return position;</span>
+          }
+
+          @Override
+          public SeekableByteChannel position(long newPosition) {
+<span class="nc" id="L228">            position = newPosition;</span>
+<span class="nc" id="L229">            return this;</span>
+          }
+
+          @Override
+          public int read(ByteBuffer dst) throws IOException {
+<span class="nc" id="L234">            throw notFoundException;</span>
+          }
+
+          @Override
+          public long size() throws IOException {
+<span class="nc" id="L239">            throw notFoundException;</span>
+          }
+
+          @Override
+          public SeekableByteChannel truncate(long size) {
+<span class="nc" id="L244">            throw new UnsupportedOperationException(&quot;Cannot mutate read-only channel&quot;);</span>
+          }
+
+          @Override
+          public int write(ByteBuffer src) throws IOException {
+<span class="nc" id="L249">            throw new UnsupportedOperationException(&quot;Cannot mutate read-only channel&quot;);</span>
+          }
+
+          @Override
+          public void close() {
+<span class="nc" id="L254">            isOpen = false;</span>
+<span class="nc" id="L255">          }</span>
+
+          @Override
+          public boolean isOpen() {
+<span class="nc" id="L259">            return isOpen;</span>
+          }
+        };
+      }
+    }
+<span class="fc" id="L264">    return bucketLookup</span>
+<span class="fc" id="L265">        .get(resourceId.getBucketName())</span>
+<span class="fc" id="L266">        .get(resourceId.getObjectName())</span>
+<span class="fc" id="L267">        .getReadChannel(readOptions);</span>
+  }
+
+  @Override
+  public synchronized void deleteBuckets(List&lt;String&gt; bucketNames) throws IOException {
+<span class="fc" id="L272">    boolean hasError = false;</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">    for (String bucketName : bucketNames) {</span>
+      // TODO(user): Enforcement of not being able to delete non-empty buckets should probably also
+      // be in here, but gcsfs handles it explicitly when it calls listObjectNames.
+<span class="fc bfc" id="L276" title="All 2 branches covered.">      if (bucketLookup.containsKey(bucketName)) {</span>
+<span class="fc" id="L277">        bucketLookup.remove(bucketName);</span>
+      } else {
+<span class="fc" id="L279">        hasError = true;</span>
+      }
+<span class="pc bpc" id="L281" title="1 of 4 branches missed.">      hasError = hasError || !validateBucketName(bucketName);</span>
+<span class="fc" id="L282">    }</span>
+
+<span class="fc bfc" id="L284" title="All 2 branches covered.">    if (hasError) {</span>
+<span class="fc" id="L285">      throw new IOException(&quot;Error deleting&quot;);</span>
+    }
+<span class="fc" id="L287">  }</span>
+
+  @Override
+  public synchronized void deleteObjects(List&lt;StorageResourceId&gt; fullObjectNames)
+      throws IOException {
+
+<span class="fc bfc" id="L293" title="All 2 branches covered.">    for (StorageResourceId resourceId : fullObjectNames) {</span>
+<span class="pc bpc" id="L294" title="1 of 2 branches missed.">      if (!validateObjectName(resourceId.getObjectName())) {</span>
+<span class="nc" id="L295">        throw new IOException(&quot;Error deleting object. Invalid name: &quot; + resourceId.getObjectName());</span>
+      }
+<span class="fc" id="L297">    }</span>
+
+<span class="fc bfc" id="L299" title="All 2 branches covered.">    for (StorageResourceId fullObjectName : fullObjectNames) {</span>
+<span class="fc" id="L300">      String bucketName = fullObjectName.getBucketName();</span>
+<span class="fc" id="L301">      String objectName = fullObjectName.getObjectName();</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">      if (fullObjectName.hasGenerationId()) {</span>
+<span class="fc" id="L303">        GoogleCloudStorageItemInfo existingInfo = getItemInfo(fullObjectName);</span>
+<span class="pc bpc" id="L304" title="1 of 2 branches missed.">        if (existingInfo.getContentGeneration() != fullObjectName.getGenerationId()) {</span>
+<span class="nc" id="L305">          throw new IOException(String.format(</span>
+            &quot;Required generationId '%d' doesn't match existing '%d' for '%s'&quot;,
+<span class="nc" id="L307">            fullObjectName.getGenerationId(),</span>
+<span class="nc" id="L308">            existingInfo.getContentGeneration(),</span>
+            fullObjectName));
+        }
+      }
+<span class="fc" id="L312">      bucketLookup.get(bucketName).remove(objectName);</span>
+<span class="fc" id="L313">    }</span>
+<span class="fc" id="L314">  }</span>
+
+  @Override
+  public synchronized void copy(String srcBucketName, List&lt;String&gt; srcObjectNames,
+      String dstBucketName, List&lt;String&gt; dstObjectNames)
+      throws IOException {
+<span class="fc" id="L320">    GoogleCloudStorageImpl.validateCopyArguments(srcBucketName, srcObjectNames,</span>
+        dstBucketName, dstObjectNames, this);
+
+    // Gather FileNotFoundExceptions for individual objects, but only throw a single combined
+    // exception at the end.
+    // TODO(user): Add a unittest for this entire class to test for the behavior of partial
+    // failures; there is no way to do so in GCSFSIT because it only indirectly calls GCS.copy.
+<span class="fc" id="L327">    List&lt;IOException&gt; innerExceptions = new ArrayList&lt;&gt;();</span>
+
+    // Perform the copy operations.
+<span class="fc bfc" id="L330" title="All 2 branches covered.">    for (int i = 0; i &lt; srcObjectNames.size(); i++) {</span>
+      // Due to the metadata-copy semantics of GCS, we copy the object container, but not the byte[]
+      // contents; the write-once constraint means this behavior is indistinguishable from a deep
+      // copy, but the behavior might have to become complicated if GCS ever supports appends.
+<span class="fc bfc" id="L334" title="All 2 branches covered.">      if (!getItemInfo(new StorageResourceId(srcBucketName, srcObjectNames.get(i))).exists()) {</span>
+<span class="fc" id="L335">        innerExceptions.add(GoogleCloudStorageExceptions.getFileNotFoundException(</span>
+<span class="fc" id="L336">            srcBucketName, srcObjectNames.get(i)));</span>
+<span class="fc" id="L337">        continue;</span>
+      }
+
+<span class="fc" id="L340">      InMemoryObjectEntry srcObject =</span>
+<span class="fc" id="L341">          bucketLookup.get(srcBucketName).get(srcObjectNames.get(i));</span>
+<span class="fc" id="L342">      bucketLookup.get(dstBucketName).add(</span>
+<span class="fc" id="L343">          srcObject.getShallowCopy(dstBucketName, dstObjectNames.get(i)));</span>
+    }
+
+<span class="fc bfc" id="L346" title="All 2 branches covered.">    if (innerExceptions.size() &gt; 0) {</span>
+<span class="fc" id="L347">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
+    }
+<span class="fc" id="L349">  }</span>
+
+  @Override
+  public synchronized List&lt;String&gt; listBucketNames()
+      throws IOException {
+<span class="fc" id="L354">    return new ArrayList&lt;&gt;(bucketLookup.keySet());</span>
+  }
+
+  @Override
+  public synchronized List&lt;GoogleCloudStorageItemInfo&gt; listBucketInfo()
+      throws IOException {
+<span class="fc" id="L360">    List&lt;GoogleCloudStorageItemInfo&gt; bucketInfos = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L361" title="All 2 branches covered.">    for (InMemoryBucketEntry entry : bucketLookup.values()) {</span>
+<span class="fc" id="L362">      bucketInfos.add(entry.getInfo());</span>
+<span class="fc" id="L363">    }</span>
+<span class="fc" id="L364">    return bucketInfos;</span>
+  }
+
+  @Override
+  public synchronized List&lt;String&gt; listObjectNames(
+      String bucketName, String objectNamePrefix, String delimiter)
+      throws IOException {
+<span class="fc" id="L371">    return listObjectNames(bucketName, objectNamePrefix, delimiter,</span>
+        GoogleCloudStorage.MAX_RESULTS_UNLIMITED);
+  }
+
+  @Override
+  public synchronized List&lt;String&gt; listObjectNames(
+      String bucketName, String objectNamePrefix, String delimiter,
+      long maxResults)
+      throws IOException {
+<span class="fc" id="L380">    InMemoryBucketEntry bucketEntry = bucketLookup.get(bucketName);</span>
+<span class="fc bfc" id="L381" title="All 2 branches covered.">    if (bucketEntry == null) {</span>
+<span class="fc" id="L382">      return new ArrayList&lt;&gt;();</span>
+    }
+<span class="fc" id="L384">    Set&lt;String&gt; uniqueNames = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L385" title="All 2 branches covered.">    for (String objectName : bucketEntry.getObjectNames()) {</span>
+<span class="fc" id="L386">      String processedName = GoogleCloudStorageStrings.matchListPrefix(</span>
+          objectNamePrefix, delimiter, objectName);
+<span class="fc bfc" id="L388" title="All 2 branches covered.">      if (processedName != null) {</span>
+<span class="fc" id="L389">        uniqueNames.add(processedName);</span>
+      }
+<span class="fc bfc" id="L391" title="All 4 branches covered.">      if (maxResults &gt; 0 &amp;&amp; uniqueNames.size() &gt;= maxResults) {</span>
+<span class="fc" id="L392">        break;</span>
+      }
+<span class="fc" id="L394">    }</span>
+<span class="fc" id="L395">    return new ArrayList&lt;&gt;(uniqueNames);</span>
+  }
+
+  @Override
+  public ListPage&lt;GoogleCloudStorageItemInfo&gt; listObjectInfoPage(
+      String bucketName, String objectNamePrefix, String delimiter, String pageToken)
+      throws IOException {
+    // TODO: implement pagination
+<span class="fc" id="L403">    return new ListPage&lt;&gt;(listObjectInfo(bucketName, objectNamePrefix, delimiter), null);</span>
+  }
+
+  @Override
+  public synchronized List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(
+      final String bucketName, String objectNamePrefix, String delimiter)
+      throws IOException {
+<span class="fc" id="L410">    return listObjectInfo(bucketName, objectNamePrefix, delimiter,</span>
+        GoogleCloudStorage.MAX_RESULTS_UNLIMITED);
+  }
+
+  @Override
+  public synchronized List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(
+      final String bucketName, String objectNamePrefix, String delimiter,
+      long maxResults)
+      throws IOException {
+    // Since we're just in memory, we can do the naive implementation of just listing names and
+    // then calling getItemInfo for each.
+<span class="fc" id="L421">    List&lt;String&gt; listedNames = listObjectNames(bucketName, objectNamePrefix,</span>
+        delimiter, GoogleCloudStorage.MAX_RESULTS_UNLIMITED);
+<span class="fc" id="L423">    List&lt;GoogleCloudStorageItemInfo&gt; listedInfo = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L424" title="All 2 branches covered.">    for (String objectName : listedNames) {</span>
+<span class="fc" id="L425">      GoogleCloudStorageItemInfo itemInfo =</span>
+<span class="fc" id="L426">          getItemInfo(new StorageResourceId(bucketName, objectName));</span>
+<span class="fc bfc" id="L427" title="All 2 branches covered.">      if (itemInfo.exists()) {</span>
+<span class="fc" id="L428">        listedInfo.add(itemInfo);</span>
+<span class="pc bpc" id="L429" title="1 of 2 branches missed.">      } else if (itemInfo.getResourceId().isStorageObject()</span>
+<span class="fc bfc" id="L430" title="All 2 branches covered.">                 &amp;&amp; storageOptions.isInferImplicitDirectoriesEnabled()) {</span>
+<span class="fc" id="L431">        listedInfo.add(</span>
+<span class="fc" id="L432">            GoogleCloudStorageItemInfo.createInferredDirectory(itemInfo.getResourceId()));</span>
+      }
+<span class="fc bfc" id="L434" title="All 4 branches covered.">      if (maxResults &gt; 0 &amp;&amp; listedInfo.size() &gt;= maxResults) {</span>
+<span class="fc" id="L435">        break;</span>
+      }
+<span class="fc" id="L437">    }</span>
+<span class="fc" id="L438">    return listedInfo;</span>
+  }
+
+  @Override
+  public synchronized GoogleCloudStorageItemInfo getItemInfo(StorageResourceId resourceId)
+      throws IOException {
+<span class="fc bfc" id="L444" title="All 2 branches covered.">    if (resourceId.isRoot()) {</span>
+<span class="fc" id="L445">      return GoogleCloudStorageItemInfo.ROOT_INFO;</span>
+    }
+
+<span class="fc bfc" id="L448" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
+<span class="fc bfc" id="L449" title="All 2 branches covered.">      if (bucketLookup.containsKey(resourceId.getBucketName())) {</span>
+<span class="fc" id="L450">        return bucketLookup.get(resourceId.getBucketName()).getInfo();</span>
+      }
+    } else {
+<span class="pc bpc" id="L453" title="1 of 2 branches missed.">      if (!validateObjectName(resourceId.getObjectName())) {</span>
+<span class="nc" id="L454">        throw new IOException(&quot;Error accessing&quot;);</span>
+      }
+<span class="fc bfc" id="L456" title="All 2 branches covered.">      if (bucketLookup.containsKey(resourceId.getBucketName())</span>
+<span class="fc bfc" id="L457" title="All 2 branches covered.">          &amp;&amp; bucketLookup.get(resourceId.getBucketName()).get(resourceId.getObjectName()) != null) {</span>
+<span class="fc" id="L458">        return bucketLookup</span>
+<span class="fc" id="L459">            .get(resourceId.getBucketName())</span>
+<span class="fc" id="L460">            .get(resourceId.getObjectName())</span>
+<span class="fc" id="L461">            .getInfo();</span>
+      }
+    }
+<span class="fc" id="L464">    GoogleCloudStorageItemInfo notFoundItemInfo =</span>
+        new GoogleCloudStorageItemInfo(resourceId, 0, -1, null, null);
+<span class="fc" id="L466">    return notFoundItemInfo;</span>
+  }
+
+  @Override
+  public synchronized List&lt;GoogleCloudStorageItemInfo&gt; getItemInfos(
+      List&lt;StorageResourceId&gt; resourceIds)
+      throws IOException {
+<span class="fc" id="L473">    List&lt;GoogleCloudStorageItemInfo&gt; itemInfos = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L474" title="All 2 branches covered.">    for (StorageResourceId resourceId : resourceIds) {</span>
+      try {
+<span class="fc" id="L476">        itemInfos.add(getItemInfo(resourceId));</span>
+<span class="nc" id="L477">      } catch (IOException ioe) {</span>
+<span class="nc" id="L478">        throw new IOException(&quot;Error getting StorageObject&quot;, ioe);</span>
+<span class="fc" id="L479">      }</span>
+<span class="fc" id="L480">    }</span>
+<span class="fc" id="L481">    return itemInfos;</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; updateItems(List&lt;UpdatableItemInfo&gt; itemInfoList)
+      throws IOException {
+<span class="fc" id="L487">    List&lt;GoogleCloudStorageItemInfo&gt; itemInfos = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L488" title="All 2 branches covered.">    for (UpdatableItemInfo updatableItemInfo : itemInfoList) {</span>
+<span class="fc" id="L489">      StorageResourceId resourceId = updatableItemInfo.getStorageResourceId();</span>
+<span class="fc" id="L490">      Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L491" title="2 of 4 branches missed.">          !resourceId.isRoot() &amp;&amp; !resourceId.isBucket(),</span>
+          &quot;Can't update item on GCS Root or bucket resources&quot;);
+<span class="pc bpc" id="L493" title="1 of 2 branches missed.">      if (!validateObjectName(resourceId.getObjectName())) {</span>
+<span class="nc" id="L494">        throw new IOException(&quot;Error accessing&quot;);</span>
+      }
+<span class="pc bpc" id="L496" title="1 of 2 branches missed.">      if (bucketLookup.containsKey(resourceId.getBucketName())</span>
+<span class="fc bfc" id="L497" title="All 2 branches covered.">          &amp;&amp; bucketLookup.get(resourceId.getBucketName()).get(resourceId.getObjectName()) != null) {</span>
+<span class="fc" id="L498">        InMemoryObjectEntry objectEntry =</span>
+<span class="fc" id="L499">            bucketLookup.get(resourceId.getBucketName()).get(resourceId.getObjectName());</span>
+<span class="fc" id="L500">        objectEntry.patchMetadata(updatableItemInfo.getMetadata());</span>
+<span class="fc" id="L501">        itemInfos.add(getItemInfo(resourceId));</span>
+<span class="fc" id="L502">      } else {</span>
+<span class="fc" id="L503">        throw new IOException(</span>
+<span class="fc" id="L504">            String.format(&quot;Error getting StorageObject %s&quot;, resourceId.toString()));</span>
+      }
+<span class="fc" id="L506">    }</span>
+<span class="fc" id="L507">    return itemInfos;</span>
+  }
+
+  @Override
+  public void close() {
+<span class="fc" id="L512">  }</span>
+
+  @Override
+  public void waitForBucketEmpty(String bucketName)
+      throws IOException {
+<span class="fc" id="L517">  }</span>
+
+  @Override
+  public void compose(
+      final String bucketName, List&lt;String&gt; sources, String destination, String contentType)
+      throws IOException {
+<span class="fc" id="L523">    List&lt;StorageResourceId&gt; sourceResourcesIds =</span>
+<span class="fc" id="L524">        Lists.transform(sources, s -&gt; new StorageResourceId(bucketName, s));</span>
+<span class="fc" id="L525">    StorageResourceId destinationId = new StorageResourceId(bucketName, destination);</span>
+<span class="fc" id="L526">    CreateObjectOptions options = new CreateObjectOptions(</span>
+        true, contentType, CreateObjectOptions.EMPTY_METADATA);
+<span class="fc" id="L528">    composeObjects(sourceResourcesIds, destinationId, options);</span>
+<span class="fc" id="L529">  }</span>
+
+  @Override
+  public GoogleCloudStorageItemInfo composeObjects(
+      List&lt;StorageResourceId&gt; sources,
+      final StorageResourceId destination,
+      CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L537">    checkArgument(</span>
+<span class="pc bpc" id="L538" title="1 of 2 branches missed.">        sources.size() &lt;= MAX_COMPOSE_OBJECTS,</span>
+        &quot;Can not compose more than %s sources&quot;, MAX_COMPOSE_OBJECTS);
+<span class="fc" id="L540">    ByteArrayOutputStream tempOutput = new ByteArrayOutputStream();</span>
+<span class="fc bfc" id="L541" title="All 2 branches covered.">    for (StorageResourceId sourceId : sources) {</span>
+      // TODO(user): If we change to also set generationIds for source objects in the base
+      // GoogleCloudStorageImpl, make sure to also add a generationId check here.
+<span class="fc" id="L544">      try (SeekableByteChannel sourceChannel = open(sourceId)) {</span>
+<span class="fc" id="L545">        byte[] bufferArray = new byte[4 * 1024 * 1024];</span>
+        int bytesRead;
+        do {
+<span class="fc" id="L548">          ByteBuffer buffer = ByteBuffer.wrap(bufferArray);</span>
+<span class="fc" id="L549">          bytesRead = sourceChannel.read(buffer);</span>
+<span class="fc" id="L550">          tempOutput.write(bufferArray, 0, buffer.position());</span>
+<span class="fc bfc" id="L551" title="All 2 branches covered.">        } while (bytesRead &gt;= 0);</span>
+      }
+<span class="fc" id="L553">    }</span>
+
+    // If destination.hasGenerationId(), it'll automatically get enforced here by the create()
+    // implementation.
+<span class="fc" id="L557">    WritableByteChannel destChannel = create(destination, options);</span>
+<span class="fc" id="L558">    destChannel.write(ByteBuffer.wrap(tempOutput.toByteArray()));</span>
+<span class="fc" id="L559">    destChannel.close();</span>
+<span class="fc" id="L560">    return getItemInfo(destination);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CoopLockRecord.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio.cooplock</a> &gt; <span class="el_source">CoopLockRecord.java</span></div><h1>CoopLockRecord.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 Google LLC. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio.cooplock;
+
+import com.google.common.base.MoreObjects;
+import java.util.Set;
+import java.util.TreeSet;
+
+/** Class that represent cooperative locking operation */
+<span class="fc" id="L24">public class CoopLockRecord {</span>
+  private String clientId;
+  private String operationId;
+  private long operationEpochMilli;
+  private CoopLockOperationType operationType;
+  private long lockEpochMilli;
+<span class="fc" id="L30">  private Set&lt;String&gt; resources = new TreeSet&lt;&gt;();</span>
+
+  public String getClientId() {
+<span class="fc" id="L33">    return clientId;</span>
+  }
+
+  public CoopLockRecord setClientId(String clientId) {
+<span class="fc" id="L37">    this.clientId = clientId;</span>
+<span class="fc" id="L38">    return this;</span>
+  }
+
+  public String getOperationId() {
+<span class="fc" id="L42">    return operationId;</span>
+  }
+
+  public CoopLockRecord setOperationId(String operationId) {
+<span class="fc" id="L46">    this.operationId = operationId;</span>
+<span class="fc" id="L47">    return this;</span>
+  }
+
+  public long getOperationEpochMilli() {
+<span class="fc" id="L51">    return operationEpochMilli;</span>
+  }
+
+  public CoopLockRecord setOperationEpochMilli(long operationEpochMilli) {
+<span class="fc" id="L55">    this.operationEpochMilli = operationEpochMilli;</span>
+<span class="fc" id="L56">    return this;</span>
+  }
+
+  public CoopLockOperationType getOperationType() {
+<span class="fc" id="L60">    return operationType;</span>
+  }
+
+  public CoopLockRecord setOperationType(CoopLockOperationType operationType) {
+<span class="fc" id="L64">    this.operationType = operationType;</span>
+<span class="fc" id="L65">    return this;</span>
+  }
+
+  public long getLockEpochMilli() {
+<span class="fc" id="L69">    return lockEpochMilli;</span>
+  }
+
+  public CoopLockRecord setLockEpochMilli(long lockEpochMilli) {
+<span class="fc" id="L73">    this.lockEpochMilli = lockEpochMilli;</span>
+<span class="fc" id="L74">    return this;</span>
+  }
+
+  public Set&lt;String&gt; getResources() {
+<span class="fc" id="L78">    return resources;</span>
+  }
+
+  public CoopLockRecord setResources(Set&lt;String&gt; resources) {
+<span class="fc" id="L82">    this.resources = new TreeSet&lt;&gt;(resources);</span>
+<span class="fc" id="L83">    return this;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="fc" id="L88">    return MoreObjects.toStringHelper(this)</span>
+<span class="fc" id="L89">        .add(&quot;clientId&quot;, clientId)</span>
+<span class="fc" id="L90">        .add(&quot;operationId&quot;, operationId)</span>
+<span class="fc" id="L91">        .add(&quot;operationEpochMilli&quot;, operationEpochMilli)</span>
+<span class="fc" id="L92">        .add(&quot;operationType&quot;, operationType)</span>
+<span class="fc" id="L93">        .add(&quot;lockEpochMilli&quot;, lockEpochMilli)</span>
+<span class="fc" id="L94">        .add(&quot;resources&quot;, resources)</span>
+<span class="fc" id="L95">        .toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

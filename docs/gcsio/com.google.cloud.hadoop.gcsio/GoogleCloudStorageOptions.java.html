@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GoogleCloudStorageOptions.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">GoogleCloudStorageOptions.java</span></div><h1>GoogleCloudStorageOptions.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 Google Inc. All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.isNullOrEmpty;
+
+import com.google.auto.value.AutoValue;
+import com.google.cloud.hadoop.gcsio.cooplock.CooperativeLockingOptions;
+import com.google.cloud.hadoop.util.AsyncWriteChannelOptions;
+import com.google.cloud.hadoop.util.HttpTransportFactory;
+import com.google.cloud.hadoop.util.RequesterPaysOptions;
+import javax.annotation.Nullable;
+
+/** Configuration options for the GoogleCloudStorage class. */
+@AutoValue
+<span class="fc" id="L29">public abstract class GoogleCloudStorageOptions {</span>
+
+  /** Default setting for enabling auto-repair of implicit directories. */
+  public static final boolean AUTO_REPAIR_IMPLICIT_DIRECTORIES_DEFAULT = true;
+
+  /** Default setting for enabling inferring of implicit directories. */
+  public static final boolean INFER_IMPLICIT_DIRECTORIES_DEFAULT = true;
+
+  /**
+   * Default setting for the length of time to wait for empty objects to appear if we believe we are
+   * in a race with multiple workers.
+   */
+  public static final int MAX_WAIT_MILLIS_FOR_EMPTY_OBJECT_CREATION = 3_000;
+
+  /** Default number of items to return per call to the list* GCS RPCs. */
+  public static final long MAX_LIST_ITEMS_PER_CALL_DEFAULT = 1024;
+
+  /** Default setting for maximum number of requests per GCS batch. */
+  public static final long MAX_REQUESTS_PER_BATCH_DEFAULT = 30;
+
+  /** Default setting for number of threads to execute GCS batch requests. */
+  public static final int BATCH_THREADS_DEFAULT = 0;
+
+  /** Default setting for maximum number of GCS HTTP request retires. */
+  public static final int MAX_HTTP_REQUEST_RETRIES = 10;
+
+  /** Default setting for connect timeout (in millisecond) of GCS HTTP request. */
+  public static final int HTTP_REQUEST_CONNECT_TIMEOUT = 20 * 1000;
+
+  /** Default setting for read timeout (in millisecond) of GCS HTTP request. */
+  public static final int HTTP_REQUEST_READ_TIMEOUT = 20 * 1000;
+
+  /** Default setting for whether or not to use rewrite request for copy operation. */
+  public static final boolean COPY_WITH_REWRITE_DEFAULT = false;
+
+  /** Default setting for max number of bytes rewritten per rewrite request/call. */
+  public static final int MAX_BYTES_REWRITTEN_PER_CALL_DEFAULT = 0;
+
+  /** Default setting for maximum number of requests per GCS batch for copy operations. */
+  public static final long COPY_MAX_REQUESTS_PER_BATCH_DEFAULT = MAX_REQUESTS_PER_BATCH_DEFAULT;
+
+  /** Default setting for number of threads to execute GCS batch requests for copy operations. */
+  public static final int COPY_BATCH_THREADS_DEFAULT = BATCH_THREADS_DEFAULT;
+
+<span class="fc" id="L73">  public static final GoogleCloudStorageOptions DEFAULT = builder().build();</span>
+
+  /** @deprecated use {@link #builder()} instead */
+  @Deprecated
+  public static Builder newBuilder() {
+<span class="nc" id="L78">    return builder();</span>
+  }
+
+  public static Builder builder() {
+<span class="fc" id="L82">    return new AutoValue_GoogleCloudStorageOptions.Builder()</span>
+<span class="fc" id="L83">        .setAutoRepairImplicitDirectoriesEnabled(AUTO_REPAIR_IMPLICIT_DIRECTORIES_DEFAULT)</span>
+<span class="fc" id="L84">        .setInferImplicitDirectoriesEnabled(INFER_IMPLICIT_DIRECTORIES_DEFAULT)</span>
+<span class="fc" id="L85">        .setMaxWaitMillisForEmptyObjectCreation(MAX_WAIT_MILLIS_FOR_EMPTY_OBJECT_CREATION)</span>
+<span class="fc" id="L86">        .setMaxListItemsPerCall(MAX_LIST_ITEMS_PER_CALL_DEFAULT)</span>
+<span class="fc" id="L87">        .setMaxRequestsPerBatch(MAX_REQUESTS_PER_BATCH_DEFAULT)</span>
+<span class="fc" id="L88">        .setBatchThreads(BATCH_THREADS_DEFAULT)</span>
+<span class="fc" id="L89">        .setMaxHttpRequestRetries(MAX_HTTP_REQUEST_RETRIES)</span>
+<span class="fc" id="L90">        .setHttpRequestConnectTimeout(HTTP_REQUEST_CONNECT_TIMEOUT)</span>
+<span class="fc" id="L91">        .setHttpRequestReadTimeout(HTTP_REQUEST_READ_TIMEOUT)</span>
+<span class="fc" id="L92">        .setTransportType(HttpTransportFactory.DEFAULT_TRANSPORT_TYPE)</span>
+<span class="fc" id="L93">        .setCopyWithRewriteEnabled(COPY_WITH_REWRITE_DEFAULT)</span>
+<span class="fc" id="L94">        .setMaxBytesRewrittenPerCall(MAX_BYTES_REWRITTEN_PER_CALL_DEFAULT)</span>
+<span class="fc" id="L95">        .setCopyMaxRequestsPerBatch(COPY_MAX_REQUESTS_PER_BATCH_DEFAULT)</span>
+<span class="fc" id="L96">        .setCopyBatchThreads(COPY_BATCH_THREADS_DEFAULT)</span>
+<span class="fc" id="L97">        .setReadChannelOptions(GoogleCloudStorageReadOptions.DEFAULT)</span>
+<span class="fc" id="L98">        .setWriteChannelOptions(AsyncWriteChannelOptions.DEFAULT)</span>
+<span class="fc" id="L99">        .setRequesterPaysOptions(RequesterPaysOptions.DEFAULT)</span>
+<span class="fc" id="L100">        .setCooperativeLockingOptions(CooperativeLockingOptions.DEFAULT);</span>
+  }
+
+  @Nullable
+  public abstract String getProjectId();
+
+  @Nullable
+  public abstract String getAppName();
+
+  public abstract boolean isAutoRepairImplicitDirectoriesEnabled();
+
+  public abstract boolean isInferImplicitDirectoriesEnabled();
+
+  public abstract int getMaxWaitMillisForEmptyObjectCreation();
+
+  public abstract long getMaxListItemsPerCall();
+
+  public abstract long getMaxRequestsPerBatch();
+
+  public abstract int getBatchThreads();
+
+  public abstract long getCopyMaxRequestsPerBatch();
+
+  public abstract int getCopyBatchThreads();
+
+  public abstract int getMaxHttpRequestRetries();
+
+  public abstract int getHttpRequestConnectTimeout();
+
+  public abstract int getHttpRequestReadTimeout();
+
+  public abstract HttpTransportFactory.HttpTransportType getTransportType();
+
+  @Nullable
+  public abstract String getProxyAddress();
+
+  @Nullable
+  public abstract String getProxyUsername();
+
+  @Nullable
+  public abstract String getProxyPassword();
+
+  public abstract boolean isCopyWithRewriteEnabled();
+
+  public abstract long getMaxBytesRewrittenPerCall();
+
+  public abstract GoogleCloudStorageReadOptions getReadChannelOptions();
+
+  public abstract AsyncWriteChannelOptions getWriteChannelOptions();
+
+  public abstract RequesterPaysOptions getRequesterPaysOptions();
+
+  public abstract CooperativeLockingOptions getCooperativeLockingOptions();
+
+  public abstract Builder toBuilder();
+
+  public void throwIfNotValid() {
+<span class="fc bfc" id="L157" title="All 2 branches covered.">    checkArgument(!isNullOrEmpty(getAppName()), &quot;appName must not be null or empty&quot;);</span>
+<span class="fc" id="L158">  }</span>
+
+  /** Mutable builder for the {@link GoogleCloudStorageOptions} class. */
+  @AutoValue.Builder
+<span class="fc" id="L162">  public abstract static class Builder {</span>
+
+    public abstract Builder setProjectId(String projectId);
+
+    public abstract Builder setAppName(String appName);
+
+    public abstract Builder setAutoRepairImplicitDirectoriesEnabled(boolean autoRepair);
+
+    public abstract Builder setInferImplicitDirectoriesEnabled(boolean inferImplicitDirectories);
+
+    public abstract Builder setMaxWaitMillisForEmptyObjectCreation(int durationMillis);
+
+    public abstract Builder setMaxListItemsPerCall(long maxListItemsPerCall);
+
+    // According to https://developers.google.com/storage/docs/json_api/v1/how-tos/batch
+    // there is a maximum of 1000 requests per batch.
+    public abstract Builder setMaxRequestsPerBatch(long maxRequestsPerBatch);
+
+    public abstract Builder setBatchThreads(int batchThreads);
+
+    public abstract Builder setMaxHttpRequestRetries(int maxHttpRequestRetries);
+
+    public abstract Builder setHttpRequestConnectTimeout(int httpRequestConnectTimeout);
+
+    public abstract Builder setHttpRequestReadTimeout(int httpRequestReadTimeout);
+
+    public abstract Builder setTransportType(HttpTransportFactory.HttpTransportType transportType);
+
+    public abstract Builder setProxyAddress(String proxyAddress);
+
+    public abstract Builder setProxyUsername(String proxyUsername);
+
+    public abstract Builder setProxyPassword(String proxyPassword);
+
+    public abstract Builder setCopyWithRewriteEnabled(boolean copyWithRewrite);
+
+    public abstract Builder setMaxBytesRewrittenPerCall(long bytes);
+
+    public abstract Builder setCopyMaxRequestsPerBatch(long copyMaxRequestsPerBatch);
+
+    public abstract Builder setCopyBatchThreads(int copyBatchThreads);
+
+    public abstract Builder setReadChannelOptions(GoogleCloudStorageReadOptions readChannelOptions);
+
+    public abstract Builder setWriteChannelOptions(AsyncWriteChannelOptions writeChannelOptions);
+
+    public abstract Builder setRequesterPaysOptions(RequesterPaysOptions requesterPaysOptions);
+
+    public abstract Builder setCooperativeLockingOptions(
+        CooperativeLockingOptions cooperativeLockingOptions);
+
+    abstract GoogleCloudStorageOptions autoBuild();
+
+    public GoogleCloudStorageOptions build() {
+<span class="fc" id="L216">      GoogleCloudStorageOptions instance = autoBuild();</span>
+<span class="fc" id="L217">      checkArgument(</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">          instance.getMaxBytesRewrittenPerCall() &lt;= 0</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">              || instance.getMaxBytesRewrittenPerCall() % (1024 * 1024) == 0,</span>
+          &quot;maxBytesRewrittenPerCall must be an integral multiple of 1 MiB (1048576), but was: %s&quot;,
+<span class="fc" id="L221">          instance.getMaxBytesRewrittenPerCall());</span>
+<span class="fc" id="L222">      checkArgument(</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">          instance.getProxyAddress() != null</span>
+<span class="fc bfc" id="L224" title="All 4 branches covered.">              || (instance.getProxyUsername() == null &amp;&amp; instance.getProxyPassword() == null),</span>
+          &quot;if proxyAddress is null then proxyUsername and proxyPassword should be null too&quot;);
+<span class="fc" id="L226">      checkArgument(</span>
+<span class="fc bfc" id="L227" title="All 6 branches covered.">          (instance.getProxyUsername() == null) == (instance.getProxyPassword() == null),</span>
+          &quot;both proxyUsername and proxyPassword should be null or not null together&quot;);
+<span class="fc" id="L229">      return instance;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

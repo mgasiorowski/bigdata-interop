@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>BigQueryStrings.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">BigQueryStrings.java</span></div><h1>BigQueryStrings.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2017 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import com.google.api.services.bigquery.model.TableReference;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Splitter;
+import com.google.common.base.Strings;
+import java.util.List;
+
+/**
+ * BigQueryStrings provides misc static helper methods for printing and formatting strings related
+ * to BigQuery data structures and API objects.
+ */
+<span class="nc" id="L26">public class BigQueryStrings {</span>
+  // Regular expression for validating a datasetId.tableId pair.
+  public static final String DATASET_AND_TABLE_REGEX = &quot;[a-zA-Z0-9_]+\\.[a-zA-Z0-9_$]+&quot;;
+
+<span class="fc" id="L30">  private static final Splitter DOT_SPLITTER = Splitter.on('.');</span>
+
+  /**
+   * Returns a String representation of the TableReference suitable for interop with other bigquery
+   * tools and for passing back into {@link #parseTableReference(String)}.
+   *
+   * @param tableRef A TableReference which contains at least DatasetId and TableId.
+   * @return A string of the form [projectId]:[datasetId].[tableId].
+   */
+  public static String toString(TableReference tableRef) {
+<span class="fc bfc" id="L40" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(tableRef.getDatasetId()),</span>
+        &quot;tableRef must contain non-empty DatasetId.&quot;);
+<span class="fc bfc" id="L42" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(tableRef.getTableId()),</span>
+        &quot;tableRef must contain non-empty TableId.&quot;);
+<span class="fc bfc" id="L44" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(tableRef.getProjectId())) {</span>
+<span class="fc" id="L45">      return String.format(&quot;%s.%s&quot;, tableRef.getDatasetId(), tableRef.getTableId());</span>
+    } else {
+<span class="fc" id="L47">      return String.format(&quot;%s:%s.%s&quot;,</span>
+<span class="fc" id="L48">          tableRef.getProjectId(), tableRef.getDatasetId(), tableRef.getTableId());</span>
+    }
+  }
+
+  /**
+   * Parses a string into a TableReference; projectId may be omitted if the caller defines a
+   * &quot;default&quot; project; in such a case, getProjectId() of the returned TableReference will
+   * return null.
+   *
+   * @param tableRefString A string of the form [projectId]:[datasetId].[tableId].
+   * @return a TableReference with the parsed components.
+   */
+  public static TableReference parseTableReference(String tableRefString) {
+    // Logic mirrored from cloud/helix/clients/cli/bigquery_client.py.
+<span class="fc" id="L62">    TableReference tableRef = new TableReference();</span>
+<span class="fc" id="L63">    int projectIdEnd = tableRefString.lastIndexOf(':');</span>
+<span class="fc" id="L64">    String datasetAndTableString = tableRefString;</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">    if (projectIdEnd != -1) {</span>
+<span class="fc" id="L66">      tableRef.setProjectId(tableRefString.substring(0, projectIdEnd));</span>
+
+      // Omit the ':' from the remaining datasetId.tableId substring.
+<span class="fc" id="L69">      datasetAndTableString = tableRefString.substring(projectIdEnd + 1);</span>
+    }
+
+<span class="fc" id="L72">    Preconditions.checkArgument(datasetAndTableString.matches(DATASET_AND_TABLE_REGEX),</span>
+        &quot;Invalid datasetAndTableString '%s'; must match regex '%s'.&quot;,
+        datasetAndTableString, DATASET_AND_TABLE_REGEX);
+
+<span class="fc" id="L76">    List&lt;String&gt; idParts = DOT_SPLITTER.splitToList(datasetAndTableString);</span>
+<span class="fc" id="L77">    tableRef.setDatasetId(idParts.get(0));</span>
+<span class="fc" id="L78">    tableRef.setTableId(idParts.get(1));</span>
+<span class="fc" id="L79">    return tableRef;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

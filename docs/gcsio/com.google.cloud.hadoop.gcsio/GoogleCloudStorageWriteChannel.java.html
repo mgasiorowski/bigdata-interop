@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GoogleCloudStorageWriteChannel.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">GoogleCloudStorageWriteChannel.java</span></div><h1>GoogleCloudStorageWriteChannel.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio;
+
+import com.google.api.client.http.InputStreamContent;
+import com.google.api.services.storage.Storage;
+import com.google.api.services.storage.Storage.Objects.Insert;
+import com.google.api.services.storage.model.StorageObject;
+import com.google.cloud.hadoop.util.AbstractGoogleAsyncWriteChannel;
+import com.google.cloud.hadoop.util.AsyncWriteChannelOptions;
+import com.google.cloud.hadoop.util.ClientRequestHelper;
+import com.google.cloud.hadoop.util.LoggingMediaHttpUploaderProgressListener;
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+
+/** Implements WritableByteChannel to provide write access to GCS. */
+public class GoogleCloudStorageWriteChannel
+    extends AbstractGoogleAsyncWriteChannel&lt;Insert, StorageObject&gt;
+    implements GoogleCloudStorageItemInfo.Provider {
+
+  private static final long MIN_LOGGING_INTERVAL_MS = 60000L;
+
+  private final Storage gcs;
+  private final String bucketName;
+  private final String objectName;
+  private final String kmsKeyName;
+  private final ObjectWriteConditions writeConditions;
+  private final Map&lt;String, String&gt; metadata;
+
+<span class="fc" id="L45">  private GoogleCloudStorageItemInfo completedItemInfo = null;</span>
+
+  /**
+   * Constructs an instance of GoogleCloudStorageWriteChannel.
+   *
+   * @param uploadThreadPool thread pool to use for running the upload operation
+   * @param gcs storage object instance
+   * @param requestHelper a ClientRequestHelper to set extra headers
+   * @param bucketName name of the bucket to create object in
+   * @param objectName name of the object to create
+   * @param writeConditions conditions on which write should be allowed to continue
+   * @param objectMetadata metadata to apply to the newly created object
+   */
+  @Deprecated
+  public GoogleCloudStorageWriteChannel(
+      ExecutorService uploadThreadPool,
+      Storage gcs,
+      ClientRequestHelper&lt;StorageObject&gt; requestHelper,
+      String bucketName,
+      String objectName,
+      AsyncWriteChannelOptions options,
+      ObjectWriteConditions writeConditions,
+      Map&lt;String, String&gt; objectMetadata) {
+<span class="nc" id="L68">    this(</span>
+        uploadThreadPool,
+        gcs,
+        requestHelper,
+        bucketName,
+        objectName,
+        /* contentType= */ null,
+        /* kmsKeyName= */ null,
+        options,
+        writeConditions,
+        objectMetadata);
+<span class="nc" id="L79">  }</span>
+
+  /**
+   * Constructs an instance of GoogleCloudStorageWriteChannel.
+   *
+   * @param uploadThreadPool thread pool to use for running the upload operation
+   * @param gcs storage object instance
+   * @param requestHelper a ClientRequestHelper to set extra headers
+   * @param bucketName name of the bucket to create object in
+   * @param objectName name of the object to create
+   * @param writeConditions conditions on which write should be allowed to continue
+   * @param objectMetadata metadata to apply to the newly created object
+   * @param contentType content type
+   */
+  @Deprecated
+  public GoogleCloudStorageWriteChannel(
+      ExecutorService uploadThreadPool,
+      Storage gcs,
+      ClientRequestHelper&lt;StorageObject&gt; requestHelper,
+      String bucketName,
+      String objectName,
+      AsyncWriteChannelOptions options,
+      ObjectWriteConditions writeConditions,
+      Map&lt;String, String&gt; objectMetadata,
+      String contentType) {
+<span class="fc" id="L104">    this(</span>
+        uploadThreadPool,
+        gcs,
+        requestHelper,
+        bucketName,
+        objectName,
+        contentType,
+        /* kmsKeyName= */ null,
+        options,
+        writeConditions,
+        objectMetadata);
+<span class="fc" id="L115">  }</span>
+
+  /**
+   * Constructs an instance of GoogleCloudStorageWriteChannel.
+   *
+   * @param uploadThreadPool thread pool to use for running the upload operation
+   * @param gcs storage object instance
+   * @param requestHelper a ClientRequestHelper to set extra headers
+   * @param bucketName name of the bucket to create object in
+   * @param objectName name of the object to create
+   * @param contentType content type
+   * @param kmsKeyName Name of Cloud KMS key to use to encrypt the newly created object
+   * @param writeConditions conditions on which write should be allowed to continue
+   * @param objectMetadata metadata to apply to the newly created object
+   */
+  public GoogleCloudStorageWriteChannel(
+      ExecutorService uploadThreadPool,
+      Storage gcs,
+      ClientRequestHelper&lt;StorageObject&gt; requestHelper,
+      String bucketName,
+      String objectName,
+      String contentType,
+      String kmsKeyName,
+      AsyncWriteChannelOptions options,
+      ObjectWriteConditions writeConditions,
+      Map&lt;String, String&gt; objectMetadata) {
+<span class="fc" id="L141">    super(uploadThreadPool, options);</span>
+<span class="fc" id="L142">    this.gcs = gcs;</span>
+<span class="fc" id="L143">    this.setClientRequestHelper(requestHelper);</span>
+<span class="fc" id="L144">    this.bucketName = bucketName;</span>
+<span class="fc" id="L145">    this.objectName = objectName;</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">    if (contentType != null) {</span>
+<span class="fc" id="L147">      setContentType(contentType);</span>
+    }
+<span class="fc" id="L149">    this.kmsKeyName = kmsKeyName;</span>
+<span class="fc" id="L150">    this.writeConditions = writeConditions;</span>
+<span class="fc" id="L151">    this.metadata = objectMetadata;</span>
+<span class="fc" id="L152">  }</span>
+
+  @Override
+  public Insert createRequest(InputStreamContent inputStream) throws IOException {
+    // Create object with the given name and metadata.
+<span class="fc" id="L157">    StorageObject object =</span>
+        new StorageObject()
+<span class="fc" id="L159">            .setMetadata(metadata)</span>
+<span class="fc" id="L160">            .setName(objectName);</span>
+
+<span class="fc" id="L162">    Insert insert = gcs.objects().insert(bucketName, object, inputStream);</span>
+<span class="fc" id="L163">    writeConditions.apply(insert);</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">    if (insert.getMediaHttpUploader() != null) {</span>
+<span class="fc" id="L165">      insert.getMediaHttpUploader().setDirectUploadEnabled(isDirectUploadEnabled());</span>
+<span class="fc" id="L166">      insert.getMediaHttpUploader().setProgressListener(</span>
+        new LoggingMediaHttpUploaderProgressListener(this.objectName, MIN_LOGGING_INTERVAL_MS));
+    }
+<span class="fc" id="L169">    insert.setName(objectName);</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">    if (kmsKeyName != null) {</span>
+<span class="fc" id="L171">      insert.setKmsKeyName(kmsKeyName);</span>
+    }
+<span class="fc" id="L173">    return insert;</span>
+  }
+
+  @Override
+  public void handleResponse(StorageObject response) {
+<span class="fc" id="L178">    this.completedItemInfo = GoogleCloudStorageImpl.createItemInfoForStorageObject(</span>
+        new StorageResourceId(bucketName, objectName), response);
+<span class="fc" id="L180">  }</span>
+
+  /**
+   * Returns non-null only if close() has been called and the underlying object has been
+   * successfully committed.
+   */
+  @Override
+  public GoogleCloudStorageItemInfo getItemInfo() {
+<span class="fc" id="L188">    return this.completedItemInfo;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

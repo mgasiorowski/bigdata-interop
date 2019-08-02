@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CoopLockRecordsDao.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio.cooplock</a> &gt; <span class="el_source">CoopLockRecordsDao.java</span></div><h1>CoopLockRecordsDao.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 Google LLC. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio.cooplock;
+
+import static com.google.cloud.hadoop.gcsio.GoogleCloudStorage.PATH_DELIMITER;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static com.google.common.flogger.LazyArgs.lazy;
+import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+
+import com.google.api.client.util.ExponentialBackOff;
+import com.google.cloud.hadoop.gcsio.CreateObjectOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageImpl;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageItemInfo;
+import com.google.cloud.hadoop.gcsio.StorageResourceId;
+import com.google.cloud.hadoop.util.ApiErrorExtractor;
+import com.google.common.flogger.GoogleLogger;
+import com.google.gson.Gson;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+public class CoopLockRecordsDao {
+
+<span class="fc" id="L54">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  public static final String LOCK_DIRECTORY = &quot;_lock/&quot;;
+
+  private static final String LOCK_FILE = &quot;all.lock&quot;;
+  public static final String LOCK_PATH = LOCK_DIRECTORY + LOCK_FILE;
+
+  private static final String LOCK_METADATA_KEY = &quot;lock&quot;;
+
+  private static final int MIN_BACK_OFF_INTERVAL_MILLIS = 500;
+  private static final int MAX_BACK_OFF_INTERVAL_MILLIS = 2_000;
+  private static final int RETRY_LOCK_INTERVAL_MILLIS = 2_000;
+
+<span class="fc" id="L67">  private static final Gson GSON = new Gson();</span>
+
+<span class="fc" id="L69">  private static final CreateObjectOptions CREATE_NEW_OBJECT_OPTIONS =</span>
+      new CreateObjectOptions(/* overwriteExisting= */ false);
+
+  private final GoogleCloudStorageImpl gcs;
+  private final CooperativeLockingOptions options;
+
+<span class="fc" id="L75">  public CoopLockRecordsDao(GoogleCloudStorageImpl gcs) {</span>
+<span class="fc" id="L76">    this.gcs = gcs;</span>
+<span class="fc" id="L77">    this.options = gcs.getOptions().getCooperativeLockingOptions();</span>
+<span class="fc" id="L78">  }</span>
+
+  public Set&lt;CoopLockRecord&gt; getLockedOperations(String bucketName) throws IOException {
+<span class="fc" id="L81">    long startMs = System.currentTimeMillis();</span>
+<span class="fc" id="L82">    logger.atFine().log(&quot;getLockedOperations(%s)&quot;, bucketName);</span>
+<span class="fc" id="L83">    StorageResourceId lockId = getLockId(bucketName);</span>
+<span class="fc" id="L84">    GoogleCloudStorageItemInfo lockInfo = gcs.getItemInfo(lockId);</span>
+<span class="fc" id="L85">    Set&lt;CoopLockRecord&gt; operations =</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        !lockInfo.exists()</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">                || lockInfo.getMetaGeneration() == 0</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">                || lockInfo.getMetadata().get(LOCK_METADATA_KEY) == null</span>
+            ? new HashSet&lt;&gt;()
+<span class="fc" id="L90">            : getLockRecords(lockInfo).getLocks();</span>
+<span class="fc" id="L91">    logger.atFine().log(</span>
+        &quot;[%dms] getLockedOperations(%s): %s&quot;,
+<span class="fc" id="L93">        System.currentTimeMillis() - startMs, bucketName, operations);</span>
+<span class="fc" id="L94">    return operations;</span>
+  }
+
+  public void relockOperation(
+      String bucketName, String operationId, String clientId, long lockEpochMilli)
+      throws IOException {
+<span class="fc" id="L100">    long startMs = System.currentTimeMillis();</span>
+<span class="fc" id="L101">    logger.atFine().log(&quot;lockOperation(%s, %d)&quot;, operationId, clientId);</span>
+<span class="fc" id="L102">    modifyLock(</span>
+<span class="fc" id="L103">        records -&gt; reacquireOperationLock(records, operationId, clientId, lockEpochMilli),</span>
+        bucketName,
+        operationId);
+<span class="fc" id="L106">    logger.atFine().log(</span>
+        &quot;[%dms] lockOperation(%s, %s)&quot;,
+<span class="fc" id="L108">        System.currentTimeMillis() - startMs, operationId, clientId);</span>
+<span class="fc" id="L109">  }</span>
+
+  public void lockPaths(
+      String operationId,
+      Instant operationInstant,
+      CoopLockOperationType operationType,
+      StorageResourceId... resources)
+      throws IOException {
+<span class="fc" id="L117">    long startMs = System.currentTimeMillis();</span>
+<span class="pc" id="L118">    logger.atFine().log(&quot;lockPaths(%s, %s)&quot;, operationId, lazy(() -&gt; Arrays.toString(resources)));</span>
+<span class="fc" id="L119">    Set&lt;String&gt; objects = validateResources(resources);</span>
+<span class="fc" id="L120">    String bucketName = resources[0].getBucketName();</span>
+<span class="fc" id="L121">    modifyLock(</span>
+<span class="fc" id="L122">        records -&gt; addLockRecords(records, operationId, operationInstant, operationType, objects),</span>
+        bucketName,
+        operationId);
+<span class="fc" id="L125">    logger.atFine().log(</span>
+        &quot;[%dms] lockPaths(%s, %s)&quot;,
+<span class="pc" id="L127">        System.currentTimeMillis() - startMs, operationId, lazy(() -&gt; Arrays.toString(resources)));</span>
+<span class="fc" id="L128">  }</span>
+
+  public void unlockPaths(String operationId, StorageResourceId... resources) throws IOException {
+<span class="fc" id="L131">    long startMs = System.currentTimeMillis();</span>
+<span class="pc" id="L132">    logger.atFine().log(&quot;unlockPaths(%s, %s)&quot;, operationId, lazy(() -&gt; Arrays.toString(resources)));</span>
+<span class="fc" id="L133">    Set&lt;String&gt; objects = validateResources(resources);</span>
+<span class="fc" id="L134">    String bucketName = resources[0].getBucketName();</span>
+<span class="fc" id="L135">    modifyLock(</span>
+<span class="fc" id="L136">        records -&gt; removeLockRecords(records, operationId, objects), bucketName, operationId);</span>
+<span class="fc" id="L137">    logger.atFine().log(</span>
+        &quot;[%dms] unlockPaths(%s, %s)&quot;,
+<span class="pc" id="L139">        System.currentTimeMillis() - startMs, operationId, lazy(() -&gt; Arrays.toString(resources)));</span>
+<span class="fc" id="L140">  }</span>
+
+  private Set&lt;String&gt; validateResources(StorageResourceId[] resources) {
+<span class="fc" id="L143">    checkNotNull(resources, &quot;resources should not be null&quot;);</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">    checkArgument(resources.length &gt; 0, &quot;resources should not be empty&quot;);</span>
+<span class="fc" id="L145">    String bucketName = resources[0].getBucketName();</span>
+<span class="fc" id="L146">    checkState(</span>
+<span class="fc" id="L147">        Arrays.stream(resources).allMatch(r -&gt; r.getBucketName().equals(bucketName)),</span>
+        &quot;All resources should be in the same bucket&quot;);
+
+<span class="fc" id="L150">    return Arrays.stream(resources).map(StorageResourceId::getObjectName).collect(toImmutableSet());</span>
+  }
+
+  private void modifyLock(
+      Function&lt;CoopLockRecords, Boolean&gt; modificationFn, String bucketName, String operationId)
+      throws IOException {
+<span class="fc" id="L156">    long startMs = System.currentTimeMillis();</span>
+<span class="fc" id="L157">    StorageResourceId lockId = getLockId(bucketName);</span>
+
+<span class="fc" id="L159">    ExponentialBackOff backOff =</span>
+        new ExponentialBackOff.Builder()
+<span class="fc" id="L161">            .setInitialIntervalMillis(MIN_BACK_OFF_INTERVAL_MILLIS)</span>
+<span class="fc" id="L162">            .setMultiplier(1.2)</span>
+<span class="fc" id="L163">            .setMaxIntervalMillis(MAX_BACK_OFF_INTERVAL_MILLIS)</span>
+<span class="fc" id="L164">            .setMaxElapsedTimeMillis(Integer.MAX_VALUE)</span>
+<span class="fc" id="L165">            .build();</span>
+
+    do {
+      try {
+<span class="fc" id="L169">        GoogleCloudStorageItemInfo lockInfo = gcs.getItemInfo(lockId);</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        if (!lockInfo.exists()) {</span>
+<span class="fc" id="L171">          gcs.createEmptyObject(lockId, CREATE_NEW_OBJECT_OPTIONS);</span>
+<span class="fc" id="L172">          lockInfo = gcs.getItemInfo(lockId);</span>
+        }
+<span class="fc" id="L174">        CoopLockRecords lockRecords =</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">            lockInfo.getMetaGeneration() == 0</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">                    || lockInfo.getMetadata().get(LOCK_METADATA_KEY) == null</span>
+<span class="fc" id="L177">                ? new CoopLockRecords().setFormatVersion(CoopLockRecords.FORMAT_VERSION)</span>
+<span class="fc" id="L178">                : getLockRecords(lockInfo);</span>
+
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        if (!modificationFn.apply(lockRecords)) {</span>
+<span class="fc" id="L181">          logger.atInfo().atMostEvery(5, SECONDS).log(</span>
+              &quot;Failed to update %s entries in %s file: resources could be locked, retrying.&quot;,
+<span class="fc" id="L183">              lockRecords.getLocks().size(), lockId);</span>
+<span class="fc" id="L184">          sleepUninterruptibly(RETRY_LOCK_INTERVAL_MILLIS, MILLISECONDS);</span>
+<span class="fc" id="L185">          continue;</span>
+        }
+
+        // If unlocked all objects - delete lock object
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        if (lockRecords.getLocks().isEmpty()) {</span>
+<span class="fc" id="L190">          gcs.deleteObject(lockInfo.getResourceId(), lockInfo.getMetaGeneration());</span>
+<span class="fc" id="L191">          break;</span>
+        }
+
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if (lockRecords.getLocks().size() &gt; options.getMaxConcurrentOperations()) {</span>
+<span class="nc" id="L195">          logger.atInfo().atMostEvery(5, SECONDS).log(</span>
+              &quot;Skipping lock entries update in %s file: too many (%d) locked resources, retrying.&quot;,
+<span class="nc" id="L197">              lockRecords.getLocks().size(), lockId);</span>
+<span class="nc" id="L198">          sleepUninterruptibly(RETRY_LOCK_INTERVAL_MILLIS, MILLISECONDS);</span>
+<span class="nc" id="L199">          continue;</span>
+        }
+
+<span class="fc" id="L202">        String lockContent = GSON.toJson(lockRecords, CoopLockRecords.class);</span>
+<span class="fc" id="L203">        Map&lt;String, byte[]&gt; metadata = new HashMap&lt;&gt;(lockInfo.getMetadata());</span>
+<span class="fc" id="L204">        metadata.put(LOCK_METADATA_KEY, lockContent.getBytes(UTF_8));</span>
+
+<span class="fc" id="L206">        gcs.updateMetadata(lockInfo, metadata);</span>
+
+<span class="fc" id="L208">        logger.atFine().log(</span>
+            &quot;Updated lock file in %dms for %s operation&quot;,
+<span class="fc" id="L210">            System.currentTimeMillis() - startMs, operationId);</span>
+<span class="fc" id="L211">        break;</span>
+<span class="fc" id="L212">      } catch (IOException e) {</span>
+        // continue after sleep if update failed due to file generation mismatch or other
+        // IOException
+<span class="fc bfc" id="L215" title="All 2 branches covered.">        if (ApiErrorExtractor.INSTANCE.preconditionNotMet(e)) {</span>
+<span class="fc" id="L216">          logger.atInfo().atMostEvery(5, SECONDS).log(</span>
+              &quot;Failed to update entries (condition not met) in %s file for operation %s, retrying.&quot;,
+              lockId, operationId);
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">        } else if (ApiErrorExtractor.INSTANCE.itemNotFound(e)) {</span>
+<span class="fc" id="L220">          logger.atInfo().atMostEvery(5, SECONDS).log(</span>
+              &quot;Failed to update entries (file not found) in %s file for operation %s, retrying.&quot;,
+              lockId, operationId);
+        } else {
+<span class="nc" id="L224">          logger.atWarning().withCause(e).log(</span>
+              &quot;Failed to modify lock for %s operation, retrying.&quot;, operationId);
+        }
+<span class="fc" id="L227">        sleepUninterruptibly(backOff.nextBackOffMillis(), MILLISECONDS);</span>
+      }
+<span class="fc" id="L229">    } while (true);</span>
+<span class="fc" id="L230">  }</span>
+
+  private StorageResourceId getLockId(String bucketName) {
+<span class="fc" id="L233">    return new StorageResourceId(bucketName, LOCK_PATH);</span>
+  }
+
+  private CoopLockRecords getLockRecords(GoogleCloudStorageItemInfo lockInfo) {
+<span class="fc" id="L237">    String lockContent = new String(lockInfo.getMetadata().get(LOCK_METADATA_KEY), UTF_8);</span>
+<span class="fc" id="L238">    CoopLockRecords lockRecords = GSON.fromJson(lockContent, CoopLockRecords.class);</span>
+<span class="fc" id="L239">    checkState(</span>
+<span class="pc bpc" id="L240" title="1 of 2 branches missed.">        lockRecords.getFormatVersion() == CoopLockRecords.FORMAT_VERSION,</span>
+        &quot;Unsupported metadata format: expected %d, but was %d&quot;,
+<span class="fc" id="L242">        lockRecords.getFormatVersion(),</span>
+        CoopLockRecords.FORMAT_VERSION);
+<span class="fc" id="L244">    return lockRecords;</span>
+  }
+
+  private boolean reacquireOperationLock(
+      CoopLockRecords lockRecords, String operationId, String clientId, long lockEpochMilli) {
+<span class="fc" id="L249">    Optional&lt;CoopLockRecord&gt; operationOptional =</span>
+<span class="fc" id="L250">        lockRecords.getLocks().stream()</span>
+<span class="fc" id="L251">            .filter(o -&gt; o.getOperationId().equals(operationId))</span>
+<span class="fc" id="L252">            .findAny();</span>
+<span class="fc" id="L253">    checkState(operationOptional.isPresent(), &quot;operation %s not found&quot;, operationId);</span>
+<span class="fc" id="L254">    CoopLockRecord operation = operationOptional.get();</span>
+<span class="fc" id="L255">    checkState(</span>
+<span class="fc" id="L256">        clientId.equals(operation.getClientId()),</span>
+        &quot;operation %s should be locked by %s client, but was %s&quot;,
+        operationId,
+        clientId,
+<span class="fc" id="L260">        operation.getClientId());</span>
+<span class="fc" id="L261">    checkState(</span>
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">        lockEpochMilli == operation.getLockEpochMilli(),</span>
+        &quot;operation %s should be locked at %s epoch milliseconds but was at %s&quot;,
+        lockEpochMilli,
+<span class="fc" id="L265">        operation.getLockEpochMilli());</span>
+<span class="fc" id="L266">    operation.setLockEpochMilli(Instant.now().toEpochMilli());</span>
+<span class="fc" id="L267">    return true;</span>
+  }
+
+  private boolean addLockRecords(
+      CoopLockRecords lockRecords,
+      String operationId,
+      Instant operationInstant,
+      CoopLockOperationType operationType,
+      Set&lt;String&gt; resourcesToAdd) {
+    // TODO: optimize to match more efficiently
+<span class="fc" id="L277">    boolean atLestOneResourceAlreadyLocked =</span>
+<span class="fc" id="L278">        lockRecords.getLocks().stream()</span>
+<span class="fc" id="L279">            .flatMap(operation -&gt; operation.getResources().stream())</span>
+<span class="fc" id="L280">            .anyMatch(</span>
+                lockedResource -&gt; {
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">                  for (String resourceToAdd : resourcesToAdd) {</span>
+<span class="fc bfc" id="L283" title="All 2 branches covered.">                    if (resourceToAdd.equals(lockedResource)</span>
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">                        || isChildObject(lockedResource, resourceToAdd)</span>
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">                        || isChildObject(resourceToAdd, lockedResource)) {</span>
+<span class="fc" id="L286">                      return true;</span>
+                    }
+<span class="fc" id="L288">                  }</span>
+<span class="nc" id="L289">                  return false;</span>
+                });
+<span class="fc bfc" id="L291" title="All 2 branches covered.">    if (atLestOneResourceAlreadyLocked) {</span>
+<span class="fc" id="L292">      return false;</span>
+    }
+
+<span class="fc" id="L295">    CoopLockRecord record =</span>
+        new CoopLockRecord()
+<span class="fc" id="L297">            .setClientId(newClientId(operationId))</span>
+<span class="fc" id="L298">            .setOperationId(operationId)</span>
+<span class="fc" id="L299">            .setOperationEpochMilli(operationInstant.toEpochMilli())</span>
+<span class="fc" id="L300">            .setLockEpochMilli(Instant.now().toEpochMilli())</span>
+<span class="fc" id="L301">            .setOperationType(operationType)</span>
+<span class="fc" id="L302">            .setResources(resourcesToAdd);</span>
+<span class="fc" id="L303">    lockRecords.getLocks().add(record);</span>
+
+<span class="fc" id="L305">    return true;</span>
+  }
+
+  private boolean isChildObject(String parent, String child) {
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">    return parent.startsWith(child.endsWith(PATH_DELIMITER) ? child : child + PATH_DELIMITER);</span>
+  }
+
+  private boolean removeLockRecords(
+      CoopLockRecords lockRecords, String operationId, Set&lt;String&gt; resourcesToRemove) {
+<span class="fc" id="L314">    List&lt;CoopLockRecord&gt; recordsToRemove =</span>
+<span class="fc" id="L315">        lockRecords.getLocks().stream()</span>
+<span class="fc" id="L316">            .filter(o -&gt; o.getResources().stream().anyMatch(resourcesToRemove::contains))</span>
+<span class="fc" id="L317">            .collect(Collectors.toList());</span>
+<span class="fc" id="L318">    checkState(</span>
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">        recordsToRemove.size() == 1,</span>
+        &quot;Only %s operation with %s resources should be unlocked, but found %s operations:\n%s&quot;,
+        operationId,
+        resourcesToRemove,
+<span class="fc" id="L323">        recordsToRemove.size(),</span>
+        recordsToRemove);
+<span class="fc" id="L325">    CoopLockRecord operationToRemove = recordsToRemove.get(0);</span>
+<span class="fc" id="L326">    checkState(</span>
+<span class="fc" id="L327">        operationToRemove.getOperationId().equals(operationId),</span>
+        &quot;All resources should be locked by %s operation, but they are locked by %s operation&quot;,
+        operationId,
+<span class="fc" id="L330">        operationToRemove.getOperationId());</span>
+<span class="fc" id="L331">    checkState(</span>
+<span class="fc" id="L332">        operationToRemove.getResources().equals(resourcesToRemove),</span>
+        &quot;All of %s resources should be locked by operation, but was locked only %s resources&quot;,
+        resourcesToRemove,
+<span class="fc" id="L335">        operationToRemove.getResources());</span>
+<span class="fc" id="L336">    checkState(</span>
+<span class="fc" id="L337">        lockRecords.getLocks().remove(operationToRemove),</span>
+        &quot;operation %s was not removed&quot;,
+        operationToRemove);
+<span class="fc" id="L340">    return true;</span>
+  }
+
+  private static String newClientId(String operationId) {
+    InetAddress localHost;
+    try {
+<span class="fc" id="L346">      localHost = InetAddress.getLocalHost();</span>
+<span class="nc" id="L347">    } catch (UnknownHostException e) {</span>
+<span class="nc" id="L348">      throw new RuntimeException(</span>
+<span class="nc" id="L349">          String.format(&quot;Failed to get clientId for %s operation&quot;, operationId), e);</span>
+<span class="fc" id="L350">    }</span>
+<span class="fc" id="L351">    String epochMillis = String.valueOf(Instant.now().toEpochMilli());</span>
+<span class="fc" id="L352">    return localHost.getCanonicalHostName() + &quot;-&quot; + epochMillis.substring(epochMillis.length() - 6);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

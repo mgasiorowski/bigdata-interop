@@ -1,0 +1,493 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>PrefixMappedItemCache.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">PrefixMappedItemCache.java</span></div><h1>PrefixMappedItemCache.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file
+ * except in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.gcsio;
+
+import static com.google.common.base.Strings.nullToEmpty;
+import static java.util.Comparator.naturalOrder;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Ticker;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NavigableMap;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
+
+/**
+ * A semi-persistent storage for {@link GoogleCloudStorageItemInfo} that maintains indexes based on
+ * the item's bucket and object name. In addition to caching {@link StorageResourceId} to item
+ * mappings, it provides options for storing groups of items under similar bucket and object name
+ * prefixes.
+ */
+public class PrefixMappedItemCache {
+  /** Map to hold item info. */
+  private final TreeMap&lt;PrefixKey, CacheValue&lt;GoogleCloudStorageItemInfo&gt;&gt; itemMap;
+
+  /** Map to hold known prefixes. */
+  private final TreeMap&lt;PrefixKey, CacheValue&lt;Object&gt;&gt; prefixMap;
+
+  /** The time in nanoseconds before an entry expires. */
+  private final long maxEntryAgeNanos;
+
+  /** Ticker for tracking expirations. */
+  private final Ticker ticker;
+
+  /**
+   * Creates a new {@link PrefixMappedItemCache}.
+   *
+   * @param config the configuration parameters to initialize the cache with. The configuration
+   *     parameters are copied during construction, future modifications to the configuration will
+   *     not be reflected in the cache.
+   */
+<span class="fc" id="L60">  public PrefixMappedItemCache(Config config) {</span>
+<span class="fc" id="L61">    itemMap = new TreeMap&lt;PrefixKey, CacheValue&lt;GoogleCloudStorageItemInfo&gt;&gt;(PrefixKey.COMPARATOR);</span>
+<span class="fc" id="L62">    prefixMap = new TreeMap&lt;PrefixKey, CacheValue&lt;Object&gt;&gt;(PrefixKey.COMPARATOR);</span>
+
+<span class="fc" id="L64">    maxEntryAgeNanos = TimeUnit.MILLISECONDS.toNanos(config.getMaxEntryAgeMillis());</span>
+<span class="fc" id="L65">    ticker = config.getTicker();</span>
+<span class="fc" id="L66">  }</span>
+
+  /**
+   * Gets the cached item associated with the given resource id.
+   *
+   * @param id the resource id of the item to get.
+   * @return the cached item associated with the given resource id, null if the item isn't cached or
+   *     it has expired in the cache.
+   */
+  public synchronized GoogleCloudStorageItemInfo getItem(StorageResourceId id) {
+<span class="fc" id="L76">    PrefixKey key = new PrefixKey(id.getBucketName(), id.getObjectName());</span>
+<span class="fc" id="L77">    CacheValue&lt;GoogleCloudStorageItemInfo&gt; value = itemMap.get(key);</span>
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L80">      return null;</span>
+    }
+
+<span class="fc bfc" id="L83" title="All 2 branches covered.">    if (isExpired(value)) {</span>
+<span class="fc" id="L84">      itemMap.remove(key);</span>
+<span class="fc" id="L85">      cleanupLists(key);</span>
+<span class="fc" id="L86">      return null;</span>
+    }
+
+<span class="fc" id="L89">    return value.getValue();</span>
+  }
+
+  /**
+   * Gets the cached list associated with the given bucket and object name prefix.
+   *
+   * @param bucket the bucket where the entries are being retrieved from.
+   * @param objectNamePrefix the object name prefix to match against. If this is empty string or
+   *     null, it will match everything in the bucket.
+   * @return a list of items matching in the given bucket matching the given object name prefix,
+   *     null if a list isn't found or the is expired.
+   */
+  public synchronized List&lt;GoogleCloudStorageItemInfo&gt; getList(
+      String bucket, @Nullable String objectNamePrefix) {
+<span class="fc" id="L103">    PrefixKey key = new PrefixKey(bucket, objectNamePrefix);</span>
+<span class="fc" id="L104">    Entry&lt;PrefixKey, CacheValue&lt;Object&gt;&gt; entry = getParentEntry(prefixMap, key);</span>
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">    if (entry == null) {</span>
+<span class="fc" id="L107">      return null;</span>
+    }
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">    if (isExpired(entry.getValue())) {</span>
+<span class="fc" id="L111">      cleanupLists(key);</span>
+<span class="fc" id="L112">      return null;</span>
+    }
+
+<span class="fc" id="L115">    return listItems(key);</span>
+  }
+
+  synchronized List&lt;GoogleCloudStorageItemInfo&gt; listItems(
+      String bucket, @Nullable String objectNamePrefix) {
+<span class="fc" id="L120">   return listItems(new PrefixKey(bucket, objectNamePrefix));</span>
+  }
+
+  private List&lt;GoogleCloudStorageItemInfo&gt; listItems(PrefixKey key) {
+<span class="fc" id="L124">    return aggregateCacheValues(getPrefixSubMap(itemMap, key));</span>
+  }
+
+  /**
+   * Inserts an item into the cache. If an item with the same resource id is present, it is
+   * overwritten by the new item.
+   *
+   * @param item the item to insert. The item must have a valid resource id.
+   * @return the overwritten item, null if no item was overwritten.
+   */
+  public synchronized GoogleCloudStorageItemInfo putItem(GoogleCloudStorageItemInfo item) {
+<span class="fc" id="L135">    StorageResourceId id = item.getResourceId();</span>
+<span class="fc" id="L136">    PrefixKey key = new PrefixKey(id.getBucketName(), id.getObjectName());</span>
+<span class="fc" id="L137">    CacheValue&lt;GoogleCloudStorageItemInfo&gt; value =</span>
+<span class="fc" id="L138">        new CacheValue&lt;GoogleCloudStorageItemInfo&gt;(item, ticker.read());</span>
+
+<span class="fc" id="L140">    CacheValue&lt;GoogleCloudStorageItemInfo&gt; oldValue = itemMap.put(key, value);</span>
+
+<span class="fc bfc" id="L142" title="All 2 branches covered.">    if (oldValue == null) {</span>
+<span class="fc" id="L143">      return null;</span>
+    }
+
+<span class="fc bfc" id="L146" title="All 2 branches covered.">    if (isExpired(oldValue)) {</span>
+<span class="fc" id="L147">      cleanupLists(key);</span>
+<span class="fc" id="L148">      return null;</span>
+    }
+
+<span class="fc" id="L151">    return oldValue.getValue();</span>
+  }
+
+  /**
+   * Inserts a list entry and the given items into the cache. If a list entry under the same
+   * bucket/objectNamePrefix is present, its expiration time is reset. If an item with the same
+   * resource id is present, it is overwritten by the new item.
+   *
+   * @param bucket the bucket to index the items by.
+   * @param objectNamePrefix the object name prefix to index the items by. If this is null, it will
+   *     be converted to empty string.
+   * @param items the list of items to insert.
+   */
+  public synchronized void putList(
+      String bucket, @Nullable String objectNamePrefix, List&lt;GoogleCloudStorageItemInfo&gt; items) {
+    // Give all entries the same creation time so they expire at the same time.
+<span class="fc" id="L167">    long creationTime = ticker.read();</span>
+<span class="fc" id="L168">    PrefixKey key = new PrefixKey(bucket, objectNamePrefix);</span>
+
+    // The list being inserted is always fresher than any child lists.
+<span class="fc" id="L171">    getPrefixSubMap(itemMap, key).clear();</span>
+<span class="fc" id="L172">    getPrefixSubMap(prefixMap, key).clear();</span>
+
+    // Populate the maps.
+<span class="fc" id="L175">    prefixMap.put(key, new CacheValue&lt;Object&gt;(null, creationTime));</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">    for (GoogleCloudStorageItemInfo item : items) {</span>
+<span class="fc" id="L177">      StorageResourceId itemId = item.getResourceId();</span>
+<span class="fc" id="L178">      PrefixKey itemKey = new PrefixKey(itemId.getBucketName(), itemId.getObjectName());</span>
+<span class="fc" id="L179">      CacheValue&lt;GoogleCloudStorageItemInfo&gt; itemValue =</span>
+          new CacheValue&lt;GoogleCloudStorageItemInfo&gt;(item, creationTime);
+<span class="fc" id="L181">      itemMap.put(itemKey, itemValue);</span>
+<span class="fc" id="L182">    }</span>
+<span class="fc" id="L183">  }</span>
+
+  /**
+   * Removes the item from the cache. If the item has expired, associated lists are invalidated.
+   *
+   * @param id the resource id of the item to remove.
+   * @return the removed item, null if no item was removed.
+   */
+  public synchronized GoogleCloudStorageItemInfo removeItem(StorageResourceId id) {
+<span class="fc" id="L192">    PrefixKey key = new PrefixKey(id.getBucketName(), id.getObjectName());</span>
+<span class="fc" id="L193">    CacheValue&lt;GoogleCloudStorageItemInfo&gt; value = itemMap.remove(key);</span>
+
+<span class="fc bfc" id="L195" title="All 2 branches covered.">    if (value == null) {</span>
+<span class="fc" id="L196">      return null;</span>
+    }
+
+<span class="fc bfc" id="L199" title="All 2 branches covered.">    if (isExpired(value)) {</span>
+<span class="fc" id="L200">      cleanupLists(key);</span>
+<span class="fc" id="L201">      return null;</span>
+    }
+
+<span class="fc" id="L204">    return value.getValue();</span>
+  }
+
+  /**
+   * Invalidates all cached items and lists associated with the given bucket.
+   *
+   * @param bucket the bucket to invalidate. This must not be null.
+   */
+  public synchronized void invalidateBucket(String bucket) {
+<span class="fc" id="L213">    PrefixKey key = new PrefixKey(bucket, &quot;&quot;);</span>
+
+<span class="fc" id="L215">    getPrefixSubMap(itemMap, key).clear();</span>
+<span class="fc" id="L216">    getPrefixSubMap(prefixMap, key).clear();</span>
+<span class="fc" id="L217">  }</span>
+
+  /** Invalidates all entries in the cache. */
+  public synchronized void invalidateAll() {
+<span class="fc" id="L221">    itemMap.clear();</span>
+<span class="fc" id="L222">    prefixMap.clear();</span>
+<span class="fc" id="L223">  }</span>
+
+  /**
+   * Checks if the {@link CacheValue} has expired.
+   *
+   * @param value the value to check.
+   * @return true if the value has expired, false otherwise.
+   */
+  private &lt;V&gt; boolean isExpired(CacheValue&lt;V&gt; value) {
+<span class="fc" id="L232">    long diff = ticker.read() - value.getCreationTime();</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">    return diff &gt; maxEntryAgeNanos;</span>
+  }
+
+  /**
+   * Removes expired list entries that contain the given key. If a list was removed, it's contained
+   * items are checked for expiration too.
+   *
+   * @param key the key to cleanup the list entries for.
+   */
+  private void cleanupLists(PrefixKey key) {
+    // Remove expired list entries. Keep track of the last list removed.
+<span class="fc" id="L244">    NavigableMap&lt;PrefixKey, CacheValue&lt;Object&gt;&gt; head = prefixMap.headMap(key, true).descendingMap();</span>
+<span class="fc" id="L245">    Iterator&lt;Entry&lt;PrefixKey, CacheValue&lt;Object&gt;&gt;&gt; headItr = head.entrySet().iterator();</span>
+<span class="fc" id="L246">    Entry&lt;PrefixKey, CacheValue&lt;Object&gt;&gt; last = null;</span>
+
+<span class="fc bfc" id="L248" title="All 2 branches covered.">    while (headItr.hasNext()) {</span>
+<span class="fc" id="L249">      Entry&lt;PrefixKey, CacheValue&lt;Object&gt;&gt; entry = headItr.next();</span>
+<span class="pc bpc" id="L250" title="1 of 4 branches missed.">      if (isExpired(entry.getValue()) &amp;&amp; key.isParent(entry.getKey())) {</span>
+<span class="fc" id="L251">        last = entry;</span>
+<span class="fc" id="L252">        headItr.remove();</span>
+      }
+<span class="fc" id="L254">    }</span>
+
+    // If a list was removed, check its contained items for expiration.
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">    if (last != null) {</span>
+<span class="fc" id="L258">      SortedMap&lt;PrefixKey, CacheValue&lt;GoogleCloudStorageItemInfo&gt;&gt; prefix =</span>
+<span class="fc" id="L259">          getPrefixSubMap(itemMap, last.getKey());</span>
+<span class="fc" id="L260">      prefix.entrySet().removeIf(entry -&gt; isExpired(entry.getValue()));</span>
+    }
+<span class="fc" id="L262">  }</span>
+
+  /**
+   * Extracts all the cached values in a map.
+   *
+   * @param map the map to extract the cached values from.
+   * @return a list of references to cached values in the map. If the is empty, and empty list is
+   *     returned.
+   */
+  private static &lt;K, V&gt; List&lt;V&gt; aggregateCacheValues(Map&lt;K, CacheValue&lt;V&gt;&gt; map) {
+<span class="fc" id="L272">    List&lt;V&gt; values = new ArrayList&lt;&gt;(map.size());</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">    for (Map.Entry&lt;K, CacheValue&lt;V&gt;&gt; entry : map.entrySet()) {</span>
+<span class="fc" id="L274">      values.add(entry.getValue().getValue());</span>
+<span class="fc" id="L275">    }</span>
+<span class="fc" id="L276">    return values;</span>
+  }
+
+  /**
+   * Helper function that handles creating the lower and upper bounds for calling {@link
+   * SortedMap#subMap(Object, Object)}.
+   *
+   * @see SortedMap#subMap(Object, Object)
+   */
+  private static &lt;E&gt; SortedMap&lt;PrefixKey, E&gt; getPrefixSubMap(
+      TreeMap&lt;PrefixKey, E&gt; map, PrefixKey lowerBound) {
+<span class="fc" id="L287">    PrefixKey upperBound =</span>
+<span class="fc" id="L288">        new PrefixKey(lowerBound.getBucket(), lowerBound.getObjectName() + Character.MAX_VALUE);</span>
+<span class="fc" id="L289">    return map.subMap(lowerBound, upperBound);</span>
+  }
+
+  /**
+   * Helper function that finds the parent entry (inclusive) for the given upper bound. This is like
+   * {@link TreeMap#floorEntry(Object)}, but does additional filtering.
+   *
+   * @param map the map to find the parent entry in.
+   * @param upperBound the upper bound to search for a parent.
+   * @return the parent entry for the given upper bound, null if no entry was found.
+   */
+  private static &lt;E&gt; Entry&lt;PrefixKey, E&gt; getParentEntry(
+      TreeMap&lt;PrefixKey, E&gt; map, PrefixKey upperBound) {
+<span class="fc" id="L302">    NavigableMap&lt;PrefixKey, E&gt; head = map.headMap(upperBound, true).descendingMap();</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">    for (Entry&lt;PrefixKey, E&gt; entry : head.entrySet()) {</span>
+<span class="pc bpc" id="L304" title="1 of 2 branches missed.">      if (upperBound.isParent(entry.getKey())) {</span>
+<span class="fc" id="L305">        return entry;</span>
+      }
+<span class="nc" id="L307">    }</span>
+<span class="fc" id="L308">    return null;</span>
+  }
+
+  /** Gets all the items in the item map without modifying the map. Used for testing only. */
+  @VisibleForTesting
+  List&lt;GoogleCloudStorageItemInfo&gt; getAllItemsRaw() {
+<span class="fc" id="L314">    return aggregateCacheValues(itemMap);</span>
+  }
+
+  /** Checks if the prefix map contains an exact entry for the given bucket/objectName. */
+  @VisibleForTesting
+  boolean containsListRaw(String bucket, String objectName) {
+<span class="fc" id="L320">    return prefixMap.containsKey(new PrefixKey(bucket, objectName));</span>
+  }
+
+  /**
+   * Container for various cache-configuration parameters used by a {@link PrefixMappedItemCache}
+   * when managing expiration/retention policies, etc.
+   */
+<span class="fc" id="L327">  public static class Config {</span>
+    /** The time in milliseconds before an entry expires. */
+    private long maxEntryAgeMillis;
+
+    /** Ticker for tracking expirations. */
+<span class="fc" id="L332">    private Ticker ticker = Ticker.systemTicker();</span>
+
+    /** Gets the time in milliseconds before an entry expires. */
+    public long getMaxEntryAgeMillis() {
+<span class="fc" id="L336">      return maxEntryAgeMillis;</span>
+    }
+
+    /** Sets the time in milliseconds before an entry expires. */
+    public void setMaxEntryAgeMillis(long maxEntryAgeMillis) {
+<span class="fc" id="L341">      this.maxEntryAgeMillis = maxEntryAgeMillis;</span>
+<span class="fc" id="L342">    }</span>
+
+    /** Gets the ticker for tracking expirations. */
+    public Ticker getTicker() {
+<span class="fc" id="L346">      return ticker;</span>
+    }
+
+    /** Sets the ticker for tracking expirations. */
+    public void setTicker(Ticker ticker) {
+<span class="fc" id="L351">      this.ticker = ticker;</span>
+<span class="fc" id="L352">    }</span>
+  }
+
+  /**
+   * Tuple of a value and a creation time in nanoseconds.
+   *
+   * @param &lt;V&gt; the type of the value being cached.
+   */
+  private static class CacheValue&lt;V&gt; {
+    /** The value being cached. */
+    private final V value;
+
+    /** The time the entry was created in nanoseconds. */
+    private final long creationTime;
+
+    /**
+     * Creates a new {@link CacheValue}.
+     *
+     * @param value the value being cached.
+     * @param creationTime the time the entry was created in nanoseconds.
+     */
+<span class="fc" id="L373">    public CacheValue(V value, long creationTime) {</span>
+<span class="fc" id="L374">      this.value = value;</span>
+<span class="fc" id="L375">      this.creationTime = creationTime;</span>
+<span class="fc" id="L376">    }</span>
+
+    /** Gets the value being cached. */
+    public V getValue() {
+<span class="fc" id="L380">      return value;</span>
+    }
+
+    /** Gets the time the entry was created in nanoseconds. */
+    public long getCreationTime() {
+<span class="fc" id="L385">      return creationTime;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L390">      return &quot;CacheValue [value=&quot; + value + &quot;, creationTime=&quot; + creationTime + &quot;]&quot;;</span>
+    }
+  }
+
+  /** A class that represents a unique key for an entry in the prefix cache. */
+  private static class PrefixKey implements Comparable&lt;PrefixKey&gt; {
+
+    /**
+     * Instance of a comparator that compares {@link PrefixKey}'s. This is provided for the TreeMap
+     * to off-load to for performance reasons. This throws a NullPointerException if either of the
+     * entries being compared are null.
+     */
+<span class="fc" id="L402">    public static final Comparator&lt;PrefixKey&gt; COMPARATOR = naturalOrder();</span>
+
+    /** The bucket for the entry. */
+    private final String bucket;
+
+    /** The object name for the entry. */
+    private final String objectName;
+
+    /**
+     * Creates a new {@link PrefixKey}.
+     *
+     * @param bucket the bucket for the entry. If this string is null, it is converted to empty
+     *     string.
+     * @param objectName the object name for the entry. If this string is null, it is converted to
+     *     empty string.
+     * @throws IllegalArgumentException if the bucket is null and object is not null.
+     */
+<span class="fc" id="L419">    public PrefixKey(String bucket, @Nullable String objectName) {</span>
+<span class="pc bpc" id="L420" title="1 of 4 branches missed.">      Preconditions.checkArgument(</span>
+          bucket != null || objectName == null, &quot;bucket must not be null if object is not null.&quot;);
+<span class="fc" id="L422">      this.bucket = nullToEmpty(bucket);</span>
+<span class="fc" id="L423">      this.objectName = nullToEmpty(objectName);</span>
+<span class="fc" id="L424">    }</span>
+
+    /** Gets the bucket for the entry. */
+    public String getBucket() {
+<span class="fc" id="L428">      return bucket;</span>
+    }
+
+    /** Gets the object name for the entry. */
+    public String getObjectName() {
+<span class="fc" id="L433">      return objectName;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L438">      return &quot;PrefixKey [bucket=&quot; + bucket + &quot;, objectName=&quot; + objectName + &quot;]&quot;;</span>
+    }
+
+    /**
+     * Checks if the given {@link PrefixKey} is a parent of this. A parent exists in the same bucket
+     * and its object name is a prefix to this one.
+     */
+    public boolean isParent(PrefixKey other) {
+<span class="pc bpc" id="L446" title="1 of 4 branches missed.">      return bucket.equals(other.bucket) &amp;&amp; objectName.startsWith(other.objectName);</span>
+    }
+
+    /**
+     * Compares based on bucket, then by object name if the buckets are equal.
+     *
+     * @throws NullPointerException if the other {@link PrefixKey} is null.
+     */
+    @Override
+    public int compareTo(PrefixKey other) {
+<span class="fc" id="L456">      int result = bucket.compareTo(other.bucket);</span>
+<span class="fc bfc" id="L457" title="All 2 branches covered.">      return result == 0 ? objectName.compareTo(other.objectName) : result;</span>
+    }
+
+    /** Generates hash based on bucket and objectName. */
+    @Override
+    public int hashCode() {
+<span class="nc" id="L463">      final int prime = 31;</span>
+<span class="nc" id="L464">      int result = 1;</span>
+<span class="nc" id="L465">      result = prime * result + bucket.hashCode();</span>
+<span class="nc" id="L466">      result = prime * result + objectName.hashCode();</span>
+<span class="nc" id="L467">      return result;</span>
+    }
+
+    /** Compares by bucket and objectName. */
+    @Override
+    public boolean equals(Object obj) {
+<span class="nc bnc" id="L473" title="All 2 branches missed.">      if (this == obj) {</span>
+<span class="nc" id="L474">        return true;</span>
+      }
+<span class="nc bnc" id="L476" title="All 2 branches missed.">      if (obj == null) {</span>
+<span class="nc" id="L477">        return false;</span>
+      }
+<span class="nc bnc" id="L479" title="All 2 branches missed.">      if (!(obj instanceof PrefixKey)) {</span>
+<span class="nc" id="L480">        return false;</span>
+      }
+
+<span class="nc" id="L483">      PrefixKey other = (PrefixKey) obj;</span>
+
+<span class="nc bnc" id="L485" title="All 4 branches missed.">      if (!bucket.equals(other.bucket) || !objectName.equals(other.objectName)) {</span>
+<span class="nc" id="L486">        return false;</span>
+      }
+
+<span class="nc" id="L489">      return true;</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

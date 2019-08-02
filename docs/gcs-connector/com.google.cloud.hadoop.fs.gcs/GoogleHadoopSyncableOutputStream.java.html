@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GoogleHadoopSyncableOutputStream.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcs-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.fs.gcs</a> &gt; <span class="el_source">GoogleHadoopSyncableOutputStream.java</span></div><h1>GoogleHadoopSyncableOutputStream.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2016 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.fs.gcs;
+
+import com.google.cloud.hadoop.gcsio.CreateFileOptions;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystem;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageItemInfo;
+import com.google.cloud.hadoop.gcsio.StorageResourceId;
+import com.google.common.collect.ImmutableList;
+import com.google.common.flogger.GoogleLogger;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URI;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.WritableByteChannel;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.Syncable;
+
+/**
+ * GoogleHadoopSyncableOutputStream implements the {@code Syncable} interface by composing objects
+ * created in separate underlying streams for each hsync() call.
+ *
+ * &lt;p&gt;Prior to the first hsync(), sync() or close() call, this channel will behave the same way as a
+ * basic non-syncable channel, writing directly to the destination file.
+ *
+ * &lt;p&gt;On the first call to hsync()/sync(), the destination file is committed and a new temporary
+ * file using a hidden-file prefix (underscore) is created with an additional suffix which differs
+ * for each subsequent temporary file in the series; during this time readers can read the data
+ * committed to the destination file, but not the bytes written to the temporary file since the last
+ * hsync() call.
+ *
+ * &lt;p&gt;On each subsequent hsync()/sync() call, the temporary file closed(), composed onto the
+ * destination file, then deleted, and a new temporary file is opened under a new filename for
+ * further writes.
+ *
+ * &lt;p&gt;Caveat: each hsync()/sync() requires many underlying read and mutation requests occurring
+ * sequentially, so latency is expected to be fairly high.
+ *
+ * &lt;p&gt;If errors occur mid-stream, there may be one or more temporary files failing to be cleaned up,
+ * and require manual intervention to discover and delete any such unused files. Data written prior
+ * to the most recent successful hsync() is persistent and safe in such a case.
+ *
+ * &lt;p&gt;If multiple writers are attempting to write to the same destination file, generation ids used
+ * with low-level precondition checks will cause all but a one writer to fail their precondition
+ * checks during writes, and a single remaining writer will safely occupy the stream.
+ */
+public class GoogleHadoopSyncableOutputStream extends OutputStream implements Syncable {
+<span class="fc" id="L70">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // Prefix used for all temporary files created by this stream.
+  public static final String TEMPFILE_PREFIX = &quot;_GCS_SYNCABLE_TEMPFILE_&quot;;
+
+  // Temporary files don't need to contain the desired attributes of the final destination file
+  // since metadata settings get clobbered on final compose() anyways; additionally, due to
+  // the way we pick temp file names and already ensured directories for the destination file,
+  // we can optimize tempfile creation by skipping various directory checks.
+<span class="fc" id="L79">  private static final CreateFileOptions TEMPFILE_CREATE_OPTIONS =</span>
+      new CreateFileOptions(
+          /* overwriteExisting= */ false,
+          CreateFileOptions.DEFAULT_CONTENT_TYPE,
+          CreateFileOptions.EMPTY_ATTRIBUTES,
+          /* checkNoDirectoryConflict= */ false,
+          /* ensureParentDirectoriesExist= */ false,
+          /* existingGenerationId= */ 0L);
+
+  // Deletion of temporary files occurs asynchronously for performance reasons, but in-flight
+  // deletions are awaited on close() so as long as all output streams are closed, there should
+  // be no remaining in-flight work occurring inside this threadpool.
+<span class="fc" id="L91">  private static final ExecutorService TEMPFILE_CLEANUP_THREADPOOL =</span>
+<span class="fc" id="L92">      Executors.newCachedThreadPool(</span>
+          new ThreadFactoryBuilder()
+<span class="fc" id="L94">              .setNameFormat(&quot;gcs-syncable-output-stream-cleanup-pool-%d&quot;)</span>
+<span class="fc" id="L95">              .setDaemon(true)</span>
+<span class="fc" id="L96">              .build());</span>
+
+  // Instance of GoogleHadoopFileSystemBase.
+  private final GoogleHadoopFileSystemBase ghfs;
+
+  // The final destination path for this stream.
+  private final URI finalGcsPath;
+
+  // Statistics tracker provided by the parent GoogleHadoopFileSystemBase for recording
+  // numbers of bytes written.
+  private final FileSystem.Statistics statistics;
+
+  // Metadata/overwrite options to use on final file.
+  private final CreateFileOptions fileOptions;
+
+  // List of file-deletion futures accrued during the lifetime of this output stream.
+  private final List&lt;Future&lt;Void&gt;&gt; deletionFutures;
+
+  private final ExecutorService cleanupThreadpool;
+
+  // Current GCS path pointing at the &quot;tail&quot; file which will be appended to the destination
+  // on each hsync() call.
+  private URI curGcsPath;
+
+  // Current OutputStream pointing at the &quot;tail&quot; file which will be appended to the destination
+  // on each hsync() call.
+  private GoogleHadoopOutputStream curDelegate;
+
+  // Stores the current component index corresponding curGcsPath. If close() is called, the total
+  // number of components in the finalGcsPath will be curComponentIndex + 1.
+  private int curComponentIndex;
+
+  // The last known generationId of the final destination file, or possibly
+  // StorageResourceId.UNKNOWN_GENERATION_ID if unknown.
+  private long curDestGenerationId;
+
+  /**
+   * Creates a new GoogleHadoopSyncableOutputStream with initial stream initialized and expected to
+   * begin at file-offset 0. This constructor is not suitable for &quot;appending&quot; to already existing
+   * files.
+   */
+  public GoogleHadoopSyncableOutputStream(
+      GoogleHadoopFileSystemBase ghfs,
+      URI gcsPath,
+      FileSystem.Statistics statistics,
+      CreateFileOptions createFileOptions)
+      throws IOException {
+<span class="fc" id="L143">    this(ghfs, gcsPath, statistics, createFileOptions, TEMPFILE_CLEANUP_THREADPOOL);</span>
+<span class="fc" id="L144">  }</span>
+
+  GoogleHadoopSyncableOutputStream(
+      GoogleHadoopFileSystemBase ghfs,
+      URI gcsPath,
+      FileSystem.Statistics statistics,
+      CreateFileOptions createFileOptions,
+      ExecutorService cleanupThreadpool)
+<span class="fc" id="L152">      throws IOException {</span>
+<span class="fc" id="L153">    logger.atFine().log(&quot;GoogleHadoopSyncableOutputStream(%s)&quot;, gcsPath);</span>
+<span class="fc" id="L154">    this.ghfs = ghfs;</span>
+<span class="fc" id="L155">    this.finalGcsPath = gcsPath;</span>
+<span class="fc" id="L156">    this.statistics = statistics;</span>
+<span class="fc" id="L157">    this.fileOptions = createFileOptions;</span>
+<span class="fc" id="L158">    this.deletionFutures = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L159">    this.cleanupThreadpool = cleanupThreadpool;</span>
+
+    // The first component of the stream will go straight to the destination filename to optimize
+    // the case where no hsync() or a single hsync() is called during the lifetime of the stream;
+    // committing the first component thus doesn't require any compose() call under the hood.
+<span class="fc" id="L164">    this.curGcsPath = gcsPath;</span>
+<span class="fc" id="L165">    this.curDelegate = new GoogleHadoopOutputStream(ghfs, curGcsPath, statistics, fileOptions);</span>
+
+    // TODO(user): Make sure to initialize this to the correct value if a new stream is created to
+    // &quot;append&quot; to an existing file.
+<span class="fc" id="L169">    this.curComponentIndex = 0;</span>
+
+<span class="fc" id="L171">    this.curDestGenerationId = StorageResourceId.UNKNOWN_GENERATION_ID;</span>
+<span class="fc" id="L172">  }</span>
+
+  @Override
+  public void write(int b) throws IOException {
+<span class="fc" id="L176">    throwIfNotOpen();</span>
+<span class="fc" id="L177">    curDelegate.write(b);</span>
+<span class="fc" id="L178">  }</span>
+
+  @Override
+  public void write(byte[] b, int offset, int len) throws IOException {
+<span class="fc" id="L182">    throwIfNotOpen();</span>
+<span class="fc" id="L183">    curDelegate.write(b, offset, len);</span>
+<span class="fc" id="L184">  }</span>
+
+  @Override
+  public void close() throws IOException {
+<span class="fc" id="L188">    logger.atFine().log(</span>
+        &quot;close(): Current tail file: %s final destination: %s&quot;, curGcsPath, finalGcsPath);
+<span class="fc bfc" id="L190" title="All 2 branches covered.">    if (!isOpen()) {</span>
+<span class="fc" id="L191">      logger.atFine().log(&quot;close(): Ignoring; stream already closed.&quot;);</span>
+<span class="fc" id="L192">      return;</span>
+    }
+<span class="fc" id="L194">    commitCurrentFile();</span>
+
+    // null denotes stream closed.
+    // TODO(user): Add checks which throw IOException if further operations are attempted on a
+    // closed stream, except for multiple calls to close(), which should behave as no-ops.
+<span class="fc" id="L199">    curGcsPath = null;</span>
+<span class="fc" id="L200">    curDelegate = null;</span>
+
+<span class="fc" id="L202">    logger.atFine().log(&quot;close(): Awaiting %s deletionFutures&quot;, deletionFutures.size());</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">    for (Future&lt;?&gt; deletion : deletionFutures) {</span>
+      try {
+<span class="fc" id="L205">        deletion.get();</span>
+<span class="fc" id="L206">      } catch (ExecutionException | InterruptedException ee) {</span>
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (ee.getCause() instanceof IOException) {</span>
+<span class="nc" id="L208">          throw (IOException) ee.getCause();</span>
+        } else {
+<span class="fc" id="L210">          throw new IOException(ee);</span>
+        }
+<span class="fc" id="L212">      }</span>
+<span class="fc" id="L213">    }</span>
+<span class="fc" id="L214">    logger.atFine().log(&quot;close(): done&quot;);</span>
+<span class="fc" id="L215">  }</span>
+
+  public void sync() throws IOException {
+<span class="fc" id="L218">    hsync();</span>
+<span class="fc" id="L219">  }</span>
+
+  /**
+   * There is no way to flush data to become available for readers without a full-fledged hsync(),
+   * so this method is a no-op.
+   */
+  @Override
+  public void hflush() throws IOException {
+<span class="nc" id="L227">    logger.atWarning().log(</span>
+        &quot;hflush() is a no-op; readers will *not* yet see flushed data for %s&quot;, finalGcsPath);
+<span class="nc" id="L229">    throwIfNotOpen();</span>
+<span class="nc" id="L230">  }</span>
+
+  /**
+   * @throws CompositeLimitExceededException if this hsync() call would require any future close()
+   *     call to exceed the component limit. If CompositeLimitExceededException is thrown, no actual
+   *     GCS operations are taken and it's safe to subsequently call close() on this stream as
+   *     normal; it just means data written since the last successful hsync() has not yet been
+   *     committed.
+   */
+  @Override
+  public void hsync() throws IOException {
+<span class="fc" id="L241">    logger.atFine().log(</span>
+        &quot;hsync(): Committing tail file %s to final destination %s&quot;, curGcsPath, finalGcsPath);
+<span class="fc" id="L243">    throwIfNotOpen();</span>
+<span class="fc" id="L244">    long startTime = System.nanoTime();</span>
+
+<span class="fc" id="L246">    commitCurrentFile();</span>
+
+    // Use a different temporary path for each temporary component to reduce the possible avenues of
+    // race conditions in the face of low-level retries, etc.
+<span class="fc" id="L250">    ++curComponentIndex;</span>
+<span class="fc" id="L251">    curGcsPath = getNextTemporaryPath();</span>
+
+<span class="fc" id="L253">    logger.atFine().log(</span>
+        &quot;hsync(): Opening next temporary tail file %s as component number %s&quot;,
+        curGcsPath, curComponentIndex);
+<span class="fc" id="L256">    curDelegate =</span>
+        new GoogleHadoopOutputStream(ghfs, curGcsPath, statistics, TEMPFILE_CREATE_OPTIONS);
+<span class="fc" id="L258">    long endTime = System.nanoTime();</span>
+<span class="fc" id="L259">    logger.atFine().log(&quot;Took %d ns to hsync()&quot;, endTime - startTime);</span>
+<span class="fc" id="L260">  }</span>
+
+  private void commitCurrentFile() throws IOException {
+    // TODO(user): Optimize the case where 0 bytes have been written in the current component
+    // to return early.
+<span class="fc" id="L265">    WritableByteChannel innerChannel = curDelegate.getInternalChannel();</span>
+<span class="fc" id="L266">    curDelegate.close();</span>
+
+<span class="fc" id="L268">    long generationId = StorageResourceId.UNKNOWN_GENERATION_ID;</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">    if (innerChannel instanceof GoogleCloudStorageItemInfo.Provider) {</span>
+<span class="fc" id="L270">      generationId = ((GoogleCloudStorageItemInfo.Provider) innerChannel)</span>
+<span class="fc" id="L271">          .getItemInfo().getContentGeneration();</span>
+<span class="fc" id="L272">      logger.atFine().log(</span>
+          &quot;innerChannel is GoogleCloudStorageItemInfo.Provider; closed generationId %s.&quot;,
+          generationId);
+    } else {
+<span class="nc" id="L276">      logger.atFine().log(&quot;innerChannel NOT instanceof provider: %s&quot;, innerChannel.getClass());</span>
+    }
+
+    // On the first component, curGcsPath will equal finalGcsPath, and no compose() call is
+    // necessary. Otherwise, we compose in-place into the destination object and then delete
+    // the temporary object.
+<span class="fc bfc" id="L282" title="All 2 branches covered.">    if (!finalGcsPath.equals(curGcsPath)) {</span>
+<span class="fc" id="L283">      StorageResourceId destResourceId =</span>
+<span class="fc" id="L284">          StorageResourceId.fromObjectName(finalGcsPath.toString(), curDestGenerationId);</span>
+<span class="fc" id="L285">      final StorageResourceId tempResourceId =</span>
+<span class="fc" id="L286">          StorageResourceId.fromObjectName(curGcsPath.toString(), generationId);</span>
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">      if (!destResourceId.getBucketName().equals(tempResourceId.getBucketName())) {</span>
+<span class="nc" id="L288">        throw new IllegalStateException(String.format(</span>
+            &quot;Destination bucket in path '%s' doesn't match temp file bucket in path '%s'&quot;,
+            finalGcsPath, curGcsPath));
+      }
+<span class="fc" id="L292">      GoogleCloudStorageItemInfo composedObject = ghfs.getGcsFs().getGcs().composeObjects(</span>
+<span class="fc" id="L293">          ImmutableList.of(destResourceId, tempResourceId),</span>
+          destResourceId,
+<span class="fc" id="L295">          GoogleCloudStorageFileSystem.objectOptionsFromFileOptions(fileOptions));</span>
+<span class="fc" id="L296">      curDestGenerationId = composedObject.getContentGeneration();</span>
+<span class="fc" id="L297">      deletionFutures.add(</span>
+<span class="fc" id="L298">          cleanupThreadpool.submit(</span>
+              () -&gt; {
+<span class="fc" id="L300">                ghfs.getGcsFs().getGcs().deleteObjects(ImmutableList.of(tempResourceId));</span>
+<span class="fc" id="L301">                return null;</span>
+              }));
+<span class="fc" id="L303">    } else {</span>
+      // First commit was direct to the destination; the generationId of the object we just
+      // committed will be used as the destination generation id for future compose calls.
+<span class="fc" id="L306">      curDestGenerationId = generationId;</span>
+    }
+<span class="fc" id="L308">  }</span>
+
+  /**
+   * Returns URI to be used for the next &quot;tail&quot; file in the series.
+   */
+  private URI getNextTemporaryPath() {
+<span class="fc" id="L314">    Path basePath = ghfs.getHadoopPath(finalGcsPath);</span>
+<span class="fc" id="L315">    Path baseDir = basePath.getParent();</span>
+<span class="fc" id="L316">    Path tempPath = new Path(</span>
+        baseDir,
+<span class="fc" id="L318">        String.format(&quot;%s%s.%d.%s&quot;,</span>
+<span class="fc" id="L319">            TEMPFILE_PREFIX, basePath.getName(), curComponentIndex, UUID.randomUUID().toString()));</span>
+<span class="fc" id="L320">    return ghfs.getGcsPath(tempPath);</span>
+  }
+
+  private boolean isOpen() {
+<span class="fc bfc" id="L324" title="All 2 branches covered.">    return curDelegate != null;</span>
+  }
+
+  private void throwIfNotOpen() throws IOException {
+<span class="fc bfc" id="L328" title="All 2 branches covered.">    if (!isOpen()) {</span>
+<span class="fc" id="L329">      throw new ClosedChannelException();</span>
+    }
+<span class="fc" id="L331">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

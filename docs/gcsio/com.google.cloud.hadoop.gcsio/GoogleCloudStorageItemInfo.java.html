@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>GoogleCloudStorageItemInfo.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">GoogleCloudStorageItemInfo.java</span></div><h1>GoogleCloudStorageItemInfo.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.Map;
+import java.util.Objects;
+
+/** Contains information about an item in Google Cloud Storage. */
+public class GoogleCloudStorageItemInfo {
+  /**
+   * Convenience interface for classes which want to implement Provider of
+   * GoogleCloudStorageItemInfo for callers which may not know the concrete type of an object, but
+   * want to check if the object happens to be an instance of this InfoProvider.
+   */
+  public static interface Provider {
+    GoogleCloudStorageItemInfo getItemInfo();
+  }
+
+  // Info about the root of GCS namespace.
+<span class="fc" id="L40">  public static final GoogleCloudStorageItemInfo ROOT_INFO =</span>
+      new GoogleCloudStorageItemInfo(StorageResourceId.ROOT, 0, 0, null, null);
+
+  // Instead of returning null metadata, we'll return this map.
+<span class="fc" id="L44">  private static final ImmutableMap&lt;String, byte[]&gt; EMPTY_METADATA = ImmutableMap.of();</span>
+
+  /** Helper for creating a &quot;found&quot; GoogleCloudStorageItemInfo for an inferred directory. */
+  public static GoogleCloudStorageItemInfo createInferredDirectory(StorageResourceId resourceId) {
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">    checkArgument(resourceId != null, &quot;resourceId must not be null&quot;);</span>
+<span class="fc" id="L49">    return new GoogleCloudStorageItemInfo(</span>
+        resourceId,
+        /* creationTime= */ 0,
+        /* size= */ 0,
+        /* location= */ null,
+        /* storageClass= */ null);
+  }
+
+  /** Helper for creating a &quot;not found&quot; GoogleCloudStorageItemInfo for a StorageResourceId. */
+  public static GoogleCloudStorageItemInfo createNotFound(StorageResourceId resourceId) {
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">    checkArgument(resourceId != null, &quot;resourceId must not be null&quot;);</span>
+    // Bucket or StorageObject.
+<span class="fc" id="L61">    return new GoogleCloudStorageItemInfo(</span>
+        resourceId,
+        /* creationTime= */ 0,
+        /* size= */ -1,
+        /* location= */ null,
+        /* storageClass= */ null);
+  }
+
+  // The Bucket and maybe StorageObject names of the GCS &quot;item&quot; referenced by this object. Not null.
+  private final StorageResourceId resourceId;
+
+  // Creation time of this item.
+  // Time is expressed as milliseconds since January 1, 1970 UTC.
+  private final long creationTime;
+
+  // Size of an object (number of bytes).
+  // Size is -1 for items that do not exist.
+  private final long size;
+
+  // Location of this item.
+  private final String location;
+
+  // Storage class of this item.
+  private final String storageClass;
+
+  // Content-Type of this item
+  private final String contentType;
+
+  private final String contentEncoding;
+
+  // User-supplied metadata.
+  private final Map&lt;String, byte[]&gt; metadata;
+  private final long contentGeneration;
+  private final long metaGeneration;
+  private final VerificationAttributes verificationAttributes;
+
+  /**
+   * Constructs an instance of GoogleCloudStorageItemInfo.
+   *
+   * @param resourceId identifies either root, a Bucket, or a StorageObject
+   * @param creationTime Time when object was created (milliseconds since January 1, 1970 UTC).
+   * @param size Size of the given object (number of bytes) or -1 if the object does not exist.
+   */
+  public GoogleCloudStorageItemInfo(StorageResourceId resourceId,
+      long creationTime, long size, String location, String storageClass) {
+<span class="fc" id="L106">    this(</span>
+        resourceId,
+        creationTime,
+        size,
+        location,
+        storageClass,
+        /* contentType= */ null,
+        /* contentEncoding= */ null,
+<span class="fc" id="L114">        /* metadata= */ ImmutableMap.&lt;String, byte[]&gt;of(),</span>
+        /* contentGeneration= */ 0,
+        /* metaGeneration= */ 0);
+<span class="fc" id="L117">  }</span>
+
+  /**
+   * Constructs an instance of GoogleCloudStorageItemInfo.
+   *
+   * @param resourceId identifies either root, a Bucket, or a StorageObject
+   * @param creationTime Time when object was created (milliseconds since January 1, 1970 UTC).
+   * @param size Size of the given object (number of bytes) or -1 if the object does not exist.
+   * @param metadata User-supplied object metadata for this object.
+   */
+  public GoogleCloudStorageItemInfo(
+      StorageResourceId resourceId,
+      long creationTime,
+      long size,
+      String location,
+      String storageClass,
+      String contentType,
+      String contentEncoding,
+      Map&lt;String, byte[]&gt; metadata,
+      long contentGeneration,
+      long metaGeneration) {
+<span class="fc" id="L138">    this(</span>
+        resourceId,
+        creationTime,
+        size,
+        location,
+        storageClass,
+        contentType,
+        contentEncoding,
+        metadata,
+        contentGeneration,
+        metaGeneration,
+        new VerificationAttributes(null, null));
+<span class="fc" id="L150">  }</span>
+
+  /**
+   * Constructs an instance of GoogleCloudStorageItemInfo.
+   *
+   * @param resourceId identifies either root, a Bucket, or a StorageObject
+   * @param creationTime Time when object was created (milliseconds since January 1, 1970 UTC).
+   * @param size Size of the given object (number of bytes) or -1 if the object does not exist.
+   * @param metadata User-supplied object metadata for this object.
+   */
+  public GoogleCloudStorageItemInfo(
+      StorageResourceId resourceId,
+      long creationTime,
+      long size,
+      String location,
+      String storageClass,
+      String contentType,
+      String contentEncoding,
+      Map&lt;String, byte[]&gt; metadata,
+      long contentGeneration,
+      long metaGeneration,
+<span class="fc" id="L171">      VerificationAttributes verificationAttributes) {</span>
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">    Preconditions.checkArgument(resourceId != null,</span>
+        &quot;resourceId must not be null! Use StorageResourceId.ROOT to represent GCS root.&quot;);
+<span class="fc" id="L174">    this.resourceId = resourceId;</span>
+<span class="fc" id="L175">    this.creationTime = creationTime;</span>
+<span class="fc" id="L176">    this.size = size;</span>
+<span class="fc" id="L177">    this.location = location;</span>
+<span class="fc" id="L178">    this.storageClass = storageClass;</span>
+<span class="fc" id="L179">    this.contentType = contentType;</span>
+<span class="fc" id="L180">    this.contentEncoding = contentEncoding;</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">    this.metadata = (metadata == null) ? EMPTY_METADATA : metadata;</span>
+<span class="fc" id="L182">    this.contentGeneration = contentGeneration;</span>
+<span class="fc" id="L183">    this.metaGeneration = metaGeneration;</span>
+<span class="fc" id="L184">    this.verificationAttributes = verificationAttributes;</span>
+<span class="fc" id="L185">  }</span>
+
+  /**
+   * Gets bucket name of this item.
+   */
+  public String getBucketName() {
+<span class="fc" id="L191">    return resourceId.getBucketName();</span>
+  }
+
+  /**
+   * Gets object name of this item.
+   */
+  public String getObjectName() {
+<span class="fc" id="L198">    return resourceId.getObjectName();</span>
+  }
+
+  /**
+   * Gets the resourceId that holds the (possibly null) bucketName and objectName of this object.
+   */
+  public StorageResourceId getResourceId() {
+<span class="fc" id="L205">    return resourceId;</span>
+  }
+
+  /**
+   * Gets creation time of this item.
+   *
+   * Time is expressed as milliseconds since January 1, 1970 UTC.
+   */
+  public long getCreationTime() {
+<span class="fc" id="L214">    return creationTime;</span>
+  }
+
+  /**
+   * Gets size of this item (number of bytes). Returns -1 if the object
+   * does not exist.
+   */
+  public long getSize() {
+<span class="fc" id="L222">    return size;</span>
+  }
+
+  /**
+   * Gets location of this item.
+   *
+   * Note: Location is only supported for buckets. The value is always null for objects.
+   */
+  public String getLocation() {
+<span class="fc" id="L231">    return location;</span>
+  }
+
+  /**
+   * Gets storage class of this item.
+   *
+   * Note: Storage-class is only supported for buckets. The value is always null for objects.
+   */
+  public String getStorageClass() {
+<span class="fc" id="L240">    return storageClass;</span>
+  }
+
+  /**
+   * Gets the content-type of this item, or null if unknown or inapplicable.
+   *
+   * Note: content-type is only supported for objects, and will always be null for buckets.
+   */
+  public String getContentType() {
+<span class="fc" id="L249">    return contentType;</span>
+  }
+
+  /**
+   * Gets the content-encoding of this item, or null if unknown or inapplicable.
+   *
+   * &lt;p&gt;Note: content-encoding is only supported for objects, and will always be null for buckets.
+   */
+  public String getContentEncoding() {
+<span class="fc" id="L258">    return contentEncoding;</span>
+  }
+
+  /**
+   * Gets user-supplied metadata for this item.
+   *
+   * Note: metadata is only supported for objects. This value is always an empty map for buckets.
+   */
+  public Map&lt;String, byte[]&gt; getMetadata() {
+<span class="fc" id="L267">    return metadata;</span>
+  }
+
+  /**
+   * Indicates whether this item is a bucket. Root is not considered to be a bucket.
+   */
+  public boolean isBucket() {
+<span class="fc" id="L274">    return resourceId.isBucket();</span>
+  }
+
+  /**
+   * Indicates whether this item refers to the GCS root (gs://).
+   */
+  public boolean isRoot() {
+<span class="fc" id="L281">    return resourceId.isRoot();</span>
+  }
+
+  /**
+   * Indicates whether this item exists.
+   */
+  public boolean exists() {
+<span class="fc bfc" id="L288" title="All 2 branches covered.">    return size &gt;= 0;</span>
+  }
+
+  /**
+   * Get the content generation of the object.
+   */
+  public long getContentGeneration() {
+<span class="fc" id="L295">    return contentGeneration;</span>
+  }
+
+  /**
+   * Get the meta generation of the object.
+   */
+  public long getMetaGeneration() {
+<span class="fc" id="L302">    return metaGeneration;</span>
+  }
+
+  /**
+   * Get object validation attributes.
+   */
+  public VerificationAttributes getVerificationAttributes() {
+<span class="fc" id="L309">    return verificationAttributes;</span>
+  }
+
+  /**
+   * Helper for checking logical equality of metadata maps, checking equality of keySet() between
+   * this.metadata and otherMetadata, and then using Arrays.equals to compare contents of
+   * corresponding byte arrays.
+   */
+  public boolean metadataEquals(Map&lt;String, byte[]&gt; otherMetadata) {
+<span class="fc bfc" id="L318" title="All 2 branches covered.">    if (metadata == otherMetadata) {</span>
+      // Fast-path for common cases where the same actual default metadata instance may be used in
+      // multiple different item infos.
+<span class="fc" id="L321">      return true;</span>
+    }
+    // No need to check if other `metadata` is not null,
+    // because previous `if` checks if both of them are null.
+<span class="pc bpc" id="L325" title="1 of 4 branches missed.">    if (metadata == null || otherMetadata == null) {</span>
+<span class="fc" id="L326">      return false;</span>
+    }
+<span class="fc bfc" id="L328" title="All 2 branches covered.">    if (!metadata.keySet().equals(otherMetadata.keySet())) {</span>
+<span class="fc" id="L329">      return false;</span>
+    }
+
+    // Compare each byte[] with Arrays.equals.
+<span class="fc bfc" id="L333" title="All 2 branches covered.">    for (Map.Entry&lt;String, byte[]&gt; metadataEntry : metadata.entrySet()) {</span>
+<span class="fc bfc" id="L334" title="All 2 branches covered.">      if (!Arrays.equals(metadataEntry.getValue(), otherMetadata.get(metadataEntry.getKey()))) {</span>
+<span class="fc" id="L335">        return false;</span>
+      }
+<span class="fc" id="L337">    }</span>
+<span class="fc" id="L338">    return true;</span>
+  }
+
+  /**
+   * Gets string representation of this instance.
+   */
+  @Override
+  public String toString() {
+<span class="fc bfc" id="L346" title="All 2 branches covered.">    if (exists()) {</span>
+<span class="fc" id="L347">      return String.format(&quot;%s: created on: %s&quot;, resourceId, new Date(creationTime));</span>
+    } else {
+<span class="fc" id="L349">      return String.format(&quot;%s: exists: no&quot;, resourceId);</span>
+    }
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+<span class="fc bfc" id="L355" title="All 2 branches covered.">    if (obj instanceof GoogleCloudStorageItemInfo) {</span>
+<span class="fc" id="L356">      GoogleCloudStorageItemInfo other = (GoogleCloudStorageItemInfo) obj;</span>
+<span class="pc bpc" id="L357" title="2 of 6 branches missed.">      return resourceId.equals(other.resourceId)</span>
+          &amp;&amp; creationTime == other.creationTime
+          &amp;&amp; size == other.size
+<span class="pc bpc" id="L360" title="1 of 2 branches missed.">          &amp;&amp; Objects.equals(location, other.location)</span>
+<span class="pc bpc" id="L361" title="1 of 2 branches missed.">          &amp;&amp; Objects.equals(storageClass, other.storageClass)</span>
+<span class="pc bpc" id="L362" title="2 of 6 branches missed.">          &amp;&amp; Objects.equals(verificationAttributes, other.verificationAttributes)</span>
+          &amp;&amp; metaGeneration == other.metaGeneration
+          &amp;&amp; contentGeneration == other.contentGeneration
+<span class="pc bpc" id="L365" title="1 of 2 branches missed.">          &amp;&amp; metadataEquals(other.getMetadata());</span>
+    }
+<span class="fc" id="L367">    return false;</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="nc" id="L372">    final int prime = 31;</span>
+<span class="nc" id="L373">    int result = 1;</span>
+<span class="nc" id="L374">    result = prime * result + resourceId.hashCode();</span>
+<span class="nc" id="L375">    result = prime * result + (int) creationTime;</span>
+<span class="nc" id="L376">    result = prime * result + (int) size;</span>
+<span class="nc" id="L377">    result = prime * result + Objects.hashCode(location);</span>
+<span class="nc" id="L378">    result = prime * result + Objects.hashCode(storageClass);</span>
+<span class="nc" id="L379">    result = prime * result + Objects.hashCode(verificationAttributes);</span>
+<span class="nc" id="L380">    result = prime * result + (int) metaGeneration;</span>
+<span class="nc" id="L381">    result = prime * result + (int) contentGeneration;</span>
+<span class="nc" id="L382">    result = prime * result + metadata.hashCode();</span>
+<span class="nc" id="L383">    return result;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

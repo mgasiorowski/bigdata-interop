@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>BatchHelper.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">BatchHelper.java</span></div><h1>BatchHelper.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.gcsio;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService;
+
+import com.google.api.client.googleapis.batch.BatchRequest;
+import com.google.api.client.googleapis.batch.json.JsonBatchCallback;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.client.http.HttpRequestInitializer;
+import com.google.api.services.storage.Storage;
+import com.google.api.services.storage.StorageRequest;
+import com.google.cloud.hadoop.util.ApiErrorExtractor;
+import com.google.common.flogger.GoogleLogger;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.io.IOException;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+/**
+ * BatchHelper abstracts out the logic for maximum requests per batch, and also allows a workaround
+ * for the fact that {@code BatchRequest} was made a &quot;final class&quot; for some reason, making it
+ * impossible to unittest. Instead, batch interactions with a Storage API client will be funneled
+ * through this class, while unittests can inject a mock batch helper.
+ *
+ * &lt;p&gt;This class is thread-safe, because if {@code numThreads} is greater than 0, request callbacks
+ * will be executed on a different thread(s) than a client thread that queues requests.
+ *
+ * &lt;p&gt;Expected usage is to create a new BatchHelper instance per client operation (copy, rename,
+ * delete, etc.) that represent logical grouping of requests.
+ *
+ * &lt;p&gt;Instance of this class can not be used again after {@link #flush()} method call.
+ */
+public class BatchHelper {
+
+<span class="fc" id="L60">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+<span class="fc" id="L62">  private static final ThreadFactory THREAD_FACTORY =</span>
+<span class="fc" id="L63">      new ThreadFactoryBuilder().setNameFormat(&quot;gcsfs-batch-helper-%d&quot;).setDaemon(true).build();</span>
+
+  /**
+   * Since each BatchHelper instance should be tied to a particular related set of requests, use
+   * cases will generally interact via an injectable BatchHelper.Factory.
+   */
+<span class="fc" id="L69">  public static class Factory {</span>
+    public BatchHelper newBatchHelper(
+        HttpRequestInitializer requestInitializer, Storage gcs, long maxRequestsPerBatch) {
+<span class="fc" id="L72">      return new BatchHelper(requestInitializer, gcs, maxRequestsPerBatch, /* numThreads= */ 0);</span>
+    }
+
+    BatchHelper newBatchHelper(
+        HttpRequestInitializer requestInitializer,
+        Storage gcs,
+        long maxRequestsPerBatch,
+        long totalRequests,
+        int maxThreads) {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">      checkArgument(maxRequestsPerBatch &gt; 0, &quot;maxRequestsPerBatch should be greater than 0&quot;);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">      checkArgument(totalRequests &gt; 0, &quot;totalRequests should be greater than 0&quot;);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">      checkArgument(maxThreads &gt;= 0, &quot;maxThreads should be greater or equal to 0&quot;);</span>
+      // Do not send batch request when performing operations on 1 object.
+<span class="fc bfc" id="L85" title="All 2 branches covered.">      if (totalRequests == 1) {</span>
+<span class="fc" id="L86">        return new BatchHelper(</span>
+            requestInitializer, gcs, /* maxRequestsPerBatch= */ 1, /* numThreads= */ 0);
+      }
+<span class="fc bfc" id="L89" title="All 2 branches covered.">      if (maxThreads == 0) {</span>
+<span class="fc" id="L90">        return new BatchHelper(requestInitializer, gcs, maxRequestsPerBatch, maxThreads);</span>
+      }
+      // If maxRequestsPerBatch is too high to fill up all parallel batches (maxThreads)
+      // then reduce it to evenly distribute requests across the batches
+<span class="fc" id="L94">      long requestsPerBatch = (long) Math.ceil((double) totalRequests / maxThreads);</span>
+<span class="fc" id="L95">      requestsPerBatch = Math.min(requestsPerBatch, maxRequestsPerBatch);</span>
+      // If maxThreads is too high to execute all requests (totalRequests)
+      // in batches (requestsPerBatch) then reduce it to minimum required number of threads
+<span class="fc" id="L98">      int numThreads = Math.toIntExact((long) Math.ceil((double) totalRequests / requestsPerBatch));</span>
+<span class="fc" id="L99">      numThreads = Math.min(numThreads, maxThreads);</span>
+<span class="fc" id="L100">      return new BatchHelper(requestInitializer, gcs, requestsPerBatch, numThreads);</span>
+    }
+  }
+
+  /** Callback that causes a single StorageRequest to be added to the {@link BatchRequest}. */
+  protected static interface QueueRequestCallback {
+    void enqueue(BatchRequest batch) throws IOException;
+  }
+
+<span class="fc" id="L109">  private final Queue&lt;QueueRequestCallback&gt; pendingRequests = new ConcurrentLinkedQueue&lt;&gt;();</span>
+  private final ExecutorService requestsExecutor;
+<span class="fc" id="L111">  private final Queue&lt;Future&lt;Void&gt;&gt; responseFutures = new ConcurrentLinkedQueue&lt;&gt;();</span>
+
+  private final HttpRequestInitializer requestInitializer;
+  private final Storage gcs;
+  // Number of requests that can be queued into a single HTTP batch request.
+  private final long maxRequestsPerBatch;
+
+<span class="fc" id="L118">  private final Lock flushLock = new ReentrantLock();</span>
+
+  /**
+   * Primary constructor, generally accessed only via the inner Factory class.
+   *
+   * @param numThreads Number of threads to execute HTTP batch requests in parallel.
+   */
+  private BatchHelper(
+      HttpRequestInitializer requestInitializer,
+      Storage gcs,
+      long maxRequestsPerBatch,
+<span class="fc" id="L129">      int numThreads) {</span>
+<span class="fc" id="L130">    this.requestInitializer = requestInitializer;</span>
+<span class="fc" id="L131">    this.gcs = gcs;</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">    this.requestsExecutor =</span>
+<span class="fc" id="L133">        numThreads == 0 ? newDirectExecutorService() : newRequestsExecutor(numThreads);</span>
+<span class="fc" id="L134">    this.maxRequestsPerBatch = maxRequestsPerBatch;</span>
+<span class="fc" id="L135">  }</span>
+
+  private static ExecutorService newRequestsExecutor(int numThreads) {
+<span class="fc" id="L138">    ThreadPoolExecutor requestsExecutor =</span>
+        new ThreadPoolExecutor(
+            /* corePoolSize= */ numThreads,
+            /* maximumPoolSize= */ numThreads,
+            /* keepAliveTime= */ 5, TimeUnit.SECONDS,
+            new LinkedBlockingQueue&lt;&gt;(numThreads * 20),
+            THREAD_FACTORY);
+    // Prevents memory leaks in case flush() method was not called.
+<span class="fc" id="L146">    requestsExecutor.allowCoreThreadTimeOut(true);</span>
+<span class="fc" id="L147">    requestsExecutor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());</span>
+<span class="fc" id="L148">    return requestsExecutor;</span>
+  }
+
+  /**
+   * Adds an additional request to the batch, and possibly flushes the current contents of the batch
+   * if {@code maxRequestsPerBatch} has been reached.
+   */
+  public &lt;T&gt; void queue(StorageRequest&lt;T&gt; req, JsonBatchCallback&lt;T&gt; callback) throws IOException {
+<span class="fc" id="L156">    checkState(</span>
+<span class="pc bpc" id="L157" title="1 of 4 branches missed.">        !requestsExecutor.isShutdown() &amp;&amp; !requestsExecutor.isTerminated(),</span>
+        &quot;requestsExecutor should not be terminated to queue batch requests&quot;);
+<span class="fc bfc" id="L159" title="All 2 branches covered.">    if (maxRequestsPerBatch == 1) {</span>
+<span class="fc" id="L160">      responseFutures.add(</span>
+<span class="fc" id="L161">          requestsExecutor.submit(</span>
+              () -&gt; {
+<span class="fc" id="L163">                execute(req, callback);</span>
+<span class="fc" id="L164">                return null;</span>
+              }));
+    } else {
+<span class="fc" id="L167">      pendingRequests.add(batch -&gt; req.queue(batch, callback));</span>
+
+<span class="fc" id="L169">      flushIfPossibleAndRequired();</span>
+    }
+<span class="fc" id="L171">  }</span>
+
+  private &lt;T&gt; void execute(StorageRequest&lt;T&gt; req, JsonBatchCallback&lt;T&gt; callback)
+      throws IOException {
+    try {
+<span class="fc" id="L176">      T result = req.execute();</span>
+<span class="fc" id="L177">      callback.onSuccess(result, req.getLastResponseHeaders());</span>
+<span class="fc" id="L178">    } catch (IOException e) {</span>
+<span class="fc" id="L179">      GoogleJsonResponseException je = ApiErrorExtractor.getJsonResponseExceptionOrNull(e);</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">      if (je == null) {</span>
+<span class="nc" id="L181">        throw e;</span>
+      }
+<span class="fc" id="L183">      callback.onFailure(je.getDetails(), je.getHeaders());</span>
+<span class="fc" id="L184">    }</span>
+<span class="fc" id="L185">  }</span>
+
+  // Flush our buffer if we have at least maxRequestsPerBatch pending entries
+  private void flushIfPossibleAndRequired() throws IOException {
+<span class="fc bfc" id="L189" title="All 2 branches covered.">    if (pendingRequests.size() &gt;= maxRequestsPerBatch) {</span>
+<span class="fc" id="L190">      flushIfPossible(false);</span>
+    }
+<span class="fc" id="L192">  }</span>
+
+  // Flush our buffer if we are not already in a flush operation and we have data to flush.
+  private void flushIfPossible(boolean flushAll) throws IOException {
+<span class="fc bfc" id="L196" title="All 2 branches covered.">    if (flushAll) {</span>
+<span class="fc" id="L197">      flushLock.lock();</span>
+<span class="pc bpc" id="L198" title="2 of 4 branches missed.">    } else if (pendingRequests.isEmpty() || !flushLock.tryLock()) {</span>
+<span class="nc" id="L199">      return;</span>
+    }
+    try {
+      do {
+<span class="fc" id="L203">        flushPendingRequests();</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        if (flushAll) {</span>
+<span class="fc" id="L205">          awaitRequestsCompletion();</span>
+        }
+<span class="pc bpc" id="L207" title="1 of 6 branches missed.">      } while (flushAll &amp;&amp; (!pendingRequests.isEmpty() || !responseFutures.isEmpty()));</span>
+    } finally {
+<span class="fc" id="L209">      flushLock.unlock();</span>
+    }
+<span class="fc" id="L211">  }</span>
+
+  private void flushPendingRequests() throws IOException {
+<span class="fc bfc" id="L214" title="All 2 branches covered.">    if (pendingRequests.isEmpty()) {</span>
+<span class="fc" id="L215">      return;</span>
+    }
+<span class="fc" id="L217">    BatchRequest batch = gcs.batch(requestInitializer);</span>
+<span class="fc bfc" id="L218" title="All 4 branches covered.">    while (batch.size() &lt; maxRequestsPerBatch &amp;&amp; !pendingRequests.isEmpty()) {</span>
+      // enqueue request at head
+<span class="fc" id="L220">      pendingRequests.remove().enqueue(batch);</span>
+    }
+<span class="fc" id="L222">    responseFutures.add(</span>
+<span class="fc" id="L223">        requestsExecutor.submit(</span>
+            () -&gt; {
+<span class="fc" id="L225">              batch.execute();</span>
+<span class="fc" id="L226">              return null;</span>
+            }));
+<span class="fc" id="L228">  }</span>
+
+  /**
+   * Sends any currently remaining requests in the batch; should be called at the end of any series
+   * of batched requests to ensure everything has been sent.
+   */
+  public void flush() throws IOException {
+    try {
+<span class="fc" id="L236">      flushIfPossible(true);</span>
+<span class="fc" id="L237">      checkState(pendingRequests.isEmpty(), &quot;pendingRequests should be empty after flush&quot;);</span>
+<span class="fc" id="L238">      checkState(responseFutures.isEmpty(), &quot;responseFutures should be empty after flush&quot;);</span>
+    } finally {
+<span class="fc" id="L240">      requestsExecutor.shutdown();</span>
+      try {
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">        if (!requestsExecutor.awaitTermination(1, TimeUnit.SECONDS)) {</span>
+<span class="nc" id="L243">          logger.atWarning().log(&quot;Forcibly shutting down batch helper thread pool.&quot;);</span>
+<span class="nc" id="L244">          requestsExecutor.shutdownNow();</span>
+        }
+<span class="nc" id="L246">      } catch (InterruptedException e) {</span>
+<span class="nc" id="L247">        logger.atFine().withCause(e).log(</span>
+            &quot;Failed to await termination: forcibly shutting down batch helper thread pool.&quot;);
+<span class="nc" id="L249">        requestsExecutor.shutdownNow();</span>
+<span class="fc" id="L250">      }</span>
+    }
+<span class="fc" id="L252">  }</span>
+
+  /** Returns true if there are no currently queued entries in the batch helper. */
+  public boolean isEmpty() {
+<span class="fc" id="L256">    return pendingRequests.isEmpty();</span>
+  }
+
+  /** Awaits until all sent requests are completed. Should be serialized */
+  private void awaitRequestsCompletion() throws IOException {
+    // Don't wait until all requests will be completed if enough requests are pending for full batch
+<span class="pc bpc" id="L262" title="1 of 4 branches missed.">    while (!responseFutures.isEmpty() &amp;&amp; pendingRequests.size() &lt; maxRequestsPerBatch) {</span>
+      try {
+<span class="fc" id="L264">        responseFutures.remove().get();</span>
+<span class="fc" id="L265">      } catch (InterruptedException | ExecutionException e) {</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">        if (e.getCause() instanceof IOException) {</span>
+<span class="nc" id="L267">          throw (IOException) e.getCause();</span>
+        }
+<span class="fc" id="L269">        throw new RuntimeException(&quot;Failed to execute batch&quot;, e);</span>
+<span class="fc" id="L270">      }</span>
+    }
+<span class="fc" id="L272">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

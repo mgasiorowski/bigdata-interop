@@ -1,0 +1,368 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>PerformanceCachingGoogleCloudStorage.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">PerformanceCachingGoogleCloudStorage.java</span></div><h1>PerformanceCachingGoogleCloudStorage.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file
+ * except in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.gcsio;
+
+import static com.google.api.client.util.Strings.isNullOrEmpty;
+import static com.google.common.base.Strings.nullToEmpty;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import javax.annotation.Nullable;
+
+/**
+ * This class adds a caching layer around a GoogleCloudStorage instance, caching calls that create,
+ * update, remove, and query for GoogleCloudStorageItemInfo. Those cached copies are returned when
+ * requesting data through {@link GoogleCloudStorage#getItemInfo(StorageResourceId)} and {@link
+ * GoogleCloudStorage#getItemInfo(StorageResourceId)}. This provides faster access to recently
+ * queried data in the scope of this instance. Because the data is cached, modifications made
+ * outside of this instance may not be immediately reflected.
+ */
+public class PerformanceCachingGoogleCloudStorage extends ForwardingGoogleCloudStorage {
+
+<span class="fc" id="L38">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  /** Cache to hold item info and manage invalidation. */
+  private final PrefixMappedItemCache cache;
+
+  /** Options that configure delegate storage. */
+  private final GoogleCloudStorageOptions delegateOptions;
+
+  /** Options that configure this cache. */
+  private final PerformanceCachingGoogleCloudStorageOptions options;
+
+  /**
+   * Creates a wrapper around a GoogleCloudStorage instance, caching calls that create, update,
+   * remove, and query for GoogleCloudStorageItemInfo. Those cached copies are returned when
+   * requesting data through {@link GoogleCloudStorage#getItemInfo(StorageResourceId)} and {@link
+   * GoogleCloudStorage#getItemInfo(StorageResourceId)}. This provides faster access to recently
+   * queried data in the scope of this instance. Because the data is cached, modifications made
+   * outside of this instance may not be immediately reflected.
+   *
+   * @param delegate the {@link GoogleCloudStorage} instance to wrap and delegate calls to.
+   * @param options the options to configure this cache with.
+   */
+  public PerformanceCachingGoogleCloudStorage(
+      GoogleCloudStorage delegate, PerformanceCachingGoogleCloudStorageOptions options) {
+<span class="fc" id="L62">    this(delegate, options, createCache(options));</span>
+<span class="fc" id="L63">  }</span>
+
+  @VisibleForTesting
+  PerformanceCachingGoogleCloudStorage(
+      GoogleCloudStorage delegate,
+      PerformanceCachingGoogleCloudStorageOptions options,
+      PrefixMappedItemCache cache) {
+<span class="fc" id="L70">    super(delegate);</span>
+<span class="fc" id="L71">    this.delegateOptions = delegate.getOptions();</span>
+<span class="fc" id="L72">    this.options = options;</span>
+<span class="fc" id="L73">    this.cache = cache;</span>
+<span class="fc" id="L74">  }</span>
+
+  private static PrefixMappedItemCache createCache(
+      PerformanceCachingGoogleCloudStorageOptions options) {
+<span class="fc" id="L78">    PrefixMappedItemCache.Config config = new PrefixMappedItemCache.Config();</span>
+<span class="fc" id="L79">    config.setMaxEntryAgeMillis(options.getMaxEntryAgeMillis());</span>
+<span class="fc" id="L80">    return new PrefixMappedItemCache(config);</span>
+  }
+
+  @Override
+  public void deleteBuckets(List&lt;String&gt; bucketNames) throws IOException {
+<span class="fc" id="L85">    super.deleteBuckets(bucketNames);</span>
+
+    // Remove objects that reside in deleted buckets.
+<span class="fc bfc" id="L88" title="All 2 branches covered.">    for (String bucket : bucketNames) {</span>
+<span class="fc" id="L89">      cache.invalidateBucket(bucket);</span>
+<span class="fc" id="L90">    }</span>
+<span class="fc" id="L91">  }</span>
+
+  @Override
+  public void deleteObjects(List&lt;StorageResourceId&gt; fullObjectNames) throws IOException {
+<span class="fc" id="L95">    super.deleteObjects(fullObjectNames);</span>
+
+    // Remove the deleted objects from cache.
+<span class="fc bfc" id="L98" title="All 2 branches covered.">    for (StorageResourceId id : fullObjectNames) {</span>
+<span class="fc" id="L99">      cache.removeItem(id);</span>
+<span class="fc" id="L100">    }</span>
+<span class="fc" id="L101">  }</span>
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listBucketInfo() throws IOException {
+<span class="fc" id="L105">    List&lt;GoogleCloudStorageItemInfo&gt; result = super.listBucketInfo();</span>
+
+    // Add the results to the cache.
+<span class="fc bfc" id="L108" title="All 2 branches covered.">    for (GoogleCloudStorageItemInfo item : result) {</span>
+<span class="fc" id="L109">      cache.putItem(item);</span>
+<span class="fc" id="L110">    }</span>
+
+<span class="fc" id="L112">    return result;</span>
+  }
+
+  /** This function may return cached copies of GoogleCloudStorageItemInfo. */
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(
+      String bucketName, String objectNamePrefix, String delimiter) throws IOException {
+<span class="fc" id="L119">    return this.listObjectInfo(</span>
+        bucketName, objectNamePrefix, delimiter, GoogleCloudStorage.MAX_RESULTS_UNLIMITED);
+  }
+
+  /** This function may return cached copies of GoogleCloudStorageItemInfo. */
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(
+      String bucketName, String objectNamePrefix, String delimiter, long maxResults)
+      throws IOException {
+    List&lt;GoogleCloudStorageItemInfo&gt; result;
+
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">    if (options.isListCachingEnabled()) {</span>
+<span class="fc" id="L131">      result = cache.getList(bucketName, objectNamePrefix);</span>
+
+<span class="fc bfc" id="L133" title="All 2 branches covered.">      if (result == null) {</span>
+<span class="fc" id="L134">        result = super.listObjectInfo(bucketName, objectNamePrefix, null);</span>
+<span class="fc" id="L135">        cache.putList(bucketName, objectNamePrefix, result);</span>
+      }
+
+<span class="fc" id="L138">      filter(result, bucketName, objectNamePrefix, delimiter);</span>
+
+<span class="pc bpc" id="L140" title="1 of 4 branches missed.">      if (maxResults &gt; 0 &amp;&amp; result.size() &gt; maxResults) {</span>
+<span class="fc" id="L141">        result = result.subList(0, (int) maxResults);</span>
+      }
+    } else {
+<span class="nc" id="L144">      result = super.listObjectInfo(bucketName, objectNamePrefix, delimiter, maxResults);</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">      for (GoogleCloudStorageItemInfo item : result) {</span>
+<span class="nc" id="L146">        cache.putItem(item);</span>
+<span class="nc" id="L147">      }</span>
+    }
+
+<span class="fc" id="L150">    return result;</span>
+  }
+
+  @Override
+  public ListPage&lt;GoogleCloudStorageItemInfo&gt; listObjectInfoPage(
+      String bucketName, String objectNamePrefix, String delimiter, String pageToken)
+      throws IOException {
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">    if (options.isListCachingEnabled()) {</span>
+<span class="fc" id="L158">      return new ListPage&lt;&gt;(listObjectInfo(bucketName, objectNamePrefix, delimiter), null);</span>
+    }
+
+<span class="nc" id="L161">    ListPage&lt;GoogleCloudStorageItemInfo&gt; result =</span>
+<span class="nc" id="L162">        super.listObjectInfoPage(bucketName, objectNamePrefix, delimiter, pageToken);</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">    for (GoogleCloudStorageItemInfo item : result.getItems()) {</span>
+<span class="nc" id="L164">      cache.putItem(item);</span>
+<span class="nc" id="L165">    }</span>
+<span class="nc" id="L166">    return result;</span>
+  }
+
+  /**
+   * Matches Google Cloud Storage's delimiter filtering.
+   *
+   * @param items the mutable list of items to filter. Items matching the filter conditions will be
+   *     removed from this list.
+   * @param bucketName the bucket name to filter for.
+   * @param prefix the object name prefix to filter for.
+   * @param delimiter the delimiter to filter on.
+   */
+  private void filter(
+      List&lt;GoogleCloudStorageItemInfo&gt; items,
+      String bucketName,
+      @Nullable String prefix,
+      @Nullable String delimiter)
+      throws IOException {
+<span class="fc" id="L184">    prefix = nullToEmpty(prefix);</span>
+
+    // if delimiter is not specified we don't need to filter-out subdirectories
+<span class="fc bfc" id="L187" title="All 2 branches covered.">    if (isNullOrEmpty(delimiter)) {</span>
+      // if prefix is not specified it means that we are listing all objects in the bucket
+      // and we need to exclude bucket from the result
+<span class="fc bfc" id="L190" title="All 2 branches covered.">      if (prefix.isEmpty()) {</span>
+<span class="fc" id="L191">        Iterator&lt;GoogleCloudStorageItemInfo&gt; itr = items.iterator();</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        while (itr.hasNext()) {</span>
+<span class="fc" id="L193">          GoogleCloudStorageItemInfo item = itr.next();</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">          if (item.isBucket()) {</span>
+<span class="fc" id="L195">            itr.remove();</span>
+<span class="fc" id="L196">            break;</span>
+          }
+<span class="fc" id="L198">        }</span>
+      }
+<span class="fc" id="L200">      return;</span>
+    }
+
+<span class="fc" id="L203">    HashSet&lt;String&gt; dirs = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L204">    Iterator&lt;GoogleCloudStorageItemInfo&gt; itr = items.iterator();</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">    while (itr.hasNext()) {</span>
+<span class="fc" id="L206">      GoogleCloudStorageItemInfo item = itr.next();</span>
+<span class="fc" id="L207">      String objectName = item.getObjectName();</span>
+
+      // 1. Remove if bucket (means that listing objects in bucket):
+      //    do not return bucket itself (prefix dir) to avoid infinite recursion
+      // 2. Remove if doesn't start with the prefix.
+      // 3. Remove prefix object if it ends with delimiter:
+      //    do not return prefix dir to avoid infinite recursion.
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">      if (item.isBucket()</span>
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">          || !objectName.startsWith(prefix)</span>
+<span class="fc bfc" id="L216" title="All 4 branches covered.">          || (prefix.endsWith(delimiter) &amp;&amp; objectName.equals(prefix))) {</span>
+<span class="fc" id="L217">        itr.remove();</span>
+      } else {
+        // Retain if missing the delimiter after the prefix.
+<span class="fc" id="L220">        int firstIndex = objectName.indexOf(delimiter, prefix.length());</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">        if (firstIndex != -1) {</span>
+          // Remove if the first occurrence of the delimiter after the prefix isn't the last.
+          // Remove if the last occurrence of the delimiter isn't the end of the string.
+<span class="fc" id="L224">          int lastIndex = objectName.lastIndexOf(delimiter);</span>
+<span class="fc bfc" id="L225" title="All 4 branches covered.">          if (firstIndex != lastIndex || lastIndex != objectName.length() - 1) {</span>
+<span class="fc" id="L226">            itr.remove();</span>
+<span class="fc" id="L227">            dirs.add(objectName.substring(0, firstIndex + 1));</span>
+          }
+        }
+      }
+<span class="fc" id="L231">    }</span>
+
+    // Remove non-implicit directories (i.e. have corresponding directory objects)
+<span class="fc bfc" id="L234" title="All 2 branches covered.">    for (GoogleCloudStorageItemInfo item : items) {</span>
+<span class="fc" id="L235">      dirs.remove(item.getObjectName());</span>
+<span class="fc" id="L236">    }</span>
+
+<span class="fc bfc" id="L238" title="All 2 branches covered.">    if (dirs.isEmpty()) {</span>
+<span class="fc" id="L239">      return;</span>
+    }
+
+<span class="fc" id="L242">    List&lt;StorageResourceId&gt; dirIds = new ArrayList&lt;&gt;(dirs.size());</span>
+<span class="fc bfc" id="L243" title="All 2 branches covered.">    for (String dir : dirs) {</span>
+<span class="fc" id="L244">      dirIds.add(new StorageResourceId(bucketName, dir));</span>
+<span class="fc" id="L245">    }</span>
+
+<span class="fc" id="L247">    boolean inferImplicitDirectories = delegateOptions.isInferImplicitDirectoriesEnabled();</span>
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">    if (inferImplicitDirectories) {</span>
+<span class="fc bfc" id="L249" title="All 2 branches covered.">      for (StorageResourceId dirId : dirIds) {</span>
+<span class="fc" id="L250">        items.add(GoogleCloudStorageItemInfo.createInferredDirectory(dirId));</span>
+<span class="fc" id="L251">      }</span>
+    }
+<span class="fc" id="L253">  }</span>
+
+  /** This function may return cached copies of GoogleCloudStorageItemInfo. */
+  @Override
+  public GoogleCloudStorageItemInfo getItemInfo(StorageResourceId resourceId) throws IOException {
+    // Get the item from cache.
+<span class="fc" id="L259">    GoogleCloudStorageItemInfo item = cache.getItem(resourceId);</span>
+
+    // If it wasn't in the cache, list all the objects in the parent directory and cache them
+    // and then retrieve it from the cache.
+<span class="fc bfc" id="L263" title="All 4 branches covered.">    if (item == null &amp;&amp; resourceId.isStorageObject()) {</span>
+<span class="fc" id="L264">      String bucketName = resourceId.getBucketName();</span>
+<span class="fc" id="L265">      String objectName = resourceId.getObjectName();</span>
+<span class="fc" id="L266">      int lastSlashIndex = objectName.lastIndexOf(PATH_DELIMITER);</span>
+<span class="fc bfc" id="L267" title="All 2 branches covered.">      String directoryName =</span>
+<span class="fc" id="L268">          lastSlashIndex &gt;= 0 ? objectName.substring(0, lastSlashIndex + 1) : null;</span>
+<span class="fc" id="L269">      List&lt;GoogleCloudStorageItemInfo&gt; cachedInDirectory =</span>
+<span class="fc" id="L270">          cache.listItems(bucketName, directoryName);</span>
+<span class="fc" id="L271">      filter(cachedInDirectory, bucketName, directoryName, PATH_DELIMITER);</span>
+      // If there are items already cached in directory, do not prefetch with list requests,
+      // because metadata for this directory already could be prefetched
+<span class="fc bfc" id="L274" title="All 2 branches covered.">      if (cachedInDirectory.isEmpty()) {</span>
+        // make just 1 request to prefetch only 1 page of directory items
+<span class="fc" id="L276">        listObjectInfoPage(bucketName, directoryName, PATH_DELIMITER, /* pageToken= */ null);</span>
+<span class="fc" id="L277">        item = cache.getItem(resourceId);</span>
+      }
+    }
+
+    // If it wasn't in the cache and wasn't cached in directory list request
+    // then request and cache it directly.
+<span class="fc bfc" id="L283" title="All 2 branches covered.">    if (item == null) {</span>
+<span class="fc" id="L284">      item = super.getItemInfo(resourceId);</span>
+<span class="fc" id="L285">      cache.putItem(item);</span>
+    }
+
+<span class="fc" id="L288">    return item;</span>
+  }
+
+  /** This function may return cached copies of GoogleCloudStorageItemInfo. */
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; getItemInfos(List&lt;StorageResourceId&gt; resourceIds)
+      throws IOException {
+<span class="fc" id="L295">    List&lt;GoogleCloudStorageItemInfo&gt; result = new ArrayList&lt;&gt;(resourceIds.size());</span>
+<span class="fc" id="L296">    List&lt;StorageResourceId&gt; request = new ArrayList&lt;&gt;(resourceIds.size());</span>
+
+    // Populate the result list with items in the cache, and the request list with resources that
+    // still need to be resolved. Null items are added to the result list to preserve ordering.
+<span class="fc bfc" id="L300" title="All 2 branches covered.">    for (StorageResourceId resourceId : resourceIds) {</span>
+<span class="fc" id="L301">      GoogleCloudStorageItemInfo item = cache.getItem(resourceId);</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">      if (item == null) {</span>
+<span class="fc" id="L303">        request.add(resourceId);</span>
+      }
+<span class="fc" id="L305">      result.add(item);</span>
+<span class="fc" id="L306">    }</span>
+
+    // Resolve all the resources which were not cached, cache them, and add them to the result list.
+    // Null entries in the result list are replaced by the fresh entries from the underlying
+    // GoogleCloudStorage.
+<span class="fc bfc" id="L311" title="All 2 branches covered.">    if (!request.isEmpty()) {</span>
+<span class="fc" id="L312">      List&lt;GoogleCloudStorageItemInfo&gt; response = super.getItemInfos(request);</span>
+<span class="fc" id="L313">      Iterator&lt;GoogleCloudStorageItemInfo&gt; responseIterator = response.iterator();</span>
+
+      // Iterate through the result set, replacing the null entries added previously with entries
+      // from the response.
+<span class="fc bfc" id="L317" title="All 4 branches covered.">      for (int i = 0; i &lt; result.size() &amp;&amp; responseIterator.hasNext(); i++) {</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">        if (result.get(i) == null) {</span>
+<span class="fc" id="L319">          GoogleCloudStorageItemInfo item = responseIterator.next();</span>
+<span class="fc" id="L320">          cache.putItem(item);</span>
+<span class="fc" id="L321">          result.set(i, item);</span>
+        }
+      }
+    }
+
+<span class="fc" id="L326">    return result;</span>
+  }
+
+  @Override
+  public List&lt;GoogleCloudStorageItemInfo&gt; updateItems(List&lt;UpdatableItemInfo&gt; itemInfoList)
+      throws IOException {
+<span class="fc" id="L332">    List&lt;GoogleCloudStorageItemInfo&gt; result = super.updateItems(itemInfoList);</span>
+
+    // Update the cache with the returned items. This overwrites the originals as the
+    // StorageResourceIds of the items do not change in an update.
+<span class="fc bfc" id="L336" title="All 2 branches covered.">    for (GoogleCloudStorageItemInfo item : result) {</span>
+<span class="fc" id="L337">      cache.putItem(item);</span>
+<span class="fc" id="L338">    }</span>
+
+<span class="fc" id="L340">    return result;</span>
+  }
+
+  @Override
+  public void close() {
+<span class="fc" id="L345">    super.close();</span>
+
+    // Respect close and empty the cache.
+<span class="fc" id="L348">    cache.invalidateAll();</span>
+<span class="fc" id="L349">  }</span>
+
+  @Override
+  public GoogleCloudStorageItemInfo composeObjects(
+      List&lt;StorageResourceId&gt; sources, StorageResourceId destination, CreateObjectOptions options)
+      throws IOException {
+<span class="fc" id="L355">    GoogleCloudStorageItemInfo item = super.composeObjects(sources, destination, options);</span>
+
+    // Cache the composed object.
+<span class="fc" id="L358">    cache.putItem(item);</span>
+
+<span class="fc" id="L360">    return item;</span>
+  }
+
+  @VisibleForTesting
+  public void invalidateCache() {
+<span class="fc" id="L365">    cache.invalidateAll();</span>
+<span class="fc" id="L366">  }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>StorageResourceId.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">StorageResourceId.java</span></div><h1>StorageResourceId.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2013 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio;
+
+import static com.google.common.base.Preconditions.checkArgument;
+
+import com.google.common.base.Strings;
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Data struct representing either a GCS StorageObject, a GCS Bucket or the GCS root (gs://).
+ * If both bucketName and objectName are null, the StorageResourceId refers to GCS root (gs://).
+ * If bucketName is non-null, and objectName is null, then this refers to a GCS Bucket. Otherwise,
+ * if bucketName and objectName are both non-null, this refers to a GCS StorageObject.
+ */
+public class StorageResourceId {
+  // The generationId used to denote &quot;unknown&quot;; if given to a method expecting generationId
+  // constraints, the method may perform extra low-level GETs to determine an existing generationId
+  // if idempotency constraints require doing so.
+  public static final long UNKNOWN_GENERATION_ID = -1L;
+
+  // Pattern that parses out bucket and object names.
+  // Given 'gs://foo-bucket/foo/bar/baz', matcher.group(x) will return:
+  // 0 = gs://foo-bucket/foo/bar/baz
+  // 1 = foo-bucket/foo/bar/baz
+  // 2 = foo-bucket
+  // 3 = /foo/bar/baz
+  // 4 = foo/bar/baz
+  // Groups 2 and 4 can be used to create an instance.
+<span class="fc" id="L46">  private static final Pattern OBJECT_NAME_IN_GCS_PATTERN =</span>
+<span class="fc" id="L47">      Pattern.compile(&quot;gs://(([^/]+)(/(.+)?)?)?&quot;);</span>
+
+  // The singleton instance identifying the GCS root (gs://). Both getObjectName() and
+  // getBucketName() will return null.
+<span class="fc" id="L51">  public static final StorageResourceId ROOT = new StorageResourceId();</span>
+
+  // Bucket name of this storage resource to be used with the Google Cloud Storage API.
+  private final String bucketName;
+
+  // Object name of this storage resource to be used with the Google Cloud Storage API.
+  private final String objectName;
+
+  // Human-readable String to be returned by toString(); kept as 'final' member for efficiency.
+  private final String readableString;
+
+  // The generationId to be used with precondition checks when using this StorageResourceId
+  // as an identifier for mutation requests.
+  private final long generationId;
+
+  /**
+   * Constructor for a StorageResourceId that refers to the GCS root (gs://). Private because
+   * all external users should just use the singleton StorageResourceId.ROOT.
+   */
+<span class="fc" id="L70">  private StorageResourceId() {</span>
+<span class="fc" id="L71">    this.bucketName = null;</span>
+<span class="fc" id="L72">    this.objectName = null;</span>
+<span class="fc" id="L73">    this.readableString = createReadableString(bucketName, objectName);</span>
+<span class="fc" id="L74">    this.generationId = UNKNOWN_GENERATION_ID;</span>
+<span class="fc" id="L75">  }</span>
+
+  /**
+   * Constructor for a StorageResourceId representing a Bucket; {@code getObjectName()} will return
+   * null for a StorageResourceId that represents a Bucket.
+   *
+   * @param bucketName The bucket name of the resource. Must be non-empty and non-null.
+   */
+<span class="fc" id="L83">  public StorageResourceId(String bucketName) {</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">    checkArgument(!Strings.isNullOrEmpty(bucketName),</span>
+        &quot;bucketName must not be null or empty&quot;);
+
+<span class="fc" id="L87">    this.bucketName = bucketName;</span>
+<span class="fc" id="L88">    this.objectName = null;</span>
+<span class="fc" id="L89">    this.readableString = createReadableString(bucketName, objectName);</span>
+<span class="fc" id="L90">    this.generationId = UNKNOWN_GENERATION_ID;</span>
+<span class="fc" id="L91">  }</span>
+
+  /**
+   * Constructor for a StorageResourceId representing a full StorageObject, including bucketName
+   * and objectName.
+   *
+   * @param bucketName The bucket name of the resource. Must be non-empty and non-null.
+   * @param objectName The object name of the resource. Must be non-empty and non-null.
+   */
+<span class="fc" id="L100">  public StorageResourceId(String bucketName, String objectName) {</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">    checkArgument(!Strings.isNullOrEmpty(bucketName),</span>
+        &quot;bucketName must not be null or empty&quot;);
+<span class="fc bfc" id="L103" title="All 2 branches covered.">    checkArgument(!Strings.isNullOrEmpty(objectName),</span>
+        &quot;objectName must not be null or empty&quot;);
+
+<span class="fc" id="L106">    this.bucketName = bucketName;</span>
+<span class="fc" id="L107">    this.objectName = objectName;</span>
+<span class="fc" id="L108">    this.readableString = createReadableString(bucketName, objectName);</span>
+<span class="fc" id="L109">    this.generationId = UNKNOWN_GENERATION_ID;</span>
+<span class="fc" id="L110">  }</span>
+
+  /**
+   * Constructor for a StorageResourceId representing a full StorageObject, including bucketName
+   * and objectName.
+   *
+   * @param bucketName The bucket name of the resource. Must be non-empty and non-null.
+   * @param objectName The object name of the resource. Must be non-empty and non-null.
+   * @param generationId The generationId to be used with precondition checks when using
+   *     this StorageResourceId as an identifier for mutation requests.
+   */
+<span class="fc" id="L121">  public StorageResourceId(String bucketName, String objectName, long generationId) {</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">    checkArgument(!Strings.isNullOrEmpty(bucketName),</span>
+        &quot;bucketName must not be null or empty&quot;);
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">    checkArgument(!Strings.isNullOrEmpty(objectName),</span>
+        &quot;objectName must not be null or empty&quot;);
+
+<span class="fc" id="L127">    this.bucketName = bucketName;</span>
+<span class="fc" id="L128">    this.objectName = objectName;</span>
+<span class="fc" id="L129">    this.readableString = createReadableString(bucketName, objectName);</span>
+<span class="fc" id="L130">    this.generationId = generationId;</span>
+<span class="fc" id="L131">  }</span>
+
+  /**
+   * Returns true if this StorageResourceId represents a GCS StorageObject; if true, both
+   * {@code getBucketName} and {@code getObjectName} will be non-empty and non-null.
+   */
+  public boolean isStorageObject() {
+<span class="fc bfc" id="L138" title="All 4 branches covered.">    return bucketName != null &amp;&amp; objectName != null;</span>
+  }
+
+  /**
+   * Returns true if this StorageResourceId represents a GCS Bucket; if true, then {@code
+   * getObjectName} will return null.
+   */
+  public boolean isBucket() {
+<span class="pc bpc" id="L146" title="1 of 4 branches missed.">    return bucketName != null &amp;&amp; objectName == null;</span>
+  }
+
+  /**
+   * Returns true if this StorageResourceId represents the GCS root (gs://); if true, then
+   * both {@code getBucketName} and {@code getObjectName} will be null.
+   */
+  public boolean isRoot() {
+<span class="pc bpc" id="L154" title="1 of 4 branches missed.">    return bucketName == null &amp;&amp; objectName == null;</span>
+  }
+
+  /**
+   * Indicates if this StorageResourceId corresponds to a 'directory'; similar to
+   * {@link FileInfo#isDirectory} except deals entirely with pathnames instead of also checking
+   * for exists() to be true on a corresponding GoogleCloudStorageItemInfo.
+   */
+  public boolean isDirectory() {
+<span class="fc bfc" id="L163" title="All 6 branches covered.">    return isRoot() || isBucket() || objectHasDirectoryPath(objectName);</span>
+  }
+
+  /**
+   * Gets the bucket name component of this resource identifier.
+   */
+  public String getBucketName() {
+<span class="fc" id="L170">    return bucketName;</span>
+  }
+
+  /**
+   * Gets the object name component of this resource identifier.
+   */
+  public String getObjectName() {
+<span class="fc" id="L177">    return objectName;</span>
+  }
+
+  /**
+   * The generationId to be used with precondition checks when using this StorageResourceId as
+   * an identifier for mutation requests. The generationId is *not* used when determining
+   * equals() or hashCode().
+   */
+  public long getGenerationId() {
+<span class="fc" id="L186">    return generationId;</span>
+  }
+
+  /**
+   * Returns true if generationId is not UNKNOWN_GENERATION_ID.
+   */
+  public boolean hasGenerationId() {
+<span class="fc bfc" id="L193" title="All 2 branches covered.">    return generationId != UNKNOWN_GENERATION_ID;</span>
+  }
+
+  /**
+   * Returns a string of the form gs://&lt;bucketName&gt;/&lt;objectName&gt;.
+   */
+  @Override
+  public String toString() {
+<span class="fc" id="L201">    return readableString;</span>
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+<span class="pc bpc" id="L206" title="1 of 2 branches missed.">    if (obj instanceof StorageResourceId) {</span>
+<span class="fc" id="L207">      StorageResourceId other = (StorageResourceId) obj;</span>
+<span class="fc bfc" id="L208" title="All 2 branches covered.">      return Objects.equals(bucketName, other.bucketName)</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">          &amp;&amp; Objects.equals(objectName, other.objectName);</span>
+    }
+<span class="nc" id="L211">    return false;</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="fc" id="L216">    return readableString.hashCode();</span>
+  }
+
+  /**
+   * Helper for standardizing the way various human-readable messages in logs/exceptions that refer
+   * to a bucket/object pair.
+   */
+  public static String createReadableString(String bucketName, String objectName) {
+<span class="fc bfc" id="L224" title="All 4 branches covered.">    if (bucketName == null &amp;&amp; objectName != null) {</span>
+<span class="fc" id="L225">      throw new IllegalArgumentException(</span>
+<span class="fc" id="L226">          String.format(&quot;Invalid bucketName/objectName pair: gs://%s/%s&quot;, bucketName, objectName));</span>
+    }
+    // TODO(user): Unify this method with other methods that convert bucketName/objectName
+    // to a URI; maybe use the single slash for compatibility.
+<span class="fc" id="L230">    StringBuilder result = new StringBuilder(&quot;gs://&quot;);</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">    if (bucketName != null) {</span>
+<span class="fc" id="L232">      result.append(bucketName);</span>
+    }
+<span class="fc bfc" id="L234" title="All 2 branches covered.">    if (objectName != null) {</span>
+<span class="fc" id="L235">      result.append('/').append(objectName);</span>
+    }
+<span class="fc" id="L237">    return result.toString();</span>
+  }
+
+  /**
+   * Indicates whether the given object name looks like a directory path.
+   *
+   * @param objectName Name of the object to inspect.
+   * @return Whether the given object name looks like a directory path.
+   */
+  static boolean objectHasDirectoryPath(String objectName) {
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">    return !Strings.isNullOrEmpty(objectName)</span>
+<span class="fc bfc" id="L248" title="All 2 branches covered.">        &amp;&amp; objectName.endsWith(GoogleCloudStorage.PATH_DELIMITER);</span>
+  }
+
+  /**
+   * Converts the given object name to look like a directory path.
+   * If the object name already looks like a directory path then
+   * this call is a no-op.
+   * &lt;p&gt;
+   * If the object name is null or empty, it is returned as-is.
+   *
+   * @param objectName Name of the object to inspect.
+   * @return Directory path for the given path.
+   */
+  static String convertToDirectoryPath(String objectName) {
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(objectName)) {</span>
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">      if (!objectHasDirectoryPath(objectName)) {</span>
+<span class="fc" id="L264">        objectName += GoogleCloudStorage.PATH_DELIMITER;</span>
+      }
+    }
+<span class="fc" id="L267">    return objectName;</span>
+  }
+
+  /**
+   * Parses {@link StorageResourceId} from specified string.
+   */
+  public static StorageResourceId fromObjectName(String objectName) {
+<span class="fc" id="L274">    return fromObjectName(objectName, UNKNOWN_GENERATION_ID);</span>
+  }
+
+  /**
+   * Parses {@link StorageResourceId} from specified string and generationId.
+   */
+  public static StorageResourceId fromObjectName(String objectName, long generationId) {
+<span class="fc" id="L281">    Matcher matcher = OBJECT_NAME_IN_GCS_PATTERN.matcher(objectName);</span>
+<span class="fc" id="L282">    checkArgument(matcher.matches(), &quot;'%s' is not a valid GCS object name.&quot;, objectName);</span>
+
+<span class="fc" id="L284">    String bucketName = matcher.group(2);</span>
+<span class="fc" id="L285">    String relativePath = matcher.group(4);</span>
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">    if (bucketName == null) {</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">      checkArgument(generationId == UNKNOWN_GENERATION_ID,</span>
+          &quot;Cannot specify generationId '%s' for root object '%s'&quot;, generationId, objectName);
+<span class="nc" id="L289">      return ROOT;</span>
+<span class="fc bfc" id="L290" title="All 2 branches covered.">    } else if (relativePath != null) {</span>
+<span class="fc" id="L291">      return new StorageResourceId(bucketName, relativePath, generationId);</span>
+    }
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">    checkArgument(generationId == UNKNOWN_GENERATION_ID,</span>
+        &quot;Cannot specify generationId '%s' for bucket '%s'&quot;, generationId, objectName);
+<span class="fc" id="L295">    return new StorageResourceId(bucketName);</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

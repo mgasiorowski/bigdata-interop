@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AutoValue_GoogleCloudStorageReadOptions.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">AutoValue_GoogleCloudStorageReadOptions.java</span></div><h1>AutoValue_GoogleCloudStorageReadOptions.java</h1><pre class="source lang-java linenums">
+
+package com.google.cloud.hadoop.gcsio;
+
+import javax.annotation.Generated;
+
+@Generated(&quot;com.google.auto.value.processor.AutoValueProcessor&quot;)
+final class AutoValue_GoogleCloudStorageReadOptions extends GoogleCloudStorageReadOptions {
+
+  private final int backoffInitialIntervalMillis;
+
+  private final double backoffRandomizationFactor;
+
+  private final double backoffMultiplier;
+
+  private final int backoffMaxIntervalMillis;
+
+  private final int backoffMaxElapsedTimeMillis;
+
+  private final boolean fastFailOnNotFound;
+
+  private final int bufferSize;
+
+  private final long inplaceSeekLimit;
+
+  private final GoogleCloudStorageReadOptions.Fadvise fadvise;
+
+  private final int minRangeRequestSize;
+
+  private final GoogleCloudStorageReadOptions.GenerationReadConsistency generationReadConsistency;
+
+  private AutoValue_GoogleCloudStorageReadOptions(
+      int backoffInitialIntervalMillis,
+      double backoffRandomizationFactor,
+      double backoffMultiplier,
+      int backoffMaxIntervalMillis,
+      int backoffMaxElapsedTimeMillis,
+      boolean fastFailOnNotFound,
+      int bufferSize,
+      long inplaceSeekLimit,
+      GoogleCloudStorageReadOptions.Fadvise fadvise,
+      int minRangeRequestSize,
+<span class="fc" id="L43">      GoogleCloudStorageReadOptions.GenerationReadConsistency generationReadConsistency) {</span>
+<span class="fc" id="L44">    this.backoffInitialIntervalMillis = backoffInitialIntervalMillis;</span>
+<span class="fc" id="L45">    this.backoffRandomizationFactor = backoffRandomizationFactor;</span>
+<span class="fc" id="L46">    this.backoffMultiplier = backoffMultiplier;</span>
+<span class="fc" id="L47">    this.backoffMaxIntervalMillis = backoffMaxIntervalMillis;</span>
+<span class="fc" id="L48">    this.backoffMaxElapsedTimeMillis = backoffMaxElapsedTimeMillis;</span>
+<span class="fc" id="L49">    this.fastFailOnNotFound = fastFailOnNotFound;</span>
+<span class="fc" id="L50">    this.bufferSize = bufferSize;</span>
+<span class="fc" id="L51">    this.inplaceSeekLimit = inplaceSeekLimit;</span>
+<span class="fc" id="L52">    this.fadvise = fadvise;</span>
+<span class="fc" id="L53">    this.minRangeRequestSize = minRangeRequestSize;</span>
+<span class="fc" id="L54">    this.generationReadConsistency = generationReadConsistency;</span>
+<span class="fc" id="L55">  }</span>
+
+  @Override
+  public int getBackoffInitialIntervalMillis() {
+<span class="fc" id="L59">    return backoffInitialIntervalMillis;</span>
+  }
+
+  @Override
+  public double getBackoffRandomizationFactor() {
+<span class="fc" id="L64">    return backoffRandomizationFactor;</span>
+  }
+
+  @Override
+  public double getBackoffMultiplier() {
+<span class="fc" id="L69">    return backoffMultiplier;</span>
+  }
+
+  @Override
+  public int getBackoffMaxIntervalMillis() {
+<span class="fc" id="L74">    return backoffMaxIntervalMillis;</span>
+  }
+
+  @Override
+  public int getBackoffMaxElapsedTimeMillis() {
+<span class="fc" id="L79">    return backoffMaxElapsedTimeMillis;</span>
+  }
+
+  @Override
+  public boolean getFastFailOnNotFound() {
+<span class="fc" id="L84">    return fastFailOnNotFound;</span>
+  }
+
+  @Override
+  public int getBufferSize() {
+<span class="fc" id="L89">    return bufferSize;</span>
+  }
+
+  @Override
+  public long getInplaceSeekLimit() {
+<span class="fc" id="L94">    return inplaceSeekLimit;</span>
+  }
+
+  @Override
+  public GoogleCloudStorageReadOptions.Fadvise getFadvise() {
+<span class="fc" id="L99">    return fadvise;</span>
+  }
+
+  @Override
+  public int getMinRangeRequestSize() {
+<span class="fc" id="L104">    return minRangeRequestSize;</span>
+  }
+
+  @Override
+  public GoogleCloudStorageReadOptions.GenerationReadConsistency getGenerationReadConsistency() {
+<span class="fc" id="L109">    return generationReadConsistency;</span>
+  }
+
+  @Override
+  public String toString() {
+<span class="nc" id="L114">    return &quot;GoogleCloudStorageReadOptions{&quot;</span>
+         + &quot;backoffInitialIntervalMillis=&quot; + backoffInitialIntervalMillis + &quot;, &quot;
+         + &quot;backoffRandomizationFactor=&quot; + backoffRandomizationFactor + &quot;, &quot;
+         + &quot;backoffMultiplier=&quot; + backoffMultiplier + &quot;, &quot;
+         + &quot;backoffMaxIntervalMillis=&quot; + backoffMaxIntervalMillis + &quot;, &quot;
+         + &quot;backoffMaxElapsedTimeMillis=&quot; + backoffMaxElapsedTimeMillis + &quot;, &quot;
+         + &quot;fastFailOnNotFound=&quot; + fastFailOnNotFound + &quot;, &quot;
+         + &quot;bufferSize=&quot; + bufferSize + &quot;, &quot;
+         + &quot;inplaceSeekLimit=&quot; + inplaceSeekLimit + &quot;, &quot;
+         + &quot;fadvise=&quot; + fadvise + &quot;, &quot;
+         + &quot;minRangeRequestSize=&quot; + minRangeRequestSize + &quot;, &quot;
+         + &quot;generationReadConsistency=&quot; + generationReadConsistency
+        + &quot;}&quot;;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+<span class="nc bnc" id="L131" title="All 2 branches missed.">    if (o == this) {</span>
+<span class="nc" id="L132">      return true;</span>
+    }
+<span class="nc bnc" id="L134" title="All 2 branches missed.">    if (o instanceof GoogleCloudStorageReadOptions) {</span>
+<span class="nc" id="L135">      GoogleCloudStorageReadOptions that = (GoogleCloudStorageReadOptions) o;</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">      return this.backoffInitialIntervalMillis == that.getBackoffInitialIntervalMillis()</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">          &amp;&amp; Double.doubleToLongBits(this.backoffRandomizationFactor) == Double.doubleToLongBits(that.getBackoffRandomizationFactor())</span>
+<span class="nc bnc" id="L138" title="All 2 branches missed.">          &amp;&amp; Double.doubleToLongBits(this.backoffMultiplier) == Double.doubleToLongBits(that.getBackoffMultiplier())</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">          &amp;&amp; this.backoffMaxIntervalMillis == that.getBackoffMaxIntervalMillis()</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">          &amp;&amp; this.backoffMaxElapsedTimeMillis == that.getBackoffMaxElapsedTimeMillis()</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">          &amp;&amp; this.fastFailOnNotFound == that.getFastFailOnNotFound()</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">          &amp;&amp; this.bufferSize == that.getBufferSize()</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">          &amp;&amp; this.inplaceSeekLimit == that.getInplaceSeekLimit()</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">          &amp;&amp; this.fadvise.equals(that.getFadvise())</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">          &amp;&amp; this.minRangeRequestSize == that.getMinRangeRequestSize()</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">          &amp;&amp; this.generationReadConsistency.equals(that.getGenerationReadConsistency());</span>
+    }
+<span class="nc" id="L148">    return false;</span>
+  }
+
+  @Override
+  public int hashCode() {
+<span class="nc" id="L153">    int h$ = 1;</span>
+<span class="nc" id="L154">    h$ *= 1000003;</span>
+<span class="nc" id="L155">    h$ ^= backoffInitialIntervalMillis;</span>
+<span class="nc" id="L156">    h$ *= 1000003;</span>
+<span class="nc" id="L157">    h$ ^= (int) ((Double.doubleToLongBits(backoffRandomizationFactor) &gt;&gt;&gt; 32) ^ Double.doubleToLongBits(backoffRandomizationFactor));</span>
+<span class="nc" id="L158">    h$ *= 1000003;</span>
+<span class="nc" id="L159">    h$ ^= (int) ((Double.doubleToLongBits(backoffMultiplier) &gt;&gt;&gt; 32) ^ Double.doubleToLongBits(backoffMultiplier));</span>
+<span class="nc" id="L160">    h$ *= 1000003;</span>
+<span class="nc" id="L161">    h$ ^= backoffMaxIntervalMillis;</span>
+<span class="nc" id="L162">    h$ *= 1000003;</span>
+<span class="nc" id="L163">    h$ ^= backoffMaxElapsedTimeMillis;</span>
+<span class="nc" id="L164">    h$ *= 1000003;</span>
+<span class="nc bnc" id="L165" title="All 2 branches missed.">    h$ ^= fastFailOnNotFound ? 1231 : 1237;</span>
+<span class="nc" id="L166">    h$ *= 1000003;</span>
+<span class="nc" id="L167">    h$ ^= bufferSize;</span>
+<span class="nc" id="L168">    h$ *= 1000003;</span>
+<span class="nc" id="L169">    h$ ^= (int) ((inplaceSeekLimit &gt;&gt;&gt; 32) ^ inplaceSeekLimit);</span>
+<span class="nc" id="L170">    h$ *= 1000003;</span>
+<span class="nc" id="L171">    h$ ^= fadvise.hashCode();</span>
+<span class="nc" id="L172">    h$ *= 1000003;</span>
+<span class="nc" id="L173">    h$ ^= minRangeRequestSize;</span>
+<span class="nc" id="L174">    h$ *= 1000003;</span>
+<span class="nc" id="L175">    h$ ^= generationReadConsistency.hashCode();</span>
+<span class="nc" id="L176">    return h$;</span>
+  }
+
+  @Override
+  public GoogleCloudStorageReadOptions.Builder toBuilder() {
+<span class="nc" id="L181">    return new Builder(this);</span>
+  }
+
+  static final class Builder extends GoogleCloudStorageReadOptions.Builder {
+    private Integer backoffInitialIntervalMillis;
+    private Double backoffRandomizationFactor;
+    private Double backoffMultiplier;
+    private Integer backoffMaxIntervalMillis;
+    private Integer backoffMaxElapsedTimeMillis;
+    private Boolean fastFailOnNotFound;
+    private Integer bufferSize;
+    private Long inplaceSeekLimit;
+    private GoogleCloudStorageReadOptions.Fadvise fadvise;
+    private Integer minRangeRequestSize;
+    private GoogleCloudStorageReadOptions.GenerationReadConsistency generationReadConsistency;
+<span class="fc" id="L196">    Builder() {</span>
+<span class="fc" id="L197">    }</span>
+<span class="nc" id="L198">    private Builder(GoogleCloudStorageReadOptions source) {</span>
+<span class="nc" id="L199">      this.backoffInitialIntervalMillis = source.getBackoffInitialIntervalMillis();</span>
+<span class="nc" id="L200">      this.backoffRandomizationFactor = source.getBackoffRandomizationFactor();</span>
+<span class="nc" id="L201">      this.backoffMultiplier = source.getBackoffMultiplier();</span>
+<span class="nc" id="L202">      this.backoffMaxIntervalMillis = source.getBackoffMaxIntervalMillis();</span>
+<span class="nc" id="L203">      this.backoffMaxElapsedTimeMillis = source.getBackoffMaxElapsedTimeMillis();</span>
+<span class="nc" id="L204">      this.fastFailOnNotFound = source.getFastFailOnNotFound();</span>
+<span class="nc" id="L205">      this.bufferSize = source.getBufferSize();</span>
+<span class="nc" id="L206">      this.inplaceSeekLimit = source.getInplaceSeekLimit();</span>
+<span class="nc" id="L207">      this.fadvise = source.getFadvise();</span>
+<span class="nc" id="L208">      this.minRangeRequestSize = source.getMinRangeRequestSize();</span>
+<span class="nc" id="L209">      this.generationReadConsistency = source.getGenerationReadConsistency();</span>
+<span class="nc" id="L210">    }</span>
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setBackoffInitialIntervalMillis(int backoffInitialIntervalMillis) {
+<span class="fc" id="L213">      this.backoffInitialIntervalMillis = backoffInitialIntervalMillis;</span>
+<span class="fc" id="L214">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setBackoffRandomizationFactor(double backoffRandomizationFactor) {
+<span class="fc" id="L218">      this.backoffRandomizationFactor = backoffRandomizationFactor;</span>
+<span class="fc" id="L219">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setBackoffMultiplier(double backoffMultiplier) {
+<span class="fc" id="L223">      this.backoffMultiplier = backoffMultiplier;</span>
+<span class="fc" id="L224">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setBackoffMaxIntervalMillis(int backoffMaxIntervalMillis) {
+<span class="fc" id="L228">      this.backoffMaxIntervalMillis = backoffMaxIntervalMillis;</span>
+<span class="fc" id="L229">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setBackoffMaxElapsedTimeMillis(int backoffMaxElapsedTimeMillis) {
+<span class="fc" id="L233">      this.backoffMaxElapsedTimeMillis = backoffMaxElapsedTimeMillis;</span>
+<span class="fc" id="L234">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setFastFailOnNotFound(boolean fastFailOnNotFound) {
+<span class="fc" id="L238">      this.fastFailOnNotFound = fastFailOnNotFound;</span>
+<span class="fc" id="L239">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setBufferSize(int bufferSize) {
+<span class="fc" id="L243">      this.bufferSize = bufferSize;</span>
+<span class="fc" id="L244">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setInplaceSeekLimit(long inplaceSeekLimit) {
+<span class="fc" id="L248">      this.inplaceSeekLimit = inplaceSeekLimit;</span>
+<span class="fc" id="L249">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setFadvise(GoogleCloudStorageReadOptions.Fadvise fadvise) {
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">      if (fadvise == null) {</span>
+<span class="nc" id="L254">        throw new NullPointerException(&quot;Null fadvise&quot;);</span>
+      }
+<span class="fc" id="L256">      this.fadvise = fadvise;</span>
+<span class="fc" id="L257">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setMinRangeRequestSize(int minRangeRequestSize) {
+<span class="fc" id="L261">      this.minRangeRequestSize = minRangeRequestSize;</span>
+<span class="fc" id="L262">      return this;</span>
+    }
+    @Override
+    public GoogleCloudStorageReadOptions.Builder setGenerationReadConsistency(GoogleCloudStorageReadOptions.GenerationReadConsistency generationReadConsistency) {
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">      if (generationReadConsistency == null) {</span>
+<span class="nc" id="L267">        throw new NullPointerException(&quot;Null generationReadConsistency&quot;);</span>
+      }
+<span class="fc" id="L269">      this.generationReadConsistency = generationReadConsistency;</span>
+<span class="fc" id="L270">      return this;</span>
+    }
+    @Override
+    GoogleCloudStorageReadOptions autoBuild() {
+<span class="fc" id="L274">      String missing = &quot;&quot;;</span>
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">      if (this.backoffInitialIntervalMillis == null) {</span>
+<span class="nc" id="L276">        missing += &quot; backoffInitialIntervalMillis&quot;;</span>
+      }
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">      if (this.backoffRandomizationFactor == null) {</span>
+<span class="nc" id="L279">        missing += &quot; backoffRandomizationFactor&quot;;</span>
+      }
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">      if (this.backoffMultiplier == null) {</span>
+<span class="nc" id="L282">        missing += &quot; backoffMultiplier&quot;;</span>
+      }
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">      if (this.backoffMaxIntervalMillis == null) {</span>
+<span class="nc" id="L285">        missing += &quot; backoffMaxIntervalMillis&quot;;</span>
+      }
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">      if (this.backoffMaxElapsedTimeMillis == null) {</span>
+<span class="nc" id="L288">        missing += &quot; backoffMaxElapsedTimeMillis&quot;;</span>
+      }
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">      if (this.fastFailOnNotFound == null) {</span>
+<span class="nc" id="L291">        missing += &quot; fastFailOnNotFound&quot;;</span>
+      }
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">      if (this.bufferSize == null) {</span>
+<span class="nc" id="L294">        missing += &quot; bufferSize&quot;;</span>
+      }
+<span class="pc bpc" id="L296" title="1 of 2 branches missed.">      if (this.inplaceSeekLimit == null) {</span>
+<span class="nc" id="L297">        missing += &quot; inplaceSeekLimit&quot;;</span>
+      }
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">      if (this.fadvise == null) {</span>
+<span class="nc" id="L300">        missing += &quot; fadvise&quot;;</span>
+      }
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">      if (this.minRangeRequestSize == null) {</span>
+<span class="nc" id="L303">        missing += &quot; minRangeRequestSize&quot;;</span>
+      }
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">      if (this.generationReadConsistency == null) {</span>
+<span class="nc" id="L306">        missing += &quot; generationReadConsistency&quot;;</span>
+      }
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">      if (!missing.isEmpty()) {</span>
+<span class="nc" id="L309">        throw new IllegalStateException(&quot;Missing required properties:&quot; + missing);</span>
+      }
+<span class="fc" id="L311">      return new AutoValue_GoogleCloudStorageReadOptions(</span>
+<span class="fc" id="L312">          this.backoffInitialIntervalMillis,</span>
+<span class="fc" id="L313">          this.backoffRandomizationFactor,</span>
+<span class="fc" id="L314">          this.backoffMultiplier,</span>
+<span class="fc" id="L315">          this.backoffMaxIntervalMillis,</span>
+<span class="fc" id="L316">          this.backoffMaxElapsedTimeMillis,</span>
+<span class="fc" id="L317">          this.fastFailOnNotFound,</span>
+<span class="fc" id="L318">          this.bufferSize,</span>
+<span class="fc" id="L319">          this.inplaceSeekLimit,</span>
+          this.fadvise,
+<span class="fc" id="L321">          this.minRangeRequestSize,</span>
+          this.generationReadConsistency);
+    }
+  }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

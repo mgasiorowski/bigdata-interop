@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>AbstractGoogleAsyncWriteChannel.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">util</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.util</a> &gt; <span class="el_source">AbstractGoogleAsyncWriteChannel.java</span></div><h1>AbstractGoogleAsyncWriteChannel.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 Google Inc. All Rights Reserved.
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.util;
+
+import static com.google.common.base.Preconditions.checkState;
+
+import com.google.api.client.googleapis.media.MediaHttpUploader;
+import com.google.api.client.googleapis.services.AbstractGoogleClientRequest;
+import com.google.api.client.http.InputStreamContent;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.flogger.GoogleLogger;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.ClosedByInterruptException;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.WritableByteChannel;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+
+public abstract class AbstractGoogleAsyncWriteChannel&lt;T extends AbstractGoogleClientRequest&lt;S&gt;, S&gt;
+    implements WritableByteChannel {
+
+<span class="fc" id="L43">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+
+  // Default GCS upload granularity.
+  public static final int GCS_UPLOAD_GRANULARITY = 8 * 1024 * 1024;
+
+  // Chunk size to use.
+<span class="fc" id="L49">  public static final int UPLOAD_CHUNK_SIZE_DEFAULT =</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">      Runtime.getRuntime().maxMemory() &lt; 512 * 1024 * 1024</span>
+          ? GCS_UPLOAD_GRANULARITY
+          : 8 * GCS_UPLOAD_GRANULARITY;
+
+  private String contentType;
+
+  // ClientRequestHelper to be used instead of calling final methods in client requests.
+<span class="fc" id="L57">  private ClientRequestHelper&lt;S&gt; clientRequestHelper = new ClientRequestHelper&lt;&gt;();</span>
+
+  // A pipe that connects write channel used by caller to the input stream used by GCS uploader.
+  // The uploader reads from input stream, which blocks till a caller writes some data to the
+  // write channel (pipeSinkChannel below). The pipe is formed by connecting pipeSink to pipeSource
+  private final ExecutorService threadPool;
+
+<span class="fc" id="L64">  private boolean isInitialized = false;</span>
+
+  // Size of buffer used by upload pipe.
+  private final int pipeBufferSize;
+
+  // Chunk size to use.
+<span class="fc" id="L70">  private int uploadChunkSize = UPLOAD_CHUNK_SIZE_DEFAULT;</span>
+
+  // A channel wrapper over pipeSink.
+  private WritableByteChannel pipeSinkChannel;
+
+  // Upload operation that takes place on a separate thread.
+  private Future&lt;S&gt; uploadOperation;
+
+  // When enabled, we get higher throughput for writing small files.
+<span class="fc" id="L79">  private boolean directUploadEnabled = false;</span>
+
+  /** Construct a new channel using the given ExecutorService to run background uploads. */
+  public AbstractGoogleAsyncWriteChannel(
+<span class="fc" id="L83">      ExecutorService threadPool, AsyncWriteChannelOptions options) {</span>
+<span class="fc" id="L84">    this.threadPool = threadPool;</span>
+<span class="fc" id="L85">    this.pipeBufferSize = options.getPipeBufferSize();</span>
+<span class="fc" id="L86">    setUploadChunkSize(options.getUploadChunkSize());</span>
+<span class="fc" id="L87">    setDirectUploadEnabled(options.isDirectUploadEnabled());</span>
+<span class="fc" id="L88">    setContentType(&quot;application/octet-stream&quot;);</span>
+<span class="fc" id="L89">  }</span>
+
+  /**
+   * Sets the ClientRequestHelper to be used instead of calling final methods in client requests.
+   */
+  @VisibleForTesting
+  public void setClientRequestHelper(ClientRequestHelper&lt;S&gt; helper) {
+<span class="fc" id="L96">    clientRequestHelper = helper;</span>
+<span class="fc" id="L97">  }</span>
+
+  /**
+   * Create an API request to upload the given InputStreamContent.
+   *
+   * @return An initialized request.
+   * @throws IOException
+   */
+  public abstract T createRequest(InputStreamContent inputStream) throws IOException;
+
+  /**
+   * Handle the API response.
+   *
+   * &lt;p&gt;This method is invoked after the upload has completed on the same thread that invokes
+   * close().
+   *
+   * @param response The API response object.
+   */
+<span class="nc" id="L115">  public void handleResponse(S response) throws IOException {}</span>
+
+  /**
+   * Derived classes may optionally intercept an IOException thrown from the execute() method of a
+   * prepared request that came from {@link #createRequest}, and return a reconstituted &quot;response&quot;
+   * object if the IOException can be handled as a success; for example, if the caller already has
+   * an identifier for an object, and the response is used solely for obtaining the same identifier,
+   * and the IOException is a handled &quot;409 Already Exists&quot; type of exception, then the derived class
+   * may override this method to return the expected &quot;identifier&quot; response. Return null to let the
+   * exception propagate through correctly.
+   */
+  public S createResponseFromException(IOException ioe) {
+<span class="fc" id="L127">    return null;</span>
+  }
+
+  @Deprecated
+  public void setUploadBufferSize(int bufferSize) {
+<span class="nc" id="L132">    setUploadChunkSize(bufferSize);</span>
+<span class="nc" id="L133">  }</span>
+
+  /** Sets size of upload buffer used. */
+  public void setUploadChunkSize(int chunkSize) {
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">    Preconditions.checkArgument(chunkSize &gt; 0, &quot;Upload chunk size must be great than 0.&quot;);</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">    Preconditions.checkArgument(</span>
+        chunkSize % MediaHttpUploader.MINIMUM_CHUNK_SIZE == 0,
+        &quot;Upload chunk size must be a multiple of MediaHttpUploader.MINIMUM_CHUNK_SIZE&quot;);
+<span class="pc bpc" id="L141" title="1 of 4 branches missed.">    if ((chunkSize &gt; GCS_UPLOAD_GRANULARITY) &amp;&amp; (chunkSize % GCS_UPLOAD_GRANULARITY != 0)) {</span>
+<span class="nc" id="L142">      logger.atWarning().log(</span>
+          &quot;Upload chunk size should be a multiple of %s for best performance, got %s&quot;,
+          GCS_UPLOAD_GRANULARITY, chunkSize);
+    }
+<span class="fc" id="L146">    uploadChunkSize = chunkSize;</span>
+<span class="fc" id="L147">  }</span>
+
+  /**
+   * Enables or disables direct uploads.
+   *
+   * @see MediaHttpUploader#setDirectUploadEnabled(boolean)
+   */
+  public void setDirectUploadEnabled(boolean enableDirectUpload) {
+<span class="fc" id="L155">    directUploadEnabled = enableDirectUpload;</span>
+<span class="fc" id="L156">  }</span>
+
+  /** Returns true if direct media uploads are enabled. */
+  public boolean isDirectUploadEnabled() {
+<span class="fc" id="L160">    return directUploadEnabled;</span>
+  }
+
+  /**
+   * Writes contents of the given buffer to this channel.
+   *
+   * &lt;p&gt;Note: The data that one writes gets written to a pipe which must not block if the pipe has
+   * sufficient buffer space. A success code returned from this method does not mean that the
+   * specific data was successfully written to the underlying storage. It simply means that there is
+   * no error at present. The data upload may encounter an error on a separate thread. Such error is
+   * not ignored; it shows up as an exception during a subsequent call to write() or close(). The
+   * only way to be sure of successful upload is when the close() method returns successfully.
+   *
+   * @param buffer buffer to write
+   * @throws IOException on IO error
+   */
+  @Override
+  public synchronized int write(ByteBuffer buffer) throws IOException {
+<span class="fc" id="L178">    checkState(isInitialized, &quot;initialize() must be invoked before use.&quot;);</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">    if (!isOpen()) {</span>
+<span class="nc" id="L180">      throw new ClosedChannelException();</span>
+    }
+
+    // No point in writing further if upload failed on another thread.
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">    if (uploadOperation.isDone()) {</span>
+<span class="nc" id="L185">      waitForCompletionAndThrowIfUploadFailed();</span>
+    }
+
+<span class="fc" id="L188">    return pipeSinkChannel.write(buffer);</span>
+  }
+
+  /**
+   * Tells whether this channel is open.
+   *
+   * @return a value indicating whether this channel is open
+   */
+  @Override
+  public boolean isOpen() {
+<span class="pc bpc" id="L198" title="2 of 4 branches missed.">    return (pipeSinkChannel != null) &amp;&amp; pipeSinkChannel.isOpen();</span>
+  }
+
+  /**
+   * Closes this channel.
+   *
+   * &lt;p&gt;Note: The method returns only after all data has been successfully written to GCS or if
+   * there is a non-retry-able error.
+   *
+   * @throws IOException on IO error
+   */
+  @Override
+  public void close() throws IOException {
+<span class="fc" id="L211">    checkState(isInitialized, &quot;initialize() must be invoked before use.&quot;);</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">    if (isOpen()) {</span>
+      try {
+<span class="fc" id="L214">        pipeSinkChannel.close();</span>
+<span class="fc" id="L215">        handleResponse(waitForCompletionAndThrowIfUploadFailed());</span>
+      } finally {
+<span class="fc" id="L217">        pipeSinkChannel = null;</span>
+<span class="fc" id="L218">        uploadOperation = null;</span>
+      }
+    }
+<span class="fc" id="L221">  }</span>
+
+  /**
+   * Initialize this channel object for writing.
+   *
+   * @throws IOException
+   */
+  public void initialize() throws IOException {
+    // Create a pipe such that its one end is connected to the input stream used by
+    // the uploader and the other end is the write channel used by the caller.
+<span class="fc" id="L231">    PipedInputStream pipeSource = new PipedInputStream(pipeBufferSize);</span>
+<span class="fc" id="L232">    OutputStream pipeSink = new PipedOutputStream(pipeSource);</span>
+<span class="fc" id="L233">    pipeSinkChannel = Channels.newChannel(pipeSink);</span>
+
+    // Connect pipe-source to the stream used by uploader.
+<span class="fc" id="L236">    InputStreamContent objectContentStream = new InputStreamContent(contentType, pipeSource);</span>
+    // Indicate that we do not know length of file in advance.
+<span class="fc" id="L238">    objectContentStream.setLength(-1);</span>
+<span class="fc" id="L239">    objectContentStream.setCloseInputStream(false);</span>
+
+<span class="fc" id="L241">    T request = createRequest(objectContentStream);</span>
+<span class="fc" id="L242">    request.setDisableGZipContent(true);</span>
+
+    // Change chunk size from default value (10MB) to one that yields higher performance.
+<span class="fc" id="L245">    clientRequestHelper.setChunkSize(request, uploadChunkSize);</span>
+
+    // Given that the two ends of the pipe must operate asynchronous relative
+    // to each other, we need to start the upload operation on a separate thread.
+<span class="fc" id="L249">    uploadOperation = threadPool.submit(new UploadOperation(request, pipeSource));</span>
+
+<span class="fc" id="L251">    isInitialized = true;</span>
+<span class="fc" id="L252">  }</span>
+
+  class UploadOperation implements Callable&lt;S&gt; {
+    // Object to be uploaded. This object declared final for safe object publishing.
+    private final T uploadObject;
+
+    // Read end of the pipe. This object declared final for safe object publishing.
+    private final InputStream pipeSource;
+
+    /** Constructs an instance of UploadOperation. */
+<span class="fc" id="L262">    public UploadOperation(T uploadObject, InputStream pipeSource) {</span>
+<span class="fc" id="L263">      this.uploadObject = uploadObject;</span>
+<span class="fc" id="L264">      this.pipeSource = pipeSource;</span>
+<span class="fc" id="L265">    }</span>
+
+    @Override
+    public S call() throws Exception {
+      // Try-with-resource will close this end of the pipe so that
+      // the writer at the other end will not hang indefinitely.
+<span class="fc" id="L271">      try (InputStream uploadPipeSource = pipeSource) {</span>
+<span class="fc" id="L272">        return uploadObject.execute();</span>
+<span class="fc" id="L273">      } catch (IOException ioe) {</span>
+<span class="fc" id="L274">        S response = createResponseFromException(ioe);</span>
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">        if (response != null) {</span>
+<span class="nc" id="L276">          logger.atWarning().withCause(ioe).log(</span>
+              &quot;Received IOException, but successfully converted to response '%s'.&quot;, response);
+<span class="nc" id="L278">          return response;</span>
+        }
+<span class="fc" id="L280">        throw ioe;</span>
+      }
+    }
+  }
+
+  /** Sets the contentType. This must be called before {@link #initialize()} for any effect. */
+  protected void setContentType(String contentType) {
+<span class="fc" id="L287">    this.contentType = contentType;</span>
+<span class="fc" id="L288">  }</span>
+
+  /**
+   * Throws if upload operation failed. Propagates any errors.
+   *
+   * @throws IOException on IO error
+   */
+  private S waitForCompletionAndThrowIfUploadFailed() throws IOException {
+    try {
+<span class="fc" id="L297">      return uploadOperation.get();</span>
+<span class="fc" id="L298">    } catch (InterruptedException e) {</span>
+      // If we were interrupted, we need to cancel the upload operation.
+<span class="fc" id="L300">      uploadOperation.cancel(true);</span>
+<span class="fc" id="L301">      IOException exception = new ClosedByInterruptException();</span>
+<span class="fc" id="L302">      exception.addSuppressed(e);</span>
+<span class="fc" id="L303">      throw exception;</span>
+<span class="fc" id="L304">    } catch (ExecutionException e) {</span>
+<span class="fc bfc" id="L305" title="All 2 branches covered.">      if (e.getCause() instanceof Error) {</span>
+<span class="fc" id="L306">        throw (Error) e.getCause();</span>
+      }
+<span class="fc" id="L308">      throw new IOException(&quot;Upload failed&quot;, e.getCause());</span>
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

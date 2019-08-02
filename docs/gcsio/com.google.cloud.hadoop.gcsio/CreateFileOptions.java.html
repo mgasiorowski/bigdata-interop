@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CreateFileOptions.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio</a> &gt; <span class="el_source">CreateFileOptions.java</span></div><h1>CreateFileOptions.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2014 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
+import java.util.Map;
+
+/**
+ * Options that can be specified when creating a file in the {@code GoogleCloudFileSystem}.
+ */
+public class CreateFileOptions {
+<span class="fc" id="L27">  public static final ImmutableMap&lt;String, byte[]&gt; EMPTY_ATTRIBUTES = ImmutableMap.of();</span>
+  public static final String DEFAULT_CONTENT_TYPE = &quot;application/octet-stream&quot;;
+<span class="fc" id="L29">  public static final CreateFileOptions DEFAULT =</span>
+      new CreateFileOptions(/* overwriteExisting= */ true, DEFAULT_CONTENT_TYPE, EMPTY_ATTRIBUTES);
+
+  private final boolean overwriteExisting;
+  private final String contentType;
+  private final Map&lt;String, byte[]&gt; attributes;
+  private final boolean checkNoDirectoryConflict;
+  private final boolean ensureParentDirectoriesExist;
+  private final long existingGenerationId;
+
+  /**
+   * Create a file with empty attributes and optionally overwriting any existing file.
+   *
+   * @param overwriteExisting True to overwrite an existing file with the same name
+   */
+  public CreateFileOptions(boolean overwriteExisting) {
+<span class="fc" id="L45">    this(overwriteExisting, DEFAULT_CONTENT_TYPE, EMPTY_ATTRIBUTES);</span>
+<span class="fc" id="L46">  }</span>
+
+  /**
+   * Create a file with empty attributes, and optionally overwriting any existing file with one
+   * having the given content-type.
+   *
+   * @param overwriteExisting True to overwrite an existing file with the same name
+   * @param contentType content-type for the created file
+   */
+  public CreateFileOptions(boolean overwriteExisting, String contentType) {
+<span class="nc" id="L56">    this(overwriteExisting, contentType, EMPTY_ATTRIBUTES);</span>
+<span class="nc" id="L57">  }</span>
+
+  /**
+   * Create a file with specified attributes and optionally overwriting an existing file.
+   *
+   * @param overwriteExisting True to overwrite an existing file with the same name
+   * @param attributes File attributes to apply to the file at creation
+   */
+  public CreateFileOptions(boolean overwriteExisting, Map&lt;String, byte[]&gt; attributes) {
+<span class="fc" id="L66">    this(overwriteExisting, DEFAULT_CONTENT_TYPE, attributes);</span>
+<span class="fc" id="L67">  }</span>
+
+  /**
+   * Create a file with specified attributes, and optionally overwriting an existing file with one
+   * having the given content-type.
+   *
+   * @param overwriteExisting True to overwrite an existing file with the same name
+   * @param contentType content-type for the created file
+   * @param attributes File attributes to apply to the file at creation
+   */
+  public CreateFileOptions(boolean overwriteExisting, String contentType,
+      Map&lt;String, byte[]&gt; attributes) {
+<span class="fc" id="L79">    this(overwriteExisting, contentType, attributes, true, true,</span>
+        StorageResourceId.UNKNOWN_GENERATION_ID);
+<span class="fc" id="L81">  }</span>
+
+  /**
+   * Create a file with specified attributes, and optionally overwriting an existing file with one
+   * having the given content-type.
+   *
+   * @param overwriteExisting True to overwrite an existing file with the same name
+   * @param contentType content-type for the created file
+   * @param attributes File attributes to apply to the file at creation
+   * @param checkNoDirectoryConflict If true, makes sure there isn't already a directory object
+   *     of the same name. If false, you run the risk of creating hard-to-cleanup/access files
+   *     whose names collide with directory names. If already sure no such directory exists,
+   *     then this is safe to set for improved performance.
+   * @param ensureParentDirectoriesExist If true, ensures parent directories exist, creating
+   *     them on-demand if they don't. If false, you run the risk of creating objects without
+   *     parent directories, which may degrade or break the behavior of some filesystem
+   *     functionality. If already sure parent directories exist, then this is safe to set for
+   *     improved performance.
+   * @param existingGenerationId Ignored if set to StorageResourceId.UNKNOWN_GENERATION_ID, but
+   *     otherwise this is used instead of {@code overwriteExisting}, where 0 indicates no
+   *     existing object, and otherwise an existing object will only be overwritten by the newly
+   *     created file if its generation matches this provided generationId.
+   */
+  public CreateFileOptions(
+      boolean overwriteExisting,
+      String contentType,
+      Map&lt;String, byte[]&gt; attributes,
+      boolean checkNoDirectoryConflict,
+      boolean ensureParentDirectoriesExist,
+<span class="fc" id="L110">      long existingGenerationId) {</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">    Preconditions.checkArgument(!attributes.containsKey(&quot;Content-Type&quot;),</span>
+        &quot;The Content-Type attribute must be provided explicitly via the 'contentType' parameter&quot;);
+<span class="fc" id="L113">    this.overwriteExisting = overwriteExisting;</span>
+<span class="fc" id="L114">    this.contentType = contentType;</span>
+<span class="fc" id="L115">    this.attributes = attributes;</span>
+<span class="fc" id="L116">    this.checkNoDirectoryConflict = checkNoDirectoryConflict;</span>
+<span class="fc" id="L117">    this.ensureParentDirectoriesExist = ensureParentDirectoriesExist;</span>
+<span class="fc" id="L118">    this.existingGenerationId = existingGenerationId;</span>
+<span class="fc" id="L119">  }</span>
+
+  /**
+   * Get the value of overwriteExisting.
+   */
+  public boolean overwriteExisting() {
+<span class="fc" id="L125">    return overwriteExisting;</span>
+  }
+
+  /**
+   * Content-type to set when creating a file.
+   */
+  public String getContentType() {
+<span class="fc" id="L132">    return contentType;</span>
+  }
+
+  /**
+   * Extended attributes to set when creating a file.
+   */
+  public Map&lt;String, byte[]&gt; getAttributes() {
+<span class="fc" id="L139">    return attributes;</span>
+  }
+
+  /**
+   * If true, makes sure there isn't already a directory object of the same name.
+   * If false, you run the risk of creating hard-to-cleanup/access files whose names collide with
+   * directory names. If already sure no such directory exists, then this is safe to set for
+   * improved performance.
+   */
+  public boolean checkNoDirectoryConflict() {
+<span class="fc" id="L149">    return checkNoDirectoryConflict;</span>
+  }
+
+  /**
+   * If true, ensures parent directories exist, creating them on-demand if they don't.
+   * If false, you run the risk of creating objects without parent directories, which may degrade
+   * or break the behavior of some filesystem functionality. If already sure parent directories
+   * exist, then this is safe to set for improved performance.
+   */
+  public boolean ensureParentDirectoriesExist() {
+<span class="fc" id="L159">    return ensureParentDirectoriesExist;</span>
+  }
+
+  /**
+   * Generation of existing object. Ignored if set to StorageResourceId.UNKNOWN_GENERATION_ID, but
+   * otherwise this is used instead of {@code overwriteExisting}, where 0 indicates no
+   * existing object, and otherwise an existing object will only be overwritten by the newly
+   * created file if its generation matches this provided generationId.
+   */
+  public long getExistingGenerationId() {
+<span class="fc" id="L169">    return existingGenerationId;</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

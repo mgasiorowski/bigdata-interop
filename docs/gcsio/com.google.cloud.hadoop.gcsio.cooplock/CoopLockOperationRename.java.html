@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>CoopLockOperationRename.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">gcsio</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.gcsio.cooplock</a> &gt; <span class="el_source">CoopLockOperationRename.java</span></div><h1>CoopLockOperationRename.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 Google LLC. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.google.cloud.hadoop.gcsio.cooplock;
+
+import static com.google.cloud.hadoop.gcsio.cooplock.CoopLockOperationType.RENAME;
+import static com.google.cloud.hadoop.gcsio.cooplock.CoopLockUtils.normalizeLockedResource;
+import static com.google.common.base.Preconditions.checkArgument;
+
+import com.google.cloud.hadoop.gcsio.FileInfo;
+import com.google.cloud.hadoop.gcsio.ForwardingGoogleCloudStorage;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorage;
+import com.google.cloud.hadoop.gcsio.GoogleCloudStorageImpl;
+import com.google.cloud.hadoop.gcsio.PathCodec;
+import com.google.cloud.hadoop.gcsio.StorageResourceId;
+import com.google.common.base.MoreObjects;
+import java.io.IOException;
+import java.net.URI;
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.Future;
+
+public class CoopLockOperationRename {
+
+<span class="fc" id="L39">  private final String operationId = UUID.randomUUID().toString();</span>
+<span class="fc" id="L40">  private final Instant operationInstant = Instant.now();</span>
+
+  private final StorageResourceId srcResourceId;
+  private final StorageResourceId dstResourceId;
+
+  private final CoopLockRecordsDao coopLockRecordsDao;
+  private final CoopLockOperationDao coopLockOperationDao;
+
+  private Future&lt;?&gt; lockUpdateFuture;
+
+  private CoopLockOperationRename(
+      GoogleCloudStorageImpl gcs,
+      PathCodec pathCodec,
+      StorageResourceId srcResourceId,
+<span class="fc" id="L54">      StorageResourceId dstResourceId) {</span>
+<span class="fc" id="L55">    this.srcResourceId = srcResourceId;</span>
+<span class="fc" id="L56">    this.dstResourceId = dstResourceId;</span>
+<span class="fc" id="L57">    this.coopLockRecordsDao = new CoopLockRecordsDao(gcs);</span>
+<span class="fc" id="L58">    this.coopLockOperationDao = new CoopLockOperationDao(gcs, pathCodec);</span>
+<span class="fc" id="L59">  }</span>
+
+  public static CoopLockOperationRename create(
+      GoogleCloudStorage gcs, PathCodec pathCodec, URI src, URI dst) {
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">    while (gcs instanceof ForwardingGoogleCloudStorage) {</span>
+<span class="nc" id="L64">      gcs = ((ForwardingGoogleCloudStorage) gcs).getDelegate();</span>
+    }
+<span class="fc" id="L66">    checkArgument(</span>
+        gcs instanceof GoogleCloudStorageImpl,
+        &quot;gcs should be instance of %s, but was %s&quot;,
+        GoogleCloudStorageImpl.class,
+<span class="fc" id="L70">        gcs.getClass());</span>
+<span class="fc" id="L71">    return new CoopLockOperationRename(</span>
+        (GoogleCloudStorageImpl) gcs,
+        pathCodec,
+<span class="fc" id="L74">        pathCodec.validatePathAndGetId(</span>
+<span class="fc" id="L75">            normalizeLockedResource(src), /* allowEmptyObjectName= */ true),</span>
+<span class="fc" id="L76">        pathCodec.validatePathAndGetId(</span>
+<span class="fc" id="L77">            normalizeLockedResource(dst), /* allowEmptyObjectName= */ true));</span>
+  }
+
+  public void lock() {
+    try {
+<span class="fc" id="L82">      coopLockRecordsDao.lockPaths(</span>
+          operationId, operationInstant, RENAME, srcResourceId, dstResourceId);
+<span class="nc" id="L84">    } catch (IOException e) {</span>
+<span class="nc" id="L85">      throw new RuntimeException(String.format(&quot;Failed to acquire lock %s operation&quot;, this), e);</span>
+<span class="fc" id="L86">    }</span>
+<span class="fc" id="L87">  }</span>
+
+  public void persistAndScheduleRenewal(
+      Map&lt;FileInfo, URI&gt; srcToDstItemNames, Map&lt;FileInfo, URI&gt; srcToDstMarkerItemNames) {
+    try {
+<span class="fc" id="L92">      lockUpdateFuture =</span>
+<span class="fc" id="L93">          coopLockOperationDao.persistRenameOperation(</span>
+              operationId,
+              operationInstant,
+              srcResourceId,
+              dstResourceId,
+              srcToDstItemNames,
+              srcToDstMarkerItemNames);
+<span class="nc" id="L100">    } catch (IOException e) {</span>
+<span class="nc" id="L101">      throw new RuntimeException(String.format(&quot;Failed to persist %s operation&quot;, this), e);</span>
+<span class="fc" id="L102">    }</span>
+<span class="fc" id="L103">  }</span>
+
+  public void checkpoint() {
+    try {
+<span class="fc" id="L107">      coopLockOperationDao.checkpointRenameOperation(</span>
+          srcResourceId, dstResourceId, operationId, operationInstant, /* copySucceeded= */ true);
+<span class="nc" id="L109">    } catch (IOException e) {</span>
+<span class="nc" id="L110">      throw new RuntimeException(String.format(&quot;Failed to checkpoint %s operation&quot;, this), e);</span>
+<span class="fc" id="L111">    }</span>
+<span class="fc" id="L112">  }</span>
+
+  public void unlock() {
+    try {
+<span class="fc" id="L116">      coopLockRecordsDao.unlockPaths(operationId, srcResourceId, dstResourceId);</span>
+<span class="nc" id="L117">    } catch (IOException e) {</span>
+<span class="nc" id="L118">      throw new RuntimeException(</span>
+<span class="nc" id="L119">          String.format(&quot;Failed to release unlock for %s operation&quot;, this), e);</span>
+<span class="fc" id="L120">    }</span>
+<span class="fc" id="L121">  }</span>
+
+  public void cancelRenewal() {
+<span class="fc" id="L124">    lockUpdateFuture.cancel(/* mayInterruptIfRunning= */ true);</span>
+<span class="fc" id="L125">  }</span>
+
+  @Override
+  public String toString() {
+<span class="nc" id="L129">    return MoreObjects.toStringHelper(this)</span>
+<span class="nc" id="L130">        .add(&quot;operationId&quot;, operationId)</span>
+<span class="nc" id="L131">        .add(&quot;operationInstant&quot;, operationInstant)</span>
+<span class="nc" id="L132">        .add(&quot;srcResourceId&quot;, srcResourceId)</span>
+<span class="nc" id="L133">        .add(&quot;dstResourceId&quot;, dstResourceId)</span>
+<span class="nc" id="L134">        .toString();</span>
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

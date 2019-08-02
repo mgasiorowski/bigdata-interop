@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../../jacoco-resources/report.gif" type="image/gif"/><title>DirectBigQueryRecordReader.java</title><link rel="stylesheet" href="../../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../../index.html" class="el_report">coverage</a> &gt; <a href="../index.html" class="el_bundle">bigquery-connector</a> &gt; <a href="index.source.html" class="el_package">com.google.cloud.hadoop.io.bigquery</a> &gt; <span class="el_source">DirectBigQueryRecordReader.java</span></div><h1>DirectBigQueryRecordReader.java</h1><pre class="source lang-java linenums">/*
+ * Copyright 2019 Google LLC
+ *
+ *  Licensed under the Apache License, Version 2.0 (the &quot;License&quot;); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software distributed under the
+ * License is distributed on an &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+ * express or implied. See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.google.cloud.hadoop.io.bigquery;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+
+import com.google.cloud.bigquery.storage.v1beta1.BigQueryStorageClient;
+import com.google.cloud.bigquery.storage.v1beta1.Storage.ReadRowsRequest;
+import com.google.cloud.bigquery.storage.v1beta1.Storage.ReadRowsResponse;
+import com.google.cloud.bigquery.storage.v1beta1.Storage.Stream;
+import com.google.cloud.bigquery.storage.v1beta1.Storage.StreamPosition;
+import com.google.cloud.hadoop.io.bigquery.DirectBigQueryInputFormat.DirectBigQueryInputSplit;
+import com.google.protobuf.ByteString;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
+import org.apache.avro.Schema;
+import org.apache.avro.Schema.Parser;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.DecoderFactory;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.mapreduce.InputSplit;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+
+/** {@link RecordReader} for {@link DirectBigQueryInputFormat}. */
+<span class="fc" id="L41">public class DirectBigQueryRecordReader extends RecordReader&lt;NullWritable, GenericRecord&gt; {</span>
+
+  private Schema schema;
+  private Stream stream;
+<span class="fc" id="L45">  private Parser parser = new Parser();</span>
+  private GenericRecord current;
+  private boolean finalized;
+  private long limit;
+  private long idx;
+  private BigQueryStorageClient client;
+  private Iterator&lt;ReadRowsResponse&gt; responseIterator;
+  private Iterator&lt;GenericRecord&gt; recordIterator;
+
+  @Override
+  public void initialize(InputSplit genericSplit, TaskAttemptContext context) throws IOException {
+<span class="fc" id="L56">    DirectBigQueryInputSplit split = (DirectBigQueryInputSplit) genericSplit;</span>
+<span class="fc" id="L57">    schema = parser.parse(checkNotNull(split.getSchema(), &quot;schema&quot;));</span>
+
+<span class="fc" id="L59">    stream = Stream.newBuilder().setName(checkNotNull(split.getName(), &quot;name&quot;)).build();</span>
+    ReadRowsRequest request =
+<span class="fc" id="L61">        ReadRowsRequest.newBuilder()</span>
+<span class="fc" id="L62">            .setReadPosition(StreamPosition.newBuilder().setStream(stream).build())</span>
+<span class="fc" id="L63">            .build();</span>
+
+<span class="fc" id="L65">    client = getClient(context.getConfiguration());</span>
+<span class="fc" id="L66">    responseIterator = client.readRowsCallable().call(request).iterator();</span>
+<span class="fc" id="L67">    recordIterator = Collections.emptyIterator();</span>
+
+<span class="fc" id="L69">    limit = split.getLimit();</span>
+<span class="fc" id="L70">    idx = 0;</span>
+<span class="fc" id="L71">    finalized = false;</span>
+<span class="fc" id="L72">  }</span>
+
+  @Override
+  public boolean nextKeyValue() {
+    // Finalize reader once we hit limit. We must at that point keep reading until BigQuery stops
+    // sending records.
+<span class="fc bfc" id="L78" title="All 4 branches covered.">    if (++idx &gt;= limit &amp;&amp; !finalized) {</span>
+<span class="fc" id="L79">      client.finalizeStream(stream);</span>
+<span class="fc" id="L80">      finalized = true;</span>
+    }
+
+    // TODO: unwrap runtime exceptions thrown by responseIterator:
+    // RE(InterruptedException) -&gt; InterruptedException
+    // RE(StatusException) -&gt; IOException
+    // See ClientCalls.BlockingResponseStream.hasNext
+<span class="fc bfc" id="L87" title="All 4 branches covered.">    if (responseIterator.hasNext() &amp;&amp; !recordIterator.hasNext()) {</span>
+<span class="fc" id="L88">      recordIterator =</span>
+          new AvroRecordIterator(
+<span class="fc" id="L90">              schema, responseIterator.next().getAvroRows().getSerializedBinaryRows());</span>
+    }
+<span class="fc bfc" id="L92" title="All 2 branches covered.">    if (recordIterator.hasNext()) {</span>
+<span class="fc" id="L93">      current = recordIterator.next();</span>
+<span class="fc" id="L94">      return true;</span>
+    }
+<span class="fc" id="L96">    current = null;</span>
+<span class="fc" id="L97">    return false;</span>
+  }
+
+  @Override
+  public NullWritable getCurrentKey() {
+<span class="fc" id="L102">    return NullWritable.get();</span>
+  }
+
+  @Override
+  public GenericRecord getCurrentValue() {
+<span class="fc" id="L107">    return current;</span>
+  }
+
+  @Override
+  public float getProgress() {
+    // TODO: report progress
+<span class="nc" id="L113">    return -1;</span>
+  }
+
+  @Override
+<span class="nc" id="L117">  public void close() {}</span>
+
+  /**
+   * Helper method to override for testing.
+   *
+   * @return Bigquery.
+   * @throws IOException on IO Error.
+   */
+  protected BigQueryStorageClient getClient(Configuration conf) throws IOException {
+<span class="nc" id="L126">    return BigQueryStorageClient.create();</span>
+  }
+
+  private static class AvroRecordIterator implements Iterator&lt;GenericRecord&gt; {
+
+    private final BinaryDecoder in;
+    private final GenericDatumReader&lt;GenericRecord&gt; reader;
+
+    // TODO: replace nulls with reusable objects
+<span class="fc" id="L135">    AvroRecordIterator(Schema schema, ByteString bytes) {</span>
+<span class="fc" id="L136">      reader = new GenericDatumReader&lt;&gt;(schema);</span>
+<span class="fc" id="L137">      in = new DecoderFactory().binaryDecoder(bytes.toByteArray(), /* reuse= */ null);</span>
+<span class="fc" id="L138">    }</span>
+
+    @Override
+    public boolean hasNext() {
+      try {
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        return !in.isEnd();</span>
+<span class="nc" id="L144">      } catch (IOException e) {</span>
+<span class="nc" id="L145">        throw new RuntimeException(&quot;Failed to check for more records&quot;, e);</span>
+      }
+    }
+
+    @Override
+    public GenericRecord next() {
+      try {
+<span class="fc" id="L152">        return reader.read(/* reuse= */ null, in);</span>
+<span class="nc" id="L153">      } catch (IOException e) {</span>
+<span class="nc" id="L154">        throw new RuntimeException(&quot;Failed to read more records&quot;, e);</span>
+      }
+    }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>
