@@ -26,8 +26,15 @@ import java.util.Map;
 public class CreateFileOptions {
 <span class="fc" id="L27">  public static final ImmutableMap&lt;String, byte[]&gt; EMPTY_ATTRIBUTES = ImmutableMap.of();</span>
   public static final String DEFAULT_CONTENT_TYPE = &quot;application/octet-stream&quot;;
-<span class="fc" id="L29">  public static final CreateFileOptions DEFAULT =</span>
+
+<span class="fc" id="L30">  public static final CreateFileOptions DEFAULT_OVERWRITE =</span>
       new CreateFileOptions(/* overwriteExisting= */ true, DEFAULT_CONTENT_TYPE, EMPTY_ATTRIBUTES);
+
+<span class="fc" id="L33">  public static final CreateFileOptions DEFAULT_NO_OVERWRITE =</span>
+      new CreateFileOptions(/* overwriteExisting= */ true, DEFAULT_CONTENT_TYPE, EMPTY_ATTRIBUTES);
+
+  /** @deprecated use {@link #DEFAULT_NO_OVERWRITE} instead */
+<span class="fc" id="L37">  @Deprecated public static final CreateFileOptions DEFAULT = DEFAULT_OVERWRITE;</span>
 
   private final boolean overwriteExisting;
   private final String contentType;
@@ -42,8 +49,8 @@ public class CreateFileOptions {
    * @param overwriteExisting True to overwrite an existing file with the same name
    */
   public CreateFileOptions(boolean overwriteExisting) {
-<span class="fc" id="L45">    this(overwriteExisting, DEFAULT_CONTENT_TYPE, EMPTY_ATTRIBUTES);</span>
-<span class="fc" id="L46">  }</span>
+<span class="fc" id="L52">    this(overwriteExisting, DEFAULT_CONTENT_TYPE, EMPTY_ATTRIBUTES);</span>
+<span class="fc" id="L53">  }</span>
 
   /**
    * Create a file with empty attributes, and optionally overwriting any existing file with one
@@ -53,8 +60,8 @@ public class CreateFileOptions {
    * @param contentType content-type for the created file
    */
   public CreateFileOptions(boolean overwriteExisting, String contentType) {
-<span class="nc" id="L56">    this(overwriteExisting, contentType, EMPTY_ATTRIBUTES);</span>
-<span class="nc" id="L57">  }</span>
+<span class="nc" id="L63">    this(overwriteExisting, contentType, EMPTY_ATTRIBUTES);</span>
+<span class="nc" id="L64">  }</span>
 
   /**
    * Create a file with specified attributes and optionally overwriting an existing file.
@@ -63,8 +70,8 @@ public class CreateFileOptions {
    * @param attributes File attributes to apply to the file at creation
    */
   public CreateFileOptions(boolean overwriteExisting, Map&lt;String, byte[]&gt; attributes) {
-<span class="fc" id="L66">    this(overwriteExisting, DEFAULT_CONTENT_TYPE, attributes);</span>
-<span class="fc" id="L67">  }</span>
+<span class="fc" id="L73">    this(overwriteExisting, DEFAULT_CONTENT_TYPE, attributes);</span>
+<span class="fc" id="L74">  }</span>
 
   /**
    * Create a file with specified attributes, and optionally overwriting an existing file with one
@@ -76,9 +83,9 @@ public class CreateFileOptions {
    */
   public CreateFileOptions(boolean overwriteExisting, String contentType,
       Map&lt;String, byte[]&gt; attributes) {
-<span class="fc" id="L79">    this(overwriteExisting, contentType, attributes, true, true,</span>
+<span class="fc" id="L86">    this(overwriteExisting, contentType, attributes, true, true,</span>
         StorageResourceId.UNKNOWN_GENERATION_ID);
-<span class="fc" id="L81">  }</span>
+<span class="fc" id="L88">  }</span>
 
   /**
    * Create a file with specified attributes, and optionally overwriting an existing file with one
@@ -107,36 +114,36 @@ public class CreateFileOptions {
       Map&lt;String, byte[]&gt; attributes,
       boolean checkNoDirectoryConflict,
       boolean ensureParentDirectoriesExist,
-<span class="fc" id="L110">      long existingGenerationId) {</span>
-<span class="fc bfc" id="L111" title="All 2 branches covered.">    Preconditions.checkArgument(!attributes.containsKey(&quot;Content-Type&quot;),</span>
+<span class="fc" id="L117">      long existingGenerationId) {</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">    Preconditions.checkArgument(!attributes.containsKey(&quot;Content-Type&quot;),</span>
         &quot;The Content-Type attribute must be provided explicitly via the 'contentType' parameter&quot;);
-<span class="fc" id="L113">    this.overwriteExisting = overwriteExisting;</span>
-<span class="fc" id="L114">    this.contentType = contentType;</span>
-<span class="fc" id="L115">    this.attributes = attributes;</span>
-<span class="fc" id="L116">    this.checkNoDirectoryConflict = checkNoDirectoryConflict;</span>
-<span class="fc" id="L117">    this.ensureParentDirectoriesExist = ensureParentDirectoriesExist;</span>
-<span class="fc" id="L118">    this.existingGenerationId = existingGenerationId;</span>
-<span class="fc" id="L119">  }</span>
+<span class="fc" id="L120">    this.overwriteExisting = overwriteExisting;</span>
+<span class="fc" id="L121">    this.contentType = contentType;</span>
+<span class="fc" id="L122">    this.attributes = attributes;</span>
+<span class="fc" id="L123">    this.checkNoDirectoryConflict = checkNoDirectoryConflict;</span>
+<span class="fc" id="L124">    this.ensureParentDirectoriesExist = ensureParentDirectoriesExist;</span>
+<span class="fc" id="L125">    this.existingGenerationId = existingGenerationId;</span>
+<span class="fc" id="L126">  }</span>
 
   /**
    * Get the value of overwriteExisting.
    */
   public boolean overwriteExisting() {
-<span class="fc" id="L125">    return overwriteExisting;</span>
+<span class="fc" id="L132">    return overwriteExisting;</span>
   }
 
   /**
    * Content-type to set when creating a file.
    */
   public String getContentType() {
-<span class="fc" id="L132">    return contentType;</span>
+<span class="fc" id="L139">    return contentType;</span>
   }
 
   /**
    * Extended attributes to set when creating a file.
    */
   public Map&lt;String, byte[]&gt; getAttributes() {
-<span class="fc" id="L139">    return attributes;</span>
+<span class="fc" id="L146">    return attributes;</span>
   }
 
   /**
@@ -146,7 +153,7 @@ public class CreateFileOptions {
    * improved performance.
    */
   public boolean checkNoDirectoryConflict() {
-<span class="fc" id="L149">    return checkNoDirectoryConflict;</span>
+<span class="fc" id="L156">    return checkNoDirectoryConflict;</span>
   }
 
   /**
@@ -156,7 +163,7 @@ public class CreateFileOptions {
    * exist, then this is safe to set for improved performance.
    */
   public boolean ensureParentDirectoriesExist() {
-<span class="fc" id="L159">    return ensureParentDirectoriesExist;</span>
+<span class="fc" id="L166">    return ensureParentDirectoriesExist;</span>
   }
 
   /**
@@ -166,7 +173,7 @@ public class CreateFileOptions {
    * created file if its generation matches this provided generationId.
    */
   public long getExistingGenerationId() {
-<span class="fc" id="L169">    return existingGenerationId;</span>
+<span class="fc" id="L176">    return existingGenerationId;</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

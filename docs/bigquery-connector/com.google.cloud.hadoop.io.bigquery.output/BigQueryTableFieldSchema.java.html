@@ -13,10 +13,11 @@
  */
 package com.google.cloud.hadoop.io.bigquery.output;
 
+import static java.util.stream.Collectors.toList;
+
 import com.google.api.services.bigquery.model.TableFieldSchema;
 import com.google.common.base.Preconditions;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Wrapper for BigQuery {@link TableFieldSchema}.
@@ -29,46 +30,46 @@ import java.util.stream.Collectors;
 public class BigQueryTableFieldSchema {
   private final TableFieldSchema fieldSchema;
 
-<span class="fc" id="L32">  public BigQueryTableFieldSchema() {</span>
-<span class="fc" id="L33">    this.fieldSchema = new TableFieldSchema();</span>
-<span class="fc" id="L34">  }</span>
+<span class="fc" id="L33">  public BigQueryTableFieldSchema() {</span>
+<span class="fc" id="L34">    this.fieldSchema = new TableFieldSchema();</span>
+<span class="fc" id="L35">  }</span>
 
-<span class="nc" id="L36">  BigQueryTableFieldSchema(TableFieldSchema fieldSchema) {</span>
-<span class="nc" id="L37">    Preconditions.checkNotNull(fieldSchema);</span>
-<span class="nc" id="L38">    this.fieldSchema = fieldSchema;</span>
-<span class="nc" id="L39">  }</span>
+<span class="nc" id="L37">  BigQueryTableFieldSchema(TableFieldSchema fieldSchema) {</span>
+<span class="nc" id="L38">    Preconditions.checkNotNull(fieldSchema);</span>
+<span class="nc" id="L39">    this.fieldSchema = fieldSchema;</span>
+<span class="nc" id="L40">  }</span>
 
   /** @see TableFieldSchema#getMode() */
   public String getMode() {
-<span class="nc" id="L43">    return fieldSchema.getMode();</span>
+<span class="nc" id="L44">    return fieldSchema.getMode();</span>
   }
 
   /** @see TableFieldSchema#setMode(String) */
   public BigQueryTableFieldSchema setMode(String mode) {
-<span class="nc" id="L48">    fieldSchema.setMode(mode);</span>
-<span class="nc" id="L49">    return this;</span>
+<span class="nc" id="L49">    fieldSchema.setMode(mode);</span>
+<span class="nc" id="L50">    return this;</span>
   }
 
   /** @see TableFieldSchema#getName() */
   public String getName() {
-<span class="nc" id="L54">    return fieldSchema.getName();</span>
+<span class="nc" id="L55">    return fieldSchema.getName();</span>
   }
 
   /** @see TableFieldSchema#setName(String) */
   public BigQueryTableFieldSchema setName(String name) {
-<span class="fc" id="L59">    fieldSchema.setName(name);</span>
-<span class="fc" id="L60">    return this;</span>
+<span class="fc" id="L60">    fieldSchema.setName(name);</span>
+<span class="fc" id="L61">    return this;</span>
   }
 
   /** @see TableFieldSchema#getType() */
   public String getType() {
-<span class="nc" id="L65">    return fieldSchema.getType();</span>
+<span class="nc" id="L66">    return fieldSchema.getType();</span>
   }
 
   /** @see TableFieldSchema#setType(String) */
   public BigQueryTableFieldSchema setType(String type) {
-<span class="fc" id="L70">    fieldSchema.setType(type);</span>
-<span class="fc" id="L71">    return this;</span>
+<span class="fc" id="L71">    fieldSchema.setType(type);</span>
+<span class="fc" id="L72">    return this;</span>
   }
 
   /**
@@ -77,41 +78,39 @@ public class BigQueryTableFieldSchema {
    * @see TableFieldSchema#getFields()
    */
   public List&lt;BigQueryTableFieldSchema&gt; getFields() {
-<span class="nc" id="L80">    return get().getFields().stream()</span>
-<span class="nc" id="L81">        .map(field -&gt; new BigQueryTableFieldSchema(field))</span>
-<span class="nc" id="L82">        .collect(Collectors.toList());</span>
+<span class="nc" id="L81">    return get().getFields().stream().map(BigQueryTableFieldSchema::new).collect(toList());</span>
   }
 
   /**
    * Sets the nested schema fields if the type property is set to RECORD.
    *
-   * @see TableFieldSchema#setFields(java.util.List&lt;TableFieldSchema&gt; fields)
+   * @see TableFieldSchema#setFields(List)
    */
   public BigQueryTableFieldSchema setFields(java.util.List&lt;BigQueryTableFieldSchema&gt; fields) {
-<span class="fc" id="L91">    fieldSchema.setFields(fields.stream().map(field -&gt; field.get()).collect(Collectors.toList()));</span>
-<span class="fc" id="L92">    return this;</span>
+<span class="fc" id="L90">    fieldSchema.setFields(fields.stream().map(BigQueryTableFieldSchema::get).collect(toList()));</span>
+<span class="fc" id="L91">    return this;</span>
   }
 
   @Override
   public int hashCode() {
-<span class="nc" id="L97">    return fieldSchema.hashCode();</span>
+<span class="nc" id="L96">    return fieldSchema.hashCode();</span>
   }
 
   @Override
   public boolean equals(Object object) {
-<span class="nc bnc" id="L102" title="All 2 branches missed.">    if (!(object instanceof BigQueryTableFieldSchema)) {</span>
-<span class="nc" id="L103">      return false;</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">    if (!(object instanceof BigQueryTableFieldSchema)) {</span>
+<span class="nc" id="L102">      return false;</span>
     }
-<span class="nc" id="L105">    BigQueryTableFieldSchema another = (BigQueryTableFieldSchema) object;</span>
-<span class="nc" id="L106">    return fieldSchema.equals(another.fieldSchema);</span>
+<span class="nc" id="L104">    BigQueryTableFieldSchema another = (BigQueryTableFieldSchema) object;</span>
+<span class="nc" id="L105">    return fieldSchema.equals(another.fieldSchema);</span>
   }
 
   TableFieldSchema get() {
-<span class="fc" id="L110">    return fieldSchema;</span>
+<span class="fc" id="L109">    return fieldSchema;</span>
   }
 
   static BigQueryTableFieldSchema wrap(TableFieldSchema fieldSchema) {
-<span class="nc" id="L114">    return new BigQueryTableFieldSchema(fieldSchema);</span>
+<span class="nc" id="L113">    return new BigQueryTableFieldSchema(fieldSchema);</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

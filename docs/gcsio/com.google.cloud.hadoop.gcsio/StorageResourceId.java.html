@@ -193,27 +193,25 @@ public class StorageResourceId {
 <span class="fc bfc" id="L193" title="All 2 branches covered.">    return generationId != UNKNOWN_GENERATION_ID;</span>
   }
 
-  /**
-   * Returns a string of the form gs://&lt;bucketName&gt;/&lt;objectName&gt;.
-   */
+  /** Returns a string of the form {@code gs://&lt;bucketName&gt;/&lt;objectName&gt;}. */
   @Override
   public String toString() {
-<span class="fc" id="L201">    return readableString;</span>
+<span class="fc" id="L199">    return readableString;</span>
   }
 
   @Override
   public boolean equals(Object obj) {
-<span class="pc bpc" id="L206" title="1 of 2 branches missed.">    if (obj instanceof StorageResourceId) {</span>
-<span class="fc" id="L207">      StorageResourceId other = (StorageResourceId) obj;</span>
-<span class="fc bfc" id="L208" title="All 2 branches covered.">      return Objects.equals(bucketName, other.bucketName)</span>
-<span class="fc bfc" id="L209" title="All 2 branches covered.">          &amp;&amp; Objects.equals(objectName, other.objectName);</span>
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">    if (obj instanceof StorageResourceId) {</span>
+<span class="fc" id="L205">      StorageResourceId other = (StorageResourceId) obj;</span>
+<span class="fc bfc" id="L206" title="All 2 branches covered.">      return Objects.equals(bucketName, other.bucketName)</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">          &amp;&amp; Objects.equals(objectName, other.objectName);</span>
     }
-<span class="nc" id="L211">    return false;</span>
+<span class="nc" id="L209">    return false;</span>
   }
 
   @Override
   public int hashCode() {
-<span class="fc" id="L216">    return readableString.hashCode();</span>
+<span class="fc" id="L214">    return readableString.hashCode();</span>
   }
 
   /**
@@ -221,20 +219,20 @@ public class StorageResourceId {
    * to a bucket/object pair.
    */
   public static String createReadableString(String bucketName, String objectName) {
-<span class="fc bfc" id="L224" title="All 4 branches covered.">    if (bucketName == null &amp;&amp; objectName != null) {</span>
-<span class="fc" id="L225">      throw new IllegalArgumentException(</span>
-<span class="fc" id="L226">          String.format(&quot;Invalid bucketName/objectName pair: gs://%s/%s&quot;, bucketName, objectName));</span>
+<span class="fc bfc" id="L222" title="All 4 branches covered.">    if (bucketName == null &amp;&amp; objectName != null) {</span>
+<span class="fc" id="L223">      throw new IllegalArgumentException(</span>
+<span class="fc" id="L224">          String.format(&quot;Invalid bucketName/objectName pair: gs://%s/%s&quot;, bucketName, objectName));</span>
     }
     // TODO(user): Unify this method with other methods that convert bucketName/objectName
     // to a URI; maybe use the single slash for compatibility.
-<span class="fc" id="L230">    StringBuilder result = new StringBuilder(&quot;gs://&quot;);</span>
-<span class="fc bfc" id="L231" title="All 2 branches covered.">    if (bucketName != null) {</span>
-<span class="fc" id="L232">      result.append(bucketName);</span>
+<span class="fc" id="L228">    StringBuilder result = new StringBuilder(&quot;gs://&quot;);</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">    if (bucketName != null) {</span>
+<span class="fc" id="L230">      result.append(bucketName);</span>
     }
-<span class="fc bfc" id="L234" title="All 2 branches covered.">    if (objectName != null) {</span>
-<span class="fc" id="L235">      result.append('/').append(objectName);</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">    if (objectName != null) {</span>
+<span class="fc" id="L233">      result.append('/').append(objectName);</span>
     }
-<span class="fc" id="L237">    return result.toString();</span>
+<span class="fc" id="L235">    return result.toString();</span>
   }
 
   /**
@@ -244,8 +242,8 @@ public class StorageResourceId {
    * @return Whether the given object name looks like a directory path.
    */
   static boolean objectHasDirectoryPath(String objectName) {
-<span class="pc bpc" id="L247" title="1 of 2 branches missed.">    return !Strings.isNullOrEmpty(objectName)</span>
-<span class="fc bfc" id="L248" title="All 2 branches covered.">        &amp;&amp; objectName.endsWith(GoogleCloudStorage.PATH_DELIMITER);</span>
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">    return !Strings.isNullOrEmpty(objectName)</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">        &amp;&amp; objectName.endsWith(GoogleCloudStorage.PATH_DELIMITER);</span>
   }
 
   /**
@@ -259,40 +257,40 @@ public class StorageResourceId {
    * @return Directory path for the given path.
    */
   static String convertToDirectoryPath(String objectName) {
-<span class="pc bpc" id="L262" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(objectName)) {</span>
-<span class="pc bpc" id="L263" title="1 of 2 branches missed.">      if (!objectHasDirectoryPath(objectName)) {</span>
-<span class="fc" id="L264">        objectName += GoogleCloudStorage.PATH_DELIMITER;</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(objectName)) {</span>
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">      if (!objectHasDirectoryPath(objectName)) {</span>
+<span class="fc" id="L262">        objectName += GoogleCloudStorage.PATH_DELIMITER;</span>
       }
     }
-<span class="fc" id="L267">    return objectName;</span>
+<span class="fc" id="L265">    return objectName;</span>
   }
 
   /**
    * Parses {@link StorageResourceId} from specified string.
    */
   public static StorageResourceId fromObjectName(String objectName) {
-<span class="fc" id="L274">    return fromObjectName(objectName, UNKNOWN_GENERATION_ID);</span>
+<span class="fc" id="L272">    return fromObjectName(objectName, UNKNOWN_GENERATION_ID);</span>
   }
 
   /**
    * Parses {@link StorageResourceId} from specified string and generationId.
    */
   public static StorageResourceId fromObjectName(String objectName, long generationId) {
-<span class="fc" id="L281">    Matcher matcher = OBJECT_NAME_IN_GCS_PATTERN.matcher(objectName);</span>
-<span class="fc" id="L282">    checkArgument(matcher.matches(), &quot;'%s' is not a valid GCS object name.&quot;, objectName);</span>
+<span class="fc" id="L279">    Matcher matcher = OBJECT_NAME_IN_GCS_PATTERN.matcher(objectName);</span>
+<span class="fc" id="L280">    checkArgument(matcher.matches(), &quot;'%s' is not a valid GCS object name.&quot;, objectName);</span>
 
-<span class="fc" id="L284">    String bucketName = matcher.group(2);</span>
-<span class="fc" id="L285">    String relativePath = matcher.group(4);</span>
-<span class="pc bpc" id="L286" title="1 of 2 branches missed.">    if (bucketName == null) {</span>
-<span class="nc bnc" id="L287" title="All 2 branches missed.">      checkArgument(generationId == UNKNOWN_GENERATION_ID,</span>
+<span class="fc" id="L282">    String bucketName = matcher.group(2);</span>
+<span class="fc" id="L283">    String relativePath = matcher.group(4);</span>
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">    if (bucketName == null) {</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">      checkArgument(generationId == UNKNOWN_GENERATION_ID,</span>
           &quot;Cannot specify generationId '%s' for root object '%s'&quot;, generationId, objectName);
-<span class="nc" id="L289">      return ROOT;</span>
-<span class="fc bfc" id="L290" title="All 2 branches covered.">    } else if (relativePath != null) {</span>
-<span class="fc" id="L291">      return new StorageResourceId(bucketName, relativePath, generationId);</span>
+<span class="nc" id="L287">      return ROOT;</span>
+<span class="fc bfc" id="L288" title="All 2 branches covered.">    } else if (relativePath != null) {</span>
+<span class="fc" id="L289">      return new StorageResourceId(bucketName, relativePath, generationId);</span>
     }
-<span class="pc bpc" id="L293" title="1 of 2 branches missed.">    checkArgument(generationId == UNKNOWN_GENERATION_ID,</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">    checkArgument(generationId == UNKNOWN_GENERATION_ID,</span>
         &quot;Cannot specify generationId '%s' for bucket '%s'&quot;, generationId, objectName);
-<span class="fc" id="L295">    return new StorageResourceId(bucketName);</span>
+<span class="fc" id="L293">    return new StorageResourceId(bucketName);</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

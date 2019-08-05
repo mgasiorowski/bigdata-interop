@@ -18,7 +18,6 @@ import com.google.cloud.hadoop.gcsio.CreateBucketOptions;
 import com.google.cloud.hadoop.gcsio.GoogleCloudStorageItemInfo;
 import com.google.cloud.hadoop.gcsio.StorageResourceId;
 import com.google.common.base.MoreObjects;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -28,40 +27,40 @@ import java.util.Set;
  * the bucket alongside bucket-level metadata including storage location, storage class, etc.
  * It is intended to be used only internally by the InMemoryGoogleCloudStorage class.
  */
-<span class="pc bpc" id="L31" title="1 of 2 branches missed.">public class InMemoryBucketEntry {</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">public class InMemoryBucketEntry {</span>
   // Mapping from objectName to InMemoryObjectEntries which hold byte contents, metadata, and write
   // channels.
-<span class="fc" id="L34">  private Map&lt;String, InMemoryObjectEntry&gt; objectLookup = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L33">  private Map&lt;String, InMemoryObjectEntry&gt; objectLookup = new HashMap&lt;&gt;();</span>
 
   // The metadata associated with this InMemoryBucketEntry compatible with GoogleCloudStorage; its
   // objectName is always null and size is zero.
   private GoogleCloudStorageItemInfo info;
 
   /**
-   * @param bucketName The name representing the bucketName portion of a GCS path, e.g.
-   *     gs://&lt;bucketName&gt;/&lt;objectName&gt;.
+   * @param bucketName The name representing the bucketName portion of a GCS path, e.g. {@code
+   *     gs://&lt;bucketName&gt;/&lt;objectName&gt;}.
    */
   public InMemoryBucketEntry(
-<span class="fc" id="L45">      String bucketName, long createTimeMillis, CreateBucketOptions options) {</span>
-<span class="fc" id="L46">    info = new GoogleCloudStorageItemInfo(</span>
+<span class="fc" id="L44">      String bucketName, long createTimeMillis, CreateBucketOptions options) {</span>
+<span class="fc" id="L45">    info = new GoogleCloudStorageItemInfo(</span>
         new StorageResourceId(bucketName), createTimeMillis, 0,
-<span class="fc" id="L48">        MoreObjects.firstNonNull(options.getLocation(), &quot;us-central&quot;),</span>
-<span class="fc" id="L49">        MoreObjects.firstNonNull(options.getStorageClass(), &quot;inmemory-class&quot;));</span>
-<span class="fc" id="L50">  }</span>
+<span class="fc" id="L47">        MoreObjects.firstNonNull(options.getLocation(), &quot;us-central&quot;),</span>
+<span class="fc" id="L48">        MoreObjects.firstNonNull(options.getStorageClass(), &quot;inmemory-class&quot;));</span>
+<span class="fc" id="L49">  }</span>
 
   /**
    * Inserts an InMemoryObjectEntry representing {@code objectName}; replaces any existing object.
    */
   public synchronized void add(InMemoryObjectEntry obj) {
-<span class="pc bpc" id="L56" title="2 of 4 branches missed.">    assert obj.getBucketName().equals(info.getBucketName());</span>
-<span class="fc" id="L57">    objectLookup.put(obj.getObjectName(), obj);</span>
-<span class="fc" id="L58">  }</span>
+<span class="pc bpc" id="L55" title="2 of 4 branches missed.">    assert obj.getBucketName().equals(info.getBucketName());</span>
+<span class="fc" id="L56">    objectLookup.put(obj.getObjectName(), obj);</span>
+<span class="fc" id="L57">  }</span>
 
   /**
    * Retrieves a previously inserted {@code InMemoryObjectEntry}, or null if it doesn't exist.
    */
   public synchronized InMemoryObjectEntry get(String objectName) {
-<span class="fc" id="L64">    return objectLookup.get(objectName);</span>
+<span class="fc" id="L63">    return objectLookup.get(objectName);</span>
   }
 
   /**
@@ -69,7 +68,7 @@ import java.util.Set;
    * exist.
    */
   public synchronized InMemoryObjectEntry remove(String objectName) {
-<span class="fc" id="L72">    return objectLookup.remove(objectName);</span>
+<span class="fc" id="L71">    return objectLookup.remove(objectName);</span>
   }
 
   /**
@@ -77,21 +76,21 @@ import java.util.Set;
    * of a bucket is always 0.
    */
   public synchronized GoogleCloudStorageItemInfo getInfo() {
-<span class="fc" id="L80">    return info;</span>
+<span class="fc" id="L79">    return info;</span>
   }
 
   /**
    * Returns the Set containing all objectNames previously inserted into this bucket.
    */
   public synchronized Set&lt;String&gt; getObjectNames() {
-<span class="fc" id="L87">    return objectLookup.keySet();</span>
+<span class="fc" id="L86">    return objectLookup.keySet();</span>
   }
 
   /**
    * Returns the number of objects in this bucket.
    */
   public synchronized int size() {
-<span class="nc" id="L94">    return objectLookup.size();</span>
+<span class="nc" id="L93">    return objectLookup.size();</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

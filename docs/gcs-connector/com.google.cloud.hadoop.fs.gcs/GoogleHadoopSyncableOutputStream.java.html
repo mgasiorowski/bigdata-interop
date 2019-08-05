@@ -140,83 +140,104 @@ public class GoogleHadoopSyncableOutputStream extends OutputStream implements Sy
       FileSystem.Statistics statistics,
       CreateFileOptions createFileOptions)
       throws IOException {
-<span class="fc" id="L143">    this(ghfs, gcsPath, statistics, createFileOptions, TEMPFILE_CLEANUP_THREADPOOL);</span>
-<span class="fc" id="L144">  }</span>
+<span class="fc" id="L143">    this(</span>
+        ghfs,
+        gcsPath,
+        statistics,
+        createFileOptions,
+        TEMPFILE_CLEANUP_THREADPOOL,
+        /* appendMode= */ false);
+<span class="fc" id="L150">  }</span>
+
+  /** Creates a new GoogleHadoopSyncableOutputStream suitable for appending to existing files. */
+  public GoogleHadoopSyncableOutputStream(
+      GoogleHadoopFileSystemBase ghfs,
+      URI gcsPath,
+      FileSystem.Statistics statistics,
+      CreateFileOptions createFileOptions,
+      boolean appendMode)
+      throws IOException {
+<span class="fc" id="L160">    this(ghfs, gcsPath, statistics, createFileOptions, TEMPFILE_CLEANUP_THREADPOOL, appendMode);</span>
+<span class="fc" id="L161">  }</span>
 
   GoogleHadoopSyncableOutputStream(
       GoogleHadoopFileSystemBase ghfs,
       URI gcsPath,
       FileSystem.Statistics statistics,
       CreateFileOptions createFileOptions,
-      ExecutorService cleanupThreadpool)
-<span class="fc" id="L152">      throws IOException {</span>
-<span class="fc" id="L153">    logger.atFine().log(&quot;GoogleHadoopSyncableOutputStream(%s)&quot;, gcsPath);</span>
-<span class="fc" id="L154">    this.ghfs = ghfs;</span>
-<span class="fc" id="L155">    this.finalGcsPath = gcsPath;</span>
-<span class="fc" id="L156">    this.statistics = statistics;</span>
-<span class="fc" id="L157">    this.fileOptions = createFileOptions;</span>
-<span class="fc" id="L158">    this.deletionFutures = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L159">    this.cleanupThreadpool = cleanupThreadpool;</span>
+      ExecutorService cleanupThreadpool,
+      boolean appendMode)
+<span class="fc" id="L170">      throws IOException {</span>
+<span class="fc" id="L171">    logger.atFine().log(&quot;GoogleHadoopSyncableOutputStream(%s)&quot;, gcsPath);</span>
+<span class="fc" id="L172">    this.ghfs = ghfs;</span>
+<span class="fc" id="L173">    this.finalGcsPath = gcsPath;</span>
+<span class="fc" id="L174">    this.statistics = statistics;</span>
+<span class="fc" id="L175">    this.fileOptions = createFileOptions;</span>
+<span class="fc" id="L176">    this.deletionFutures = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L177">    this.cleanupThreadpool = cleanupThreadpool;</span>
 
-    // The first component of the stream will go straight to the destination filename to optimize
-    // the case where no hsync() or a single hsync() is called during the lifetime of the stream;
-    // committing the first component thus doesn't require any compose() call under the hood.
-<span class="fc" id="L164">    this.curGcsPath = gcsPath;</span>
-<span class="fc" id="L165">    this.curDelegate = new GoogleHadoopOutputStream(ghfs, curGcsPath, statistics, fileOptions);</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">    if (appendMode) {</span>
+      // When appending first component has to go to new temporary file.
+<span class="fc" id="L181">      this.curGcsPath = getNextTemporaryPath();</span>
+<span class="fc" id="L182">      this.curComponentIndex = 1;</span>
+    } else {
+      // The first component of the stream will go straight to the destination filename to optimize
+      // the case where no hsync() or a single hsync() is called during the lifetime of the stream;
+      // committing the first component thus doesn't require any compose() call under the hood.
+<span class="fc" id="L187">      this.curGcsPath = gcsPath;</span>
+<span class="fc" id="L188">      this.curComponentIndex = 0;</span>
+    }
 
-    // TODO(user): Make sure to initialize this to the correct value if a new stream is created to
-    // &quot;append&quot; to an existing file.
-<span class="fc" id="L169">    this.curComponentIndex = 0;</span>
-
-<span class="fc" id="L171">    this.curDestGenerationId = StorageResourceId.UNKNOWN_GENERATION_ID;</span>
-<span class="fc" id="L172">  }</span>
+<span class="fc" id="L191">    this.curDelegate = new GoogleHadoopOutputStream(ghfs, curGcsPath, statistics, fileOptions);</span>
+<span class="fc" id="L192">    this.curDestGenerationId = StorageResourceId.UNKNOWN_GENERATION_ID;</span>
+<span class="fc" id="L193">  }</span>
 
   @Override
   public void write(int b) throws IOException {
-<span class="fc" id="L176">    throwIfNotOpen();</span>
-<span class="fc" id="L177">    curDelegate.write(b);</span>
-<span class="fc" id="L178">  }</span>
+<span class="fc" id="L197">    throwIfNotOpen();</span>
+<span class="fc" id="L198">    curDelegate.write(b);</span>
+<span class="fc" id="L199">  }</span>
 
   @Override
   public void write(byte[] b, int offset, int len) throws IOException {
-<span class="fc" id="L182">    throwIfNotOpen();</span>
-<span class="fc" id="L183">    curDelegate.write(b, offset, len);</span>
-<span class="fc" id="L184">  }</span>
+<span class="fc" id="L203">    throwIfNotOpen();</span>
+<span class="fc" id="L204">    curDelegate.write(b, offset, len);</span>
+<span class="fc" id="L205">  }</span>
 
   @Override
   public void close() throws IOException {
-<span class="fc" id="L188">    logger.atFine().log(</span>
+<span class="fc" id="L209">    logger.atFine().log(</span>
         &quot;close(): Current tail file: %s final destination: %s&quot;, curGcsPath, finalGcsPath);
-<span class="fc bfc" id="L190" title="All 2 branches covered.">    if (!isOpen()) {</span>
-<span class="fc" id="L191">      logger.atFine().log(&quot;close(): Ignoring; stream already closed.&quot;);</span>
-<span class="fc" id="L192">      return;</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">    if (!isOpen()) {</span>
+<span class="fc" id="L212">      logger.atFine().log(&quot;close(): Ignoring; stream already closed.&quot;);</span>
+<span class="fc" id="L213">      return;</span>
     }
-<span class="fc" id="L194">    commitCurrentFile();</span>
+<span class="fc" id="L215">    commitCurrentFile();</span>
 
     // null denotes stream closed.
     // TODO(user): Add checks which throw IOException if further operations are attempted on a
     // closed stream, except for multiple calls to close(), which should behave as no-ops.
-<span class="fc" id="L199">    curGcsPath = null;</span>
-<span class="fc" id="L200">    curDelegate = null;</span>
+<span class="fc" id="L220">    curGcsPath = null;</span>
+<span class="fc" id="L221">    curDelegate = null;</span>
 
-<span class="fc" id="L202">    logger.atFine().log(&quot;close(): Awaiting %s deletionFutures&quot;, deletionFutures.size());</span>
-<span class="fc bfc" id="L203" title="All 2 branches covered.">    for (Future&lt;?&gt; deletion : deletionFutures) {</span>
+<span class="fc" id="L223">    logger.atFine().log(&quot;close(): Awaiting %s deletionFutures&quot;, deletionFutures.size());</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">    for (Future&lt;?&gt; deletion : deletionFutures) {</span>
       try {
-<span class="fc" id="L205">        deletion.get();</span>
-<span class="fc" id="L206">      } catch (ExecutionException | InterruptedException ee) {</span>
-<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (ee.getCause() instanceof IOException) {</span>
-<span class="nc" id="L208">          throw (IOException) ee.getCause();</span>
+<span class="fc" id="L226">        deletion.get();</span>
+<span class="fc" id="L227">      } catch (ExecutionException | InterruptedException ee) {</span>
+<span class="pc bpc" id="L228" title="1 of 2 branches missed.">        if (ee.getCause() instanceof IOException) {</span>
+<span class="nc" id="L229">          throw (IOException) ee.getCause();</span>
         } else {
-<span class="fc" id="L210">          throw new IOException(ee);</span>
+<span class="fc" id="L231">          throw new IOException(ee);</span>
         }
-<span class="fc" id="L212">      }</span>
-<span class="fc" id="L213">    }</span>
-<span class="fc" id="L214">    logger.atFine().log(&quot;close(): done&quot;);</span>
-<span class="fc" id="L215">  }</span>
+<span class="fc" id="L233">      }</span>
+<span class="fc" id="L234">    }</span>
+<span class="fc" id="L235">    logger.atFine().log(&quot;close(): done&quot;);</span>
+<span class="fc" id="L236">  }</span>
 
   public void sync() throws IOException {
-<span class="fc" id="L218">    hsync();</span>
-<span class="fc" id="L219">  }</span>
+<span class="fc" id="L239">    hsync();</span>
+<span class="fc" id="L240">  }</span>
 
   /**
    * There is no way to flush data to become available for readers without a full-fledged hsync(),
@@ -224,110 +245,103 @@ public class GoogleHadoopSyncableOutputStream extends OutputStream implements Sy
    */
   @Override
   public void hflush() throws IOException {
-<span class="nc" id="L227">    logger.atWarning().log(</span>
+<span class="nc" id="L248">    logger.atWarning().log(</span>
         &quot;hflush() is a no-op; readers will *not* yet see flushed data for %s&quot;, finalGcsPath);
-<span class="nc" id="L229">    throwIfNotOpen();</span>
-<span class="nc" id="L230">  }</span>
+<span class="nc" id="L250">    throwIfNotOpen();</span>
+<span class="nc" id="L251">  }</span>
 
-  /**
-   * @throws CompositeLimitExceededException if this hsync() call would require any future close()
-   *     call to exceed the component limit. If CompositeLimitExceededException is thrown, no actual
-   *     GCS operations are taken and it's safe to subsequently call close() on this stream as
-   *     normal; it just means data written since the last successful hsync() has not yet been
-   *     committed.
-   */
   @Override
   public void hsync() throws IOException {
-<span class="fc" id="L241">    logger.atFine().log(</span>
+<span class="fc" id="L255">    logger.atFine().log(</span>
         &quot;hsync(): Committing tail file %s to final destination %s&quot;, curGcsPath, finalGcsPath);
-<span class="fc" id="L243">    throwIfNotOpen();</span>
-<span class="fc" id="L244">    long startTime = System.nanoTime();</span>
+<span class="fc" id="L257">    throwIfNotOpen();</span>
+<span class="fc" id="L258">    long startTime = System.nanoTime();</span>
 
-<span class="fc" id="L246">    commitCurrentFile();</span>
+<span class="fc" id="L260">    commitCurrentFile();</span>
 
     // Use a different temporary path for each temporary component to reduce the possible avenues of
     // race conditions in the face of low-level retries, etc.
-<span class="fc" id="L250">    ++curComponentIndex;</span>
-<span class="fc" id="L251">    curGcsPath = getNextTemporaryPath();</span>
+<span class="fc" id="L264">    ++curComponentIndex;</span>
+<span class="fc" id="L265">    curGcsPath = getNextTemporaryPath();</span>
 
-<span class="fc" id="L253">    logger.atFine().log(</span>
+<span class="fc" id="L267">    logger.atFine().log(</span>
         &quot;hsync(): Opening next temporary tail file %s as component number %s&quot;,
         curGcsPath, curComponentIndex);
-<span class="fc" id="L256">    curDelegate =</span>
+<span class="fc" id="L270">    curDelegate =</span>
         new GoogleHadoopOutputStream(ghfs, curGcsPath, statistics, TEMPFILE_CREATE_OPTIONS);
-<span class="fc" id="L258">    long endTime = System.nanoTime();</span>
-<span class="fc" id="L259">    logger.atFine().log(&quot;Took %d ns to hsync()&quot;, endTime - startTime);</span>
-<span class="fc" id="L260">  }</span>
+<span class="fc" id="L272">    long endTime = System.nanoTime();</span>
+<span class="fc" id="L273">    logger.atFine().log(&quot;Took %d ns to hsync()&quot;, endTime - startTime);</span>
+<span class="fc" id="L274">  }</span>
 
   private void commitCurrentFile() throws IOException {
     // TODO(user): Optimize the case where 0 bytes have been written in the current component
     // to return early.
-<span class="fc" id="L265">    WritableByteChannel innerChannel = curDelegate.getInternalChannel();</span>
-<span class="fc" id="L266">    curDelegate.close();</span>
+<span class="fc" id="L279">    WritableByteChannel innerChannel = curDelegate.getInternalChannel();</span>
+<span class="fc" id="L280">    curDelegate.close();</span>
 
-<span class="fc" id="L268">    long generationId = StorageResourceId.UNKNOWN_GENERATION_ID;</span>
-<span class="pc bpc" id="L269" title="1 of 2 branches missed.">    if (innerChannel instanceof GoogleCloudStorageItemInfo.Provider) {</span>
-<span class="fc" id="L270">      generationId = ((GoogleCloudStorageItemInfo.Provider) innerChannel)</span>
-<span class="fc" id="L271">          .getItemInfo().getContentGeneration();</span>
-<span class="fc" id="L272">      logger.atFine().log(</span>
+<span class="fc" id="L282">    long generationId = StorageResourceId.UNKNOWN_GENERATION_ID;</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">    if (innerChannel instanceof GoogleCloudStorageItemInfo.Provider) {</span>
+<span class="fc" id="L284">      generationId = ((GoogleCloudStorageItemInfo.Provider) innerChannel)</span>
+<span class="fc" id="L285">          .getItemInfo().getContentGeneration();</span>
+<span class="fc" id="L286">      logger.atFine().log(</span>
           &quot;innerChannel is GoogleCloudStorageItemInfo.Provider; closed generationId %s.&quot;,
           generationId);
     } else {
-<span class="nc" id="L276">      logger.atFine().log(&quot;innerChannel NOT instanceof provider: %s&quot;, innerChannel.getClass());</span>
+<span class="nc" id="L290">      logger.atFine().log(&quot;innerChannel NOT instanceof provider: %s&quot;, innerChannel.getClass());</span>
     }
 
     // On the first component, curGcsPath will equal finalGcsPath, and no compose() call is
     // necessary. Otherwise, we compose in-place into the destination object and then delete
     // the temporary object.
-<span class="fc bfc" id="L282" title="All 2 branches covered.">    if (!finalGcsPath.equals(curGcsPath)) {</span>
-<span class="fc" id="L283">      StorageResourceId destResourceId =</span>
-<span class="fc" id="L284">          StorageResourceId.fromObjectName(finalGcsPath.toString(), curDestGenerationId);</span>
-<span class="fc" id="L285">      final StorageResourceId tempResourceId =</span>
-<span class="fc" id="L286">          StorageResourceId.fromObjectName(curGcsPath.toString(), generationId);</span>
-<span class="pc bpc" id="L287" title="1 of 2 branches missed.">      if (!destResourceId.getBucketName().equals(tempResourceId.getBucketName())) {</span>
-<span class="nc" id="L288">        throw new IllegalStateException(String.format(</span>
+<span class="fc bfc" id="L296" title="All 2 branches covered.">    if (!finalGcsPath.equals(curGcsPath)) {</span>
+<span class="fc" id="L297">      StorageResourceId destResourceId =</span>
+<span class="fc" id="L298">          StorageResourceId.fromObjectName(finalGcsPath.toString(), curDestGenerationId);</span>
+<span class="fc" id="L299">      final StorageResourceId tempResourceId =</span>
+<span class="fc" id="L300">          StorageResourceId.fromObjectName(curGcsPath.toString(), generationId);</span>
+<span class="pc bpc" id="L301" title="1 of 2 branches missed.">      if (!destResourceId.getBucketName().equals(tempResourceId.getBucketName())) {</span>
+<span class="nc" id="L302">        throw new IllegalStateException(String.format(</span>
             &quot;Destination bucket in path '%s' doesn't match temp file bucket in path '%s'&quot;,
             finalGcsPath, curGcsPath));
       }
-<span class="fc" id="L292">      GoogleCloudStorageItemInfo composedObject = ghfs.getGcsFs().getGcs().composeObjects(</span>
-<span class="fc" id="L293">          ImmutableList.of(destResourceId, tempResourceId),</span>
+<span class="fc" id="L306">      GoogleCloudStorageItemInfo composedObject = ghfs.getGcsFs().getGcs().composeObjects(</span>
+<span class="fc" id="L307">          ImmutableList.of(destResourceId, tempResourceId),</span>
           destResourceId,
-<span class="fc" id="L295">          GoogleCloudStorageFileSystem.objectOptionsFromFileOptions(fileOptions));</span>
-<span class="fc" id="L296">      curDestGenerationId = composedObject.getContentGeneration();</span>
-<span class="fc" id="L297">      deletionFutures.add(</span>
-<span class="fc" id="L298">          cleanupThreadpool.submit(</span>
+<span class="fc" id="L309">          GoogleCloudStorageFileSystem.objectOptionsFromFileOptions(fileOptions));</span>
+<span class="fc" id="L310">      curDestGenerationId = composedObject.getContentGeneration();</span>
+<span class="fc" id="L311">      deletionFutures.add(</span>
+<span class="fc" id="L312">          cleanupThreadpool.submit(</span>
               () -&gt; {
-<span class="fc" id="L300">                ghfs.getGcsFs().getGcs().deleteObjects(ImmutableList.of(tempResourceId));</span>
-<span class="fc" id="L301">                return null;</span>
+<span class="fc" id="L314">                ghfs.getGcsFs().getGcs().deleteObjects(ImmutableList.of(tempResourceId));</span>
+<span class="fc" id="L315">                return null;</span>
               }));
-<span class="fc" id="L303">    } else {</span>
+<span class="fc" id="L317">    } else {</span>
       // First commit was direct to the destination; the generationId of the object we just
       // committed will be used as the destination generation id for future compose calls.
-<span class="fc" id="L306">      curDestGenerationId = generationId;</span>
+<span class="fc" id="L320">      curDestGenerationId = generationId;</span>
     }
-<span class="fc" id="L308">  }</span>
+<span class="fc" id="L322">  }</span>
 
   /**
    * Returns URI to be used for the next &quot;tail&quot; file in the series.
    */
   private URI getNextTemporaryPath() {
-<span class="fc" id="L314">    Path basePath = ghfs.getHadoopPath(finalGcsPath);</span>
-<span class="fc" id="L315">    Path baseDir = basePath.getParent();</span>
-<span class="fc" id="L316">    Path tempPath = new Path(</span>
+<span class="fc" id="L328">    Path basePath = ghfs.getHadoopPath(finalGcsPath);</span>
+<span class="fc" id="L329">    Path baseDir = basePath.getParent();</span>
+<span class="fc" id="L330">    Path tempPath = new Path(</span>
         baseDir,
-<span class="fc" id="L318">        String.format(&quot;%s%s.%d.%s&quot;,</span>
-<span class="fc" id="L319">            TEMPFILE_PREFIX, basePath.getName(), curComponentIndex, UUID.randomUUID().toString()));</span>
-<span class="fc" id="L320">    return ghfs.getGcsPath(tempPath);</span>
+<span class="fc" id="L332">        String.format(&quot;%s%s.%d.%s&quot;,</span>
+<span class="fc" id="L333">            TEMPFILE_PREFIX, basePath.getName(), curComponentIndex, UUID.randomUUID().toString()));</span>
+<span class="fc" id="L334">    return ghfs.getGcsPath(tempPath);</span>
   }
 
   private boolean isOpen() {
-<span class="fc bfc" id="L324" title="All 2 branches covered.">    return curDelegate != null;</span>
+<span class="fc bfc" id="L338" title="All 2 branches covered.">    return curDelegate != null;</span>
   }
 
   private void throwIfNotOpen() throws IOException {
-<span class="fc bfc" id="L328" title="All 2 branches covered.">    if (!isOpen()) {</span>
-<span class="fc" id="L329">      throw new ClosedChannelException();</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">    if (!isOpen()) {</span>
+<span class="fc" id="L343">      throw new ClosedChannelException();</span>
     }
-<span class="fc" id="L331">  }</span>
+<span class="fc" id="L345">  }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

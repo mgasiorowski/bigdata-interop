@@ -137,14 +137,16 @@ public class GoogleCloudStorageFileSystem {
 <span class="fc" id="L137">  static final Comparator&lt;FileInfo&gt; FILE_INFO_PATH_COMPARATOR =</span>
 <span class="fc" id="L138">      comparing(FileInfo::getPath, PATH_COMPARATOR);</span>
 
-  /** A PathCodec that maintains compatibility with versions of GCS FS &lt; 1.4.5. */
-<span class="fc" id="L141">  public static final PathCodec LEGACY_PATH_CODEC = new LegacyPathCodec();</span>
+  /**
+   * A PathCodec that maintains compatibility with versions of GCS FS prior to the 1.4.5 version.
+   */
+<span class="fc" id="L143">  public static final PathCodec LEGACY_PATH_CODEC = new LegacyPathCodec();</span>
 
   /**
    * A PathCodec that expects URIs to be of the form:
    * gs://authority/properly/encoded/path.
    */
-<span class="fc" id="L147">  public static final PathCodec URI_ENCODED_PATH_CODEC = new UriEncodingPathCodec();</span>
+<span class="fc" id="L149">  public static final PathCodec URI_ENCODED_PATH_CODEC = new UriEncodingPathCodec();</span>
 
   /**
    * Constructs an instance of GoogleCloudStorageFileSystem.
@@ -156,21 +158,21 @@ public class GoogleCloudStorageFileSystem {
    */
   public GoogleCloudStorageFileSystem(
       Credential credential,
-<span class="fc" id="L159">      GoogleCloudStorageFileSystemOptions options) throws IOException {</span>
-<span class="fc" id="L160">    logger.atFine().log(&quot;GCSFS(%s)&quot;, options.getCloudStorageOptions().getAppName());</span>
-<span class="fc" id="L161">    options.throwIfNotValid();</span>
+<span class="fc" id="L161">      GoogleCloudStorageFileSystemOptions options) throws IOException {</span>
+<span class="fc" id="L162">    logger.atFine().log(&quot;GCSFS(%s)&quot;, options.getCloudStorageOptions().getAppName());</span>
+<span class="fc" id="L163">    options.throwIfNotValid();</span>
 
-<span class="fc bfc" id="L163" title="All 2 branches covered.">    checkArgument(credential != null, &quot;credential must not be null&quot;);</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">    checkArgument(credential != null, &quot;credential must not be null&quot;);</span>
 
-<span class="fc" id="L165">    this.gcs = new GoogleCloudStorageImpl(options.getCloudStorageOptions(), credential);</span>
-<span class="fc" id="L166">    this.options = options;</span>
-<span class="fc" id="L167">    this.pathCodec = options.getPathCodec();</span>
+<span class="fc" id="L167">    this.gcs = new GoogleCloudStorageImpl(options.getCloudStorageOptions(), credential);</span>
+<span class="fc" id="L168">    this.options = options;</span>
+<span class="fc" id="L169">    this.pathCodec = options.getPathCodec();</span>
 
-<span class="pc bpc" id="L169" title="1 of 2 branches missed.">    if (options.isPerformanceCacheEnabled()) {</span>
-<span class="nc" id="L170">      this.gcs =</span>
-<span class="nc" id="L171">          new PerformanceCachingGoogleCloudStorage(this.gcs, options.getPerformanceCacheOptions());</span>
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">    if (options.isPerformanceCacheEnabled()) {</span>
+<span class="nc" id="L172">      this.gcs =</span>
+<span class="nc" id="L173">          new PerformanceCachingGoogleCloudStorage(this.gcs, options.getPerformanceCacheOptions());</span>
     }
-<span class="fc" id="L173">  }</span>
+<span class="fc" id="L175">  }</span>
 
   /**
    * Constructs a GoogleCloudStorageFilesystem based on an already-configured underlying
@@ -178,12 +180,12 @@ public class GoogleCloudStorageFileSystem {
    */
   @VisibleForTesting
   public GoogleCloudStorageFileSystem(GoogleCloudStorage gcs) {
-<span class="fc" id="L181">    this(</span>
+<span class="fc" id="L183">    this(</span>
         gcs,
-<span class="fc" id="L183">        GoogleCloudStorageFileSystemOptions.builder()</span>
-<span class="fc" id="L184">            .setCloudStorageOptions(gcs.getOptions())</span>
-<span class="fc" id="L185">            .build());</span>
-<span class="fc" id="L186">  }</span>
+<span class="fc" id="L185">        GoogleCloudStorageFileSystemOptions.builder()</span>
+<span class="fc" id="L186">            .setCloudStorageOptions(gcs.getOptions())</span>
+<span class="fc" id="L187">            .build());</span>
+<span class="fc" id="L188">  }</span>
 
   /**
    * Constructs a GoogleCloudStorageFilesystem based on an already-configured underlying
@@ -191,44 +193,44 @@ public class GoogleCloudStorageFileSystem {
    */
   @VisibleForTesting
   public GoogleCloudStorageFileSystem(
-<span class="fc" id="L194">      GoogleCloudStorage gcs, GoogleCloudStorageFileSystemOptions options) {</span>
-<span class="fc" id="L195">    this.gcs = gcs;</span>
-<span class="fc" id="L196">    this.options = options;</span>
-<span class="fc" id="L197">    this.pathCodec = options.getPathCodec();</span>
-<span class="fc" id="L198">  }</span>
+<span class="fc" id="L196">      GoogleCloudStorage gcs, GoogleCloudStorageFileSystemOptions options) {</span>
+<span class="fc" id="L197">    this.gcs = gcs;</span>
+<span class="fc" id="L198">    this.options = options;</span>
+<span class="fc" id="L199">    this.pathCodec = options.getPathCodec();</span>
+<span class="fc" id="L200">  }</span>
 
   @VisibleForTesting
   void setUpdateTimestampsExecutor(ExecutorService executor) {
-<span class="fc" id="L202">    this.updateTimestampsExecutor = executor;</span>
-<span class="fc" id="L203">  }</span>
+<span class="fc" id="L204">    this.updateTimestampsExecutor = executor;</span>
+<span class="fc" id="L205">  }</span>
 
   private static ExecutorService createUpdateTimestampsExecutor() {
-<span class="fc" id="L206">    ThreadPoolExecutor service =</span>
+<span class="fc" id="L208">    ThreadPoolExecutor service =</span>
         new ThreadPoolExecutor(
             /* corePoolSize= */ 2,
             /* maximumPoolSize= */ 2,
             /* keepAliveTime= */ 5, TimeUnit.SECONDS,
             new LinkedBlockingQueue&lt;&gt;(1000),
             new ThreadFactoryBuilder()
-<span class="fc" id="L213">                .setNameFormat(&quot;gcsfs-timestamp-updates-%d&quot;)</span>
-<span class="fc" id="L214">                .setDaemon(true)</span>
-<span class="fc" id="L215">                .build());</span>
+<span class="fc" id="L215">                .setNameFormat(&quot;gcsfs-timestamp-updates-%d&quot;)</span>
+<span class="fc" id="L216">                .setDaemon(true)</span>
+<span class="fc" id="L217">                .build());</span>
     // allowCoreThreadTimeOut needs to be enabled for cases where the encapsulating class does not
-<span class="fc" id="L217">    service.allowCoreThreadTimeOut(true);</span>
-<span class="fc" id="L218">    return service;</span>
+<span class="fc" id="L219">    service.allowCoreThreadTimeOut(true);</span>
+<span class="fc" id="L220">    return service;</span>
   }
 
   private static ExecutorService createCachedExecutor() {
-<span class="fc" id="L222">    ThreadPoolExecutor service =</span>
+<span class="fc" id="L224">    ThreadPoolExecutor service =</span>
         new ThreadPoolExecutor(
             /* corePoolSize= */ 2,
             /* maximumPoolSize= */ Integer.MAX_VALUE,
             /* keepAliveTime= */ 30, TimeUnit.SECONDS,
             new SynchronousQueue&lt;&gt;(),
-<span class="fc" id="L228">            new ThreadFactoryBuilder().setNameFormat(&quot;gcsfs-misc-%d&quot;).setDaemon(true).build());</span>
-<span class="fc" id="L229">    service.allowCoreThreadTimeOut(true);</span>
+<span class="fc" id="L230">            new ThreadFactoryBuilder().setNameFormat(&quot;gcsfs-misc-%d&quot;).setDaemon(true).build());</span>
+<span class="fc" id="L231">    service.allowCoreThreadTimeOut(true);</span>
     // allowCoreThreadTimeOut needs to be enabled for cases where the encapsulating class does not
-<span class="fc" id="L231">    return service;</span>
+<span class="fc" id="L233">    return service;</span>
   }
 
   /**
@@ -236,13 +238,13 @@ public class GoogleCloudStorageFileSystem {
    * GoogleCloudStorageFileSystem.
    */
   public GoogleCloudStorageFileSystemOptions getOptions() {
-<span class="fc" id="L239">    return options;</span>
+<span class="fc" id="L241">    return options;</span>
   }
 
   /** Convert {@code CreateFileOptions} to {@code CreateObjectOptions}. */
   public static CreateObjectOptions objectOptionsFromFileOptions(CreateFileOptions options) {
-<span class="fc" id="L244">    return new CreateObjectOptions(</span>
-<span class="fc" id="L245">        options.overwriteExisting(), options.getContentType(), options.getAttributes());</span>
+<span class="fc" id="L246">    return new CreateObjectOptions(</span>
+<span class="fc" id="L247">        options.overwriteExisting(), options.getContentType(), options.getAttributes());</span>
   }
 
   /**
@@ -254,8 +256,8 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException
    */
   public WritableByteChannel create(URI path) throws IOException {
-<span class="fc" id="L257">    logger.atFine().log(&quot;create(%s)&quot;, path);</span>
-<span class="fc" id="L258">    return create(path, CreateFileOptions.DEFAULT);</span>
+<span class="fc" id="L259">    logger.atFine().log(&quot;create(%s)&quot;, path);</span>
+<span class="fc" id="L260">    return create(path, CreateFileOptions.DEFAULT);</span>
   }
 
   /**
@@ -266,30 +268,30 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException
    */
   public WritableByteChannel create(URI path, CreateFileOptions options) throws IOException {
-<span class="fc" id="L269">    logger.atFine().log(&quot;create(%s)&quot;, path);</span>
-<span class="fc" id="L270">    Preconditions.checkNotNull(path, &quot;path could not be null&quot;);</span>
-<span class="fc bfc" id="L271" title="All 2 branches covered.">    if (FileInfo.isDirectoryPath(path)) {</span>
-<span class="fc" id="L272">      throw new IOException(</span>
-<span class="fc" id="L273">          String.format(&quot;Cannot create a file whose name looks like a directory. Got '%s'&quot;, path));</span>
+<span class="fc" id="L271">    logger.atFine().log(&quot;create(%s)&quot;, path);</span>
+<span class="fc" id="L272">    Preconditions.checkNotNull(path, &quot;path could not be null&quot;);</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">    if (FileInfo.isDirectoryPath(path)) {</span>
+<span class="fc" id="L274">      throw new IOException(</span>
+<span class="fc" id="L275">          String.format(&quot;Cannot create a file whose name looks like a directory. Got '%s'&quot;, path));</span>
     }
 
     // Check if a directory of that name exists.
-<span class="fc bfc" id="L277" title="All 2 branches covered.">    if (options.checkNoDirectoryConflict()) {</span>
-<span class="fc" id="L278">      URI dirPath = FileInfo.convertToDirectoryPath(pathCodec, path);</span>
-<span class="fc bfc" id="L279" title="All 2 branches covered.">      if (exists(dirPath)) {</span>
-<span class="fc" id="L280">        throw new FileAlreadyExistsException(&quot;A directory with that name exists: &quot; + path);</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">    if (options.checkNoDirectoryConflict()) {</span>
+<span class="fc" id="L280">      URI dirPath = FileInfo.convertToDirectoryPath(pathCodec, path);</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">      if (exists(dirPath)) {</span>
+<span class="fc" id="L282">        throw new FileAlreadyExistsException(&quot;A directory with that name exists: &quot; + path);</span>
       }
     }
 
     // Ensure that parent directories exist.
-<span class="fc bfc" id="L285" title="All 2 branches covered.">    if (options.ensureParentDirectoriesExist()) {</span>
-<span class="fc" id="L286">      URI parentPath = getParentPath(path);</span>
-<span class="pc bpc" id="L287" title="1 of 2 branches missed.">      if (parentPath != null) {</span>
-<span class="fc" id="L288">        mkdirs(parentPath);</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">    if (options.ensureParentDirectoriesExist()) {</span>
+<span class="fc" id="L288">      URI parentPath = getParentPath(path);</span>
+<span class="pc bpc" id="L289" title="1 of 2 branches missed.">      if (parentPath != null) {</span>
+<span class="fc" id="L290">        mkdirs(parentPath);</span>
       }
     }
 
-<span class="fc" id="L292">    return createInternal(path, options);</span>
+<span class="fc" id="L294">    return createInternal(path, options);</span>
   }
 
   /**
@@ -304,16 +306,16 @@ public class GoogleCloudStorageFileSystem {
       throws IOException {
 
     // Validate the given path. false == do not allow empty object name.
-<span class="fc" id="L307">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, false);</span>
-<span class="fc bfc" id="L308" title="All 2 branches covered.">    if (options.getExistingGenerationId() != StorageResourceId.UNKNOWN_GENERATION_ID) {</span>
-<span class="fc" id="L309">      resourceId = new StorageResourceId(</span>
-<span class="fc" id="L310">          resourceId.getBucketName(),</span>
-<span class="fc" id="L311">          resourceId.getObjectName(),</span>
-<span class="fc" id="L312">          options.getExistingGenerationId());</span>
+<span class="fc" id="L309">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, false);</span>
+<span class="fc bfc" id="L310" title="All 2 branches covered.">    if (options.getExistingGenerationId() != StorageResourceId.UNKNOWN_GENERATION_ID) {</span>
+<span class="fc" id="L311">      resourceId = new StorageResourceId(</span>
+<span class="fc" id="L312">          resourceId.getBucketName(),</span>
+<span class="fc" id="L313">          resourceId.getObjectName(),</span>
+<span class="fc" id="L314">          options.getExistingGenerationId());</span>
     }
-<span class="fc" id="L314">    WritableByteChannel channel = gcs.create(resourceId, objectOptionsFromFileOptions(options));</span>
-<span class="fc" id="L315">    tryUpdateTimestampsForParentDirectories(ImmutableList.of(path), ImmutableList.&lt;URI&gt;of());</span>
-<span class="fc" id="L316">    return channel;</span>
+<span class="fc" id="L316">    WritableByteChannel channel = gcs.create(resourceId, objectOptionsFromFileOptions(options));</span>
+<span class="fc" id="L317">    tryUpdateTimestampsForParentDirectories(ImmutableList.of(path), ImmutableList.&lt;URI&gt;of());</span>
+<span class="fc" id="L318">    return channel;</span>
   }
 
   /**
@@ -326,7 +328,7 @@ public class GoogleCloudStorageFileSystem {
    */
   public SeekableByteChannel open(URI path)
       throws IOException {
-<span class="fc" id="L329">    return open(path, GoogleCloudStorageReadOptions.DEFAULT);</span>
+<span class="fc" id="L331">    return open(path, GoogleCloudStorageReadOptions.DEFAULT);</span>
   }
 
   /**
@@ -340,13 +342,13 @@ public class GoogleCloudStorageFileSystem {
    */
   public SeekableByteChannel open(URI path, GoogleCloudStorageReadOptions readOptions)
       throws IOException {
-<span class="fc" id="L343">    logger.atFine().log(&quot;open(%s, %s)&quot;, path, readOptions);</span>
-<span class="fc" id="L344">    Preconditions.checkNotNull(path);</span>
-<span class="fc bfc" id="L345" title="All 2 branches covered.">    checkArgument(!FileInfo.isDirectoryPath(path), &quot;Cannot open a directory for reading: %s&quot;, path);</span>
+<span class="fc" id="L345">    logger.atFine().log(&quot;open(%s, %s)&quot;, path, readOptions);</span>
+<span class="fc" id="L346">    Preconditions.checkNotNull(path);</span>
+<span class="fc bfc" id="L347" title="All 2 branches covered.">    checkArgument(!FileInfo.isDirectoryPath(path), &quot;Cannot open a directory for reading: %s&quot;, path);</span>
 
     // Validate the given path. false == do not allow empty object name.
-<span class="fc" id="L348">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, false);</span>
-<span class="fc" id="L349">    return gcs.open(resourceId, readOptions);</span>
+<span class="fc" id="L350">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, false);</span>
+<span class="fc" id="L351">    return gcs.open(resourceId, readOptions);</span>
   }
 
   /**
@@ -372,65 +374,65 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException
    */
   public void delete(URI path, boolean recursive) throws IOException {
-<span class="fc" id="L375">    Preconditions.checkNotNull(path, &quot;path can not be null&quot;);</span>
-<span class="pc bpc" id="L376" title="1 of 2 branches missed.">    checkArgument(!path.equals(GCS_ROOT), &quot;Cannot delete root path (%s)&quot;, path);</span>
-<span class="fc" id="L377">    logger.atFine().log(&quot;delete(%s, %s)&quot;, path, recursive);</span>
+<span class="fc" id="L377">    Preconditions.checkNotNull(path, &quot;path can not be null&quot;);</span>
+<span class="pc bpc" id="L378" title="1 of 2 branches missed.">    checkArgument(!path.equals(GCS_ROOT), &quot;Cannot delete root path (%s)&quot;, path);</span>
+<span class="fc" id="L379">    logger.atFine().log(&quot;delete(%s, %s)&quot;, path, recursive);</span>
 
-<span class="fc" id="L379">    FileInfo fileInfo = getFileInfo(path);</span>
-<span class="fc bfc" id="L380" title="All 2 branches covered.">    if (!fileInfo.exists()) {</span>
-<span class="fc" id="L381">      throw new FileNotFoundException(&quot;Item not found: &quot; + path);</span>
+<span class="fc" id="L381">    FileInfo fileInfo = getFileInfo(path);</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">    if (!fileInfo.exists()) {</span>
+<span class="fc" id="L383">      throw new FileNotFoundException(&quot;Item not found: &quot; + path);</span>
     }
 
-<span class="fc" id="L384">    Future&lt;GoogleCloudStorageItemInfo&gt; parentInfoFuture = null;</span>
-<span class="pc bpc" id="L385" title="1 of 2 branches missed.">    if (options.getCloudStorageOptions().isAutoRepairImplicitDirectoriesEnabled()) {</span>
-<span class="fc" id="L386">      StorageResourceId parentId = pathCodec.validatePathAndGetId(getParentPath(path), true);</span>
-<span class="fc" id="L387">      parentInfoFuture =</span>
-<span class="fc" id="L388">          cachedExecutor.submit(</span>
-<span class="fc" id="L389">              () -&gt; getFileInfoInternal(parentId, /* inferImplicitDirectories= */ false));</span>
+<span class="fc" id="L386">    Future&lt;GoogleCloudStorageItemInfo&gt; parentInfoFuture = null;</span>
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">    if (options.getCloudStorageOptions().isAutoRepairImplicitDirectoriesEnabled()) {</span>
+<span class="fc" id="L388">      StorageResourceId parentId = pathCodec.validatePathAndGetId(getParentPath(path), true);</span>
+<span class="fc" id="L389">      parentInfoFuture =</span>
+<span class="fc" id="L390">          cachedExecutor.submit(</span>
+<span class="fc" id="L391">              () -&gt; getFileInfoInternal(parentId, /* inferImplicitDirectories= */ false));</span>
     }
 
-<span class="fc" id="L392">    Optional&lt;CoopLockOperationDelete&gt; coopLockOp =</span>
-<span class="pc bpc" id="L393" title="1 of 4 branches missed.">        options.isCooperativeLockingEnabled() &amp;&amp; fileInfo.isDirectory()</span>
-<span class="fc" id="L394">            ? Optional.of(CoopLockOperationDelete.create(gcs, pathCodec, fileInfo.getPath()))</span>
-<span class="fc" id="L395">            : Optional.empty();</span>
-<span class="fc" id="L396">    coopLockOp.ifPresent(CoopLockOperationDelete::lock);</span>
+<span class="fc" id="L394">    Optional&lt;CoopLockOperationDelete&gt; coopLockOp =</span>
+<span class="pc bpc" id="L395" title="1 of 4 branches missed.">        options.isCooperativeLockingEnabled() &amp;&amp; fileInfo.isDirectory()</span>
+<span class="fc" id="L396">            ? Optional.of(CoopLockOperationDelete.create(gcs, pathCodec, fileInfo.getPath()))</span>
+<span class="fc" id="L397">            : Optional.empty();</span>
+<span class="fc" id="L398">    coopLockOp.ifPresent(CoopLockOperationDelete::lock);</span>
 
     List&lt;FileInfo&gt; itemsToDelete;
     // Delete sub-items if it is a directory.
-<span class="fc bfc" id="L400" title="All 2 branches covered.">    if (fileInfo.isDirectory()) {</span>
-<span class="fc bfc" id="L401" title="All 2 branches covered.">      itemsToDelete =</span>
+<span class="fc bfc" id="L402" title="All 2 branches covered.">    if (fileInfo.isDirectory()) {</span>
+<span class="fc bfc" id="L403" title="All 2 branches covered.">      itemsToDelete =</span>
           recursive
-<span class="fc" id="L403">              ? listAllFileInfoForPrefix(fileInfo.getPath())</span>
-<span class="fc" id="L404">              : listFileInfo(fileInfo.getPath());</span>
-<span class="fc bfc" id="L405" title="All 4 branches covered.">      if (!itemsToDelete.isEmpty() &amp;&amp; !recursive) {</span>
-<span class="fc" id="L406">        throw new DirectoryNotEmptyException(&quot;Cannot delete a non-empty directory.&quot;);</span>
+<span class="fc" id="L405">              ? listAllFileInfoForPrefix(fileInfo.getPath())</span>
+<span class="fc" id="L406">              : listFileInfo(fileInfo.getPath());</span>
+<span class="fc bfc" id="L407" title="All 4 branches covered.">      if (!itemsToDelete.isEmpty() &amp;&amp; !recursive) {</span>
+<span class="fc" id="L408">        throw new DirectoryNotEmptyException(&quot;Cannot delete a non-empty directory.&quot;);</span>
       }
     } else {
-<span class="fc" id="L409">      itemsToDelete = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L411">      itemsToDelete = new ArrayList&lt;&gt;();</span>
     }
 
-<span class="fc" id="L412">    List&lt;FileInfo&gt; bucketsToDelete = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L413" title="All 2 branches covered.">    (fileInfo.getItemInfo().isBucket() ? bucketsToDelete : itemsToDelete).add(fileInfo);</span>
+<span class="fc" id="L414">    List&lt;FileInfo&gt; bucketsToDelete = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">    (fileInfo.getItemInfo().isBucket() ? bucketsToDelete : itemsToDelete).add(fileInfo);</span>
 
-<span class="fc" id="L415">    coopLockOp.ifPresent(o -&gt; o.persistAndScheduleRenewal(itemsToDelete, bucketsToDelete));</span>
+<span class="fc" id="L417">    coopLockOp.ifPresent(o -&gt; o.persistAndScheduleRenewal(itemsToDelete, bucketsToDelete));</span>
     try {
-<span class="fc" id="L417">      deleteInternal(itemsToDelete, bucketsToDelete);</span>
+<span class="fc" id="L419">      deleteInternal(itemsToDelete, bucketsToDelete);</span>
 
-<span class="fc" id="L419">      coopLockOp.ifPresent(CoopLockOperationDelete::unlock);</span>
+<span class="fc" id="L421">      coopLockOp.ifPresent(CoopLockOperationDelete::unlock);</span>
     } finally {
-<span class="fc" id="L421">      coopLockOp.ifPresent(CoopLockOperationDelete::cancelRenewal);</span>
+<span class="fc" id="L423">      coopLockOp.ifPresent(CoopLockOperationDelete::cancelRenewal);</span>
     }
 
-<span class="fc" id="L424">    repairImplicitDirectory(parentInfoFuture);</span>
+<span class="fc" id="L426">    repairImplicitDirectory(parentInfoFuture);</span>
 
     // if we deleted a bucket, then there no need to update timestamps
-<span class="fc bfc" id="L427" title="All 2 branches covered.">    if (bucketsToDelete.isEmpty()) {</span>
-<span class="fc" id="L428">      List&lt;URI&gt; itemsToDeleteNames =</span>
-<span class="fc" id="L429">          itemsToDelete.stream().map(FileInfo::getPath).collect(toCollection(ArrayList::new));</span>
+<span class="fc bfc" id="L429" title="All 2 branches covered.">    if (bucketsToDelete.isEmpty()) {</span>
+<span class="fc" id="L430">      List&lt;URI&gt; itemsToDeleteNames =</span>
+<span class="fc" id="L431">          itemsToDelete.stream().map(FileInfo::getPath).collect(toCollection(ArrayList::new));</span>
       // Any path that was deleted, we should update the parent except for parents we also deleted
-<span class="fc" id="L431">      tryUpdateTimestampsForParentDirectories(itemsToDeleteNames, itemsToDeleteNames);</span>
+<span class="fc" id="L433">      tryUpdateTimestampsForParentDirectories(itemsToDeleteNames, itemsToDeleteNames);</span>
     }
-<span class="fc" id="L433">  }</span>
+<span class="fc" id="L435">  }</span>
 
   /** Deletes all items in the given path list followed by all bucket items. */
   private void deleteInternal(List&lt;FileInfo&gt; itemsToDelete, List&lt;FileInfo&gt; bucketsToDelete)
@@ -442,36 +444,36 @@ public class GoogleCloudStorageFileSystem {
     //
     // Note: we modify the input list, which is ok for current usage.
     // We should make a copy in case that changes in future.
-<span class="fc" id="L445">    itemsToDelete.sort(FILE_INFO_PATH_COMPARATOR.reversed());</span>
+<span class="fc" id="L447">    itemsToDelete.sort(FILE_INFO_PATH_COMPARATOR.reversed());</span>
 
-<span class="fc bfc" id="L447" title="All 2 branches covered.">    if (!itemsToDelete.isEmpty()) {</span>
-<span class="fc" id="L448">      List&lt;StorageResourceId&gt; objectsToDelete = new ArrayList&lt;&gt;(itemsToDelete.size());</span>
-<span class="fc bfc" id="L449" title="All 2 branches covered.">      for (FileInfo fileInfo : itemsToDelete) {</span>
+<span class="fc bfc" id="L449" title="All 2 branches covered.">    if (!itemsToDelete.isEmpty()) {</span>
+<span class="fc" id="L450">      List&lt;StorageResourceId&gt; objectsToDelete = new ArrayList&lt;&gt;(itemsToDelete.size());</span>
+<span class="fc bfc" id="L451" title="All 2 branches covered.">      for (FileInfo fileInfo : itemsToDelete) {</span>
         // TODO(b/110833109): populate generation ID in StorageResourceId when listing infos?
-<span class="fc" id="L451">        objectsToDelete.add(</span>
+<span class="fc" id="L453">        objectsToDelete.add(</span>
             new StorageResourceId(
-<span class="fc" id="L453">                fileInfo.getItemInfo().getBucketName(),</span>
-<span class="fc" id="L454">                fileInfo.getItemInfo().getObjectName(),</span>
-<span class="fc" id="L455">                fileInfo.getItemInfo().getContentGeneration()));</span>
-<span class="fc" id="L456">      }</span>
-<span class="fc" id="L457">      gcs.deleteObjects(objectsToDelete);</span>
+<span class="fc" id="L455">                fileInfo.getItemInfo().getBucketName(),</span>
+<span class="fc" id="L456">                fileInfo.getItemInfo().getObjectName(),</span>
+<span class="fc" id="L457">                fileInfo.getItemInfo().getContentGeneration()));</span>
+<span class="fc" id="L458">      }</span>
+<span class="fc" id="L459">      gcs.deleteObjects(objectsToDelete);</span>
     }
 
-<span class="fc bfc" id="L460" title="All 2 branches covered.">    if (!bucketsToDelete.isEmpty()) {</span>
-<span class="fc" id="L461">      List&lt;String&gt; bucketNames = new ArrayList&lt;&gt;(bucketsToDelete.size());</span>
-<span class="fc bfc" id="L462" title="All 2 branches covered.">      for (FileInfo bucketInfo : bucketsToDelete) {</span>
-<span class="fc" id="L463">        StorageResourceId resourceId = bucketInfo.getItemInfo().getResourceId();</span>
-<span class="fc" id="L464">        gcs.waitForBucketEmpty(resourceId.getBucketName());</span>
-<span class="fc" id="L465">        bucketNames.add(resourceId.getBucketName());</span>
-<span class="fc" id="L466">      }</span>
-<span class="fc bfc" id="L467" title="All 2 branches covered.">      if (options.isBucketDeleteEnabled()) {</span>
-<span class="fc" id="L468">        gcs.deleteBuckets(bucketNames);</span>
+<span class="fc bfc" id="L462" title="All 2 branches covered.">    if (!bucketsToDelete.isEmpty()) {</span>
+<span class="fc" id="L463">      List&lt;String&gt; bucketNames = new ArrayList&lt;&gt;(bucketsToDelete.size());</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">      for (FileInfo bucketInfo : bucketsToDelete) {</span>
+<span class="fc" id="L465">        StorageResourceId resourceId = bucketInfo.getItemInfo().getResourceId();</span>
+<span class="fc" id="L466">        gcs.waitForBucketEmpty(resourceId.getBucketName());</span>
+<span class="fc" id="L467">        bucketNames.add(resourceId.getBucketName());</span>
+<span class="fc" id="L468">      }</span>
+<span class="fc bfc" id="L469" title="All 2 branches covered.">      if (options.isBucketDeleteEnabled()) {</span>
+<span class="fc" id="L470">        gcs.deleteBuckets(bucketNames);</span>
       } else {
-<span class="fc" id="L470">        logger.atInfo().log(</span>
+<span class="fc" id="L472">        logger.atInfo().log(</span>
             &quot;Skipping deletion of buckets because enableBucketDelete is false: %s&quot;, bucketNames);
       }
     }
-<span class="fc" id="L474">  }</span>
+<span class="fc" id="L476">  }</span>
 
   /**
    * Indicates whether the given item exists.
@@ -482,8 +484,8 @@ public class GoogleCloudStorageFileSystem {
    */
   public boolean exists(URI path)
       throws IOException {
-<span class="fc" id="L485">    logger.atFine().log(&quot;exists(%s)&quot;, path);</span>
-<span class="fc" id="L486">    return getFileInfo(path).exists();</span>
+<span class="fc" id="L487">    logger.atFine().log(&quot;exists(%s)&quot;, path);</span>
+<span class="fc" id="L488">    return getFileInfo(path).exists();</span>
   }
 
   /**
@@ -494,16 +496,16 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException
    */
   public void mkdirs(URI path) throws IOException {
-<span class="fc" id="L497">    logger.atFine().log(&quot;mkdirs(%s)&quot;, path);</span>
-<span class="fc" id="L498">    Preconditions.checkNotNull(path);</span>
+<span class="fc" id="L499">    logger.atFine().log(&quot;mkdirs(%s)&quot;, path);</span>
+<span class="fc" id="L500">    Preconditions.checkNotNull(path);</span>
 
-<span class="fc bfc" id="L500" title="All 2 branches covered.">    if (path.equals(GCS_ROOT)) {</span>
+<span class="fc bfc" id="L502" title="All 2 branches covered.">    if (path.equals(GCS_ROOT)) {</span>
       // GCS_ROOT directory always exists, no need to go through the rest of the method.
-<span class="fc" id="L502">      return;</span>
+<span class="fc" id="L504">      return;</span>
     }
 
-<span class="fc" id="L505">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
-<span class="fc" id="L506">    resourceId = FileInfo.convertToDirectoryPath(resourceId);</span>
+<span class="fc" id="L507">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
+<span class="fc" id="L508">    resourceId = FileInfo.convertToDirectoryPath(resourceId);</span>
 
     // Create a list of all intermediate paths.
     // For example,
@@ -513,20 +515,20 @@ public class GoogleCloudStorageFileSystem {
     // therefore, also create a list of file equivalent of each subdir path.
     // For example,
     // gs://foo/bar/zoo/ =&gt; (gs://foo/bar, gs://foo/bar/zoo)
-<span class="fc" id="L516">    List&lt;String&gt; subdirs = getSubDirs(resourceId.getObjectName());</span>
-<span class="fc" id="L517">    List&lt;StorageResourceId&gt; itemIds = new ArrayList&lt;&gt;(subdirs.size() * 2 + 1);</span>
-<span class="fc bfc" id="L518" title="All 2 branches covered.">    for (String subdir : subdirs) {</span>
-<span class="fc" id="L519">      itemIds.add(new StorageResourceId(resourceId.getBucketName(), subdir));</span>
-<span class="pc bpc" id="L520" title="1 of 2 branches missed.">      if (!Strings.isNullOrEmpty(subdir)) {</span>
-<span class="fc" id="L521">        itemIds.add(</span>
-<span class="fc" id="L522">            new StorageResourceId(resourceId.getBucketName(), FileInfo.convertToFilePath(subdir)));</span>
+<span class="fc" id="L518">    List&lt;String&gt; subdirs = getSubDirs(resourceId.getObjectName());</span>
+<span class="fc" id="L519">    List&lt;StorageResourceId&gt; itemIds = new ArrayList&lt;&gt;(subdirs.size() * 2 + 1);</span>
+<span class="fc bfc" id="L520" title="All 2 branches covered.">    for (String subdir : subdirs) {</span>
+<span class="fc" id="L521">      itemIds.add(new StorageResourceId(resourceId.getBucketName(), subdir));</span>
+<span class="pc bpc" id="L522" title="1 of 2 branches missed.">      if (!Strings.isNullOrEmpty(subdir)) {</span>
+<span class="fc" id="L523">        itemIds.add(</span>
+<span class="fc" id="L524">            new StorageResourceId(resourceId.getBucketName(), FileInfo.convertToFilePath(subdir)));</span>
       }
-<span class="fc" id="L524">    }</span>
+<span class="fc" id="L526">    }</span>
     // Add the bucket portion.
-<span class="fc" id="L526">    itemIds.add(new StorageResourceId(resourceId.getBucketName()));</span>
-<span class="fc" id="L527">    logger.atFine().log(&quot;mkdirs: items: %s&quot;, itemIds);</span>
+<span class="fc" id="L528">    itemIds.add(new StorageResourceId(resourceId.getBucketName()));</span>
+<span class="fc" id="L529">    logger.atFine().log(&quot;mkdirs: items: %s&quot;, itemIds);</span>
 
-<span class="fc" id="L529">    List&lt;GoogleCloudStorageItemInfo&gt; itemInfos = gcs.getItemInfos(itemIds);</span>
+<span class="fc" id="L531">    List&lt;GoogleCloudStorageItemInfo&gt; itemInfos = gcs.getItemInfos(itemIds);</span>
 
     // Each intermediate path must satisfy one of the following conditions:
     // -- it does not exist or
@@ -537,56 +539,64 @@ public class GoogleCloudStorageFileSystem {
     // created sub-directories. It is possible that the status of intermediate
     // paths can change after we make this check therefore this is a
     // good faith effort and not a guarantee.
-<span class="fc" id="L540">    GoogleCloudStorageItemInfo bucketInfo = null;</span>
-<span class="fc" id="L541">    List&lt;StorageResourceId&gt; subdirsToCreate = new ArrayList&lt;&gt;(subdirs.size());</span>
-<span class="fc bfc" id="L542" title="All 2 branches covered.">    for (GoogleCloudStorageItemInfo info : itemInfos) {</span>
-<span class="fc bfc" id="L543" title="All 2 branches covered.">      if (info.isBucket()) {</span>
-<span class="pc bpc" id="L544" title="1 of 2 branches missed.">        checkState(bucketInfo == null, &quot;bucketInfo should be null&quot;);</span>
-<span class="fc" id="L545">        bucketInfo = info;</span>
-<span class="fc bfc" id="L546" title="All 4 branches covered.">      } else if (info.getResourceId().isDirectory() &amp;&amp; !info.exists()) {</span>
-<span class="fc" id="L547">        subdirsToCreate.add(info.getResourceId());</span>
-<span class="fc bfc" id="L548" title="All 4 branches covered.">      } else if (!info.getResourceId().isDirectory() &amp;&amp; info.exists()) {</span>
-<span class="fc" id="L549">        throw new FileAlreadyExistsException(</span>
-<span class="fc" id="L550">            &quot;Cannot create directories because of existing file: &quot; + info.getResourceId());</span>
+<span class="fc" id="L542">    GoogleCloudStorageItemInfo bucketInfo = null;</span>
+<span class="fc" id="L543">    List&lt;StorageResourceId&gt; subdirsToCreate = new ArrayList&lt;&gt;(subdirs.size());</span>
+<span class="fc bfc" id="L544" title="All 2 branches covered.">    for (GoogleCloudStorageItemInfo info : itemInfos) {</span>
+<span class="fc bfc" id="L545" title="All 2 branches covered.">      if (info.isBucket()) {</span>
+<span class="pc bpc" id="L546" title="1 of 2 branches missed.">        checkState(bucketInfo == null, &quot;bucketInfo should be null&quot;);</span>
+<span class="fc" id="L547">        bucketInfo = info;</span>
+<span class="fc bfc" id="L548" title="All 4 branches covered.">      } else if (info.getResourceId().isDirectory() &amp;&amp; !info.exists()) {</span>
+<span class="fc" id="L549">        subdirsToCreate.add(info.getResourceId());</span>
+<span class="fc bfc" id="L550" title="All 4 branches covered.">      } else if (!info.getResourceId().isDirectory() &amp;&amp; info.exists()) {</span>
+<span class="fc" id="L551">        throw new FileAlreadyExistsException(</span>
+<span class="fc" id="L552">            &quot;Cannot create directories because of existing file: &quot; + info.getResourceId());</span>
       }
-<span class="fc" id="L552">    }</span>
+<span class="fc" id="L554">    }</span>
 
-<span class="fc bfc" id="L554" title="All 2 branches covered.">    if (!checkNotNull(bucketInfo, &quot;bucketInfo should not be null&quot;).exists()) {</span>
-<span class="fc" id="L555">      gcs.create(bucketInfo.getBucketName());</span>
+<span class="fc bfc" id="L556" title="All 2 branches covered.">    if (!checkNotNull(bucketInfo, &quot;bucketInfo should not be null&quot;).exists()) {</span>
+<span class="fc" id="L557">      gcs.create(bucketInfo.getBucketName());</span>
     }
-<span class="fc" id="L557">    gcs.createEmptyObjects(subdirsToCreate);</span>
+<span class="fc" id="L559">    gcs.createEmptyObjects(subdirsToCreate);</span>
 
     // Update parent directories, but not the ones we just created because we just created them.
-<span class="fc" id="L560">    List&lt;URI&gt; createdDirectories =</span>
-<span class="fc" id="L561">        subdirsToCreate.stream()</span>
-<span class="fc" id="L562">            .map(s -&gt; pathCodec.getPath(s.getBucketName(), s.getObjectName(), false))</span>
-<span class="fc" id="L563">            .collect(toImmutableList());</span>
-<span class="fc" id="L564">    tryUpdateTimestampsForParentDirectories(createdDirectories, createdDirectories);</span>
-<span class="fc" id="L565">  }</span>
+<span class="fc" id="L562">    List&lt;URI&gt; createdDirectories =</span>
+<span class="fc" id="L563">        subdirsToCreate.stream()</span>
+<span class="fc" id="L564">            .map(s -&gt; pathCodec.getPath(s.getBucketName(), s.getObjectName(), false))</span>
+<span class="fc" id="L565">            .collect(toImmutableList());</span>
+<span class="fc" id="L566">    tryUpdateTimestampsForParentDirectories(createdDirectories, createdDirectories);</span>
+<span class="fc" id="L567">  }</span>
 
   /**
    * Renames the given item's path.
    *
-   * The operation is disallowed if any of the following is true:
-   * -- src == GCS_ROOT
-   * -- src is a file and dst == GCS_ROOT
-   * -- src does not exist
-   * -- dst is a file that already exists
-   * -- parent of the destination does not exist.
+   * &lt;p&gt;The operation is disallowed if any of the following is true:
    *
-   * Otherwise, the expected behavior is as follows:
-   * -- if src is a directory
-   *    -- dst is an existing file =&gt; disallowed
-   *    -- dst is a directory =&gt; rename the directory.
+   * &lt;ul&gt;
+   *   &lt;li&gt;src equals GCS_ROOT
+   *   &lt;li&gt;src is a file and dst equals GCS_ROOT
+   *   &lt;li&gt;src does not exist
+   *   &lt;li&gt;dst is a file that already exists
+   *   &lt;li&gt;parent of the destination does not exist
+   * &lt;/ul&gt;
    *
-   * -- if src is a file
-   *    -- dst is a file =&gt; rename the file.
-   *    -- dst is a directory =&gt; similar to the previous case after
-   *                             appending src file-name to dst
+   * &lt;p&gt;Otherwise, the expected behavior is as follows:
    *
-   * Note:
-   * This function is very expensive to call for directories that
-   * have many sub-items.
+   * &lt;ul&gt;
+   *   &lt;li&gt;if src is a directory:
+   *       &lt;ul&gt;
+   *         &lt;li&gt;if dst is an existing file then disallowed
+   *         &lt;li&gt;if dst is a directory then rename the directory
+   *       &lt;/ul&gt;
+   *       &lt;p&gt;
+   *   &lt;li&gt;if src is a file:
+   *       &lt;ul&gt;
+   *         &lt;li&gt;if dst is a file then rename the file.
+   *         &lt;li&gt;if dst is a directory then similar to the previous case after appending src
+   *             file-name to dst
+   *       &lt;/ul&gt;
+   * &lt;/ul&gt;
+   *
+   * &lt;p&gt;Note: This function is very expensive to call for directories that have many sub-items.
    *
    * @param src Path of the item to rename.
    * @param dst New path of the item.
@@ -594,138 +604,138 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException
    */
   public void rename(URI src, URI dst) throws IOException {
-<span class="fc" id="L597">    logger.atFine().log(&quot;rename(%s, %s)&quot;, src, dst);</span>
-<span class="fc" id="L598">    Preconditions.checkNotNull(src);</span>
-<span class="fc" id="L599">    Preconditions.checkNotNull(dst);</span>
-<span class="fc bfc" id="L600" title="All 2 branches covered.">    checkArgument(!src.equals(GCS_ROOT), &quot;Root path cannot be renamed.&quot;);</span>
+<span class="fc" id="L607">    logger.atFine().log(&quot;rename(%s, %s)&quot;, src, dst);</span>
+<span class="fc" id="L608">    Preconditions.checkNotNull(src);</span>
+<span class="fc" id="L609">    Preconditions.checkNotNull(dst);</span>
+<span class="fc bfc" id="L610" title="All 2 branches covered.">    checkArgument(!src.equals(GCS_ROOT), &quot;Root path cannot be renamed.&quot;);</span>
 
     // Parent of the destination path.
-<span class="fc" id="L603">    URI dstParent = getParentPath(dst);</span>
+<span class="fc" id="L613">    URI dstParent = getParentPath(dst);</span>
 
     // Obtain info on source, destination and destination-parent.
-<span class="fc" id="L606">    List&lt;URI&gt; paths = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L607">    paths.add(src);</span>
-<span class="fc" id="L608">    paths.add(dst);</span>
-<span class="fc bfc" id="L609" title="All 2 branches covered.">    if (dstParent != null) {</span>
+<span class="fc" id="L616">    List&lt;URI&gt; paths = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L617">    paths.add(src);</span>
+<span class="fc" id="L618">    paths.add(dst);</span>
+<span class="fc bfc" id="L619" title="All 2 branches covered.">    if (dstParent != null) {</span>
       // dstParent is null if dst is GCS_ROOT.
-<span class="fc" id="L611">      paths.add(dstParent);</span>
+<span class="fc" id="L621">      paths.add(dstParent);</span>
     }
-<span class="fc" id="L613">    List&lt;FileInfo&gt; fileInfos = getFileInfos(paths);</span>
-<span class="fc" id="L614">    FileInfo srcInfo = fileInfos.get(0);</span>
-<span class="fc" id="L615">    FileInfo dstInfo = fileInfos.get(1);</span>
+<span class="fc" id="L623">    List&lt;FileInfo&gt; fileInfos = getFileInfos(paths);</span>
+<span class="fc" id="L624">    FileInfo srcInfo = fileInfos.get(0);</span>
+<span class="fc" id="L625">    FileInfo dstInfo = fileInfos.get(1);</span>
 
     // Make sure paths match what getFileInfo() returned (it can add / at the end).
-<span class="fc" id="L618">    src = srcInfo.getPath();</span>
-<span class="fc" id="L619">    dst = dstInfo.getPath();</span>
+<span class="fc" id="L628">    src = srcInfo.getPath();</span>
+<span class="fc" id="L629">    dst = dstInfo.getPath();</span>
 
     // Throw if the source file does not exist.
-<span class="fc bfc" id="L622" title="All 2 branches covered.">    if (!srcInfo.exists()) {</span>
-<span class="fc" id="L623">      throw new FileNotFoundException(&quot;Item not found: &quot; + src);</span>
+<span class="fc bfc" id="L632" title="All 2 branches covered.">    if (!srcInfo.exists()) {</span>
+<span class="fc" id="L633">      throw new FileNotFoundException(&quot;Item not found: &quot; + src);</span>
     }
 
-<span class="fc" id="L626">    Optional&lt;CoopLockOperationRename&gt; coopLockOp =</span>
-<span class="fc bfc" id="L627" title="All 2 branches covered.">        options.isCooperativeLockingEnabled()</span>
-<span class="pc bpc" id="L628" title="1 of 2 branches missed.">                &amp;&amp; src.getAuthority().equals(dst.getAuthority())</span>
-<span class="pc bpc" id="L629" title="1 of 2 branches missed.">                &amp;&amp; srcInfo.isDirectory()</span>
-<span class="fc" id="L630">            ? Optional.of(CoopLockOperationRename.create(gcs, pathCodec, src, dst))</span>
-<span class="fc" id="L631">            : Optional.empty();</span>
-<span class="fc" id="L632">    coopLockOp.ifPresent(CoopLockOperationRename::lock);</span>
-<span class="fc bfc" id="L633" title="All 2 branches covered.">    if (coopLockOp.isPresent()) {</span>
-<span class="fc" id="L634">      fileInfos = getFileInfos(paths);</span>
-<span class="fc" id="L635">      srcInfo = fileInfos.get(0);</span>
-<span class="fc" id="L636">      dstInfo = fileInfos.get(1);</span>
-<span class="fc bfc" id="L637" title="All 2 branches covered.">      if (!srcInfo.exists()) {</span>
-<span class="fc" id="L638">        coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
-<span class="fc" id="L639">        throw new FileNotFoundException(&quot;Item not found: &quot; + src);</span>
+<span class="fc" id="L636">    Optional&lt;CoopLockOperationRename&gt; coopLockOp =</span>
+<span class="fc bfc" id="L637" title="All 2 branches covered.">        options.isCooperativeLockingEnabled()</span>
+<span class="pc bpc" id="L638" title="1 of 2 branches missed.">                &amp;&amp; src.getAuthority().equals(dst.getAuthority())</span>
+<span class="pc bpc" id="L639" title="1 of 2 branches missed.">                &amp;&amp; srcInfo.isDirectory()</span>
+<span class="fc" id="L640">            ? Optional.of(CoopLockOperationRename.create(gcs, pathCodec, src, dst))</span>
+<span class="fc" id="L641">            : Optional.empty();</span>
+<span class="fc" id="L642">    coopLockOp.ifPresent(CoopLockOperationRename::lock);</span>
+<span class="fc bfc" id="L643" title="All 2 branches covered.">    if (coopLockOp.isPresent()) {</span>
+<span class="fc" id="L644">      fileInfos = getFileInfos(paths);</span>
+<span class="fc" id="L645">      srcInfo = fileInfos.get(0);</span>
+<span class="fc" id="L646">      dstInfo = fileInfos.get(1);</span>
+<span class="fc bfc" id="L647" title="All 2 branches covered.">      if (!srcInfo.exists()) {</span>
+<span class="fc" id="L648">        coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
+<span class="fc" id="L649">        throw new FileNotFoundException(&quot;Item not found: &quot; + src);</span>
       }
-<span class="pc bpc" id="L641" title="1 of 2 branches missed.">      if (!srcInfo.isDirectory()) {</span>
-<span class="nc" id="L642">        coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
-<span class="nc" id="L643">        coopLockOp = Optional.empty();</span>
+<span class="pc bpc" id="L651" title="1 of 2 branches missed.">      if (!srcInfo.isDirectory()) {</span>
+<span class="nc" id="L652">        coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
+<span class="nc" id="L653">        coopLockOp = Optional.empty();</span>
       }
     }
 
-<span class="fc bfc" id="L647" title="All 2 branches covered.">    FileInfo dstParentInfo = dstParent == null ? null : fileInfos.get(2);</span>
+<span class="fc bfc" id="L657" title="All 2 branches covered.">    FileInfo dstParentInfo = dstParent == null ? null : fileInfos.get(2);</span>
     try {
-<span class="fc" id="L649">      dst = getDstUri(srcInfo, dstInfo, dstParentInfo);</span>
-<span class="fc" id="L650">    } catch (IOException e) {</span>
-<span class="fc" id="L651">      coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
-<span class="fc" id="L652">      throw e;</span>
-<span class="fc" id="L653">    }</span>
+<span class="fc" id="L659">      dst = getDstUri(srcInfo, dstInfo, dstParentInfo);</span>
+<span class="fc" id="L660">    } catch (IOException e) {</span>
+<span class="fc" id="L661">      coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
+<span class="fc" id="L662">      throw e;</span>
+<span class="fc" id="L663">    }</span>
 
     // if src and dst are equal then do nothing
-<span class="pc bpc" id="L656" title="1 of 2 branches missed.">    if (src.equals(dst)) {</span>
-<span class="nc" id="L657">      coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
-<span class="nc" id="L658">      return;</span>
+<span class="pc bpc" id="L666" title="1 of 2 branches missed.">    if (src.equals(dst)) {</span>
+<span class="nc" id="L667">      coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
+<span class="nc" id="L668">      return;</span>
     }
 
-<span class="fc" id="L661">    Future&lt;GoogleCloudStorageItemInfo&gt; srcParentInfoFuture = null;</span>
-<span class="pc bpc" id="L662" title="1 of 2 branches missed.">    if (options.getCloudStorageOptions().isAutoRepairImplicitDirectoriesEnabled()) {</span>
-<span class="fc" id="L663">      StorageResourceId srcParentId = pathCodec.validatePathAndGetId(getParentPath(src), true);</span>
-<span class="fc" id="L664">      srcParentInfoFuture =</span>
-<span class="fc" id="L665">          cachedExecutor.submit(</span>
-<span class="fc" id="L666">              () -&gt; getFileInfoInternal(srcParentId, /* inferImplicitDirectories= */ false));</span>
+<span class="fc" id="L671">    Future&lt;GoogleCloudStorageItemInfo&gt; srcParentInfoFuture = null;</span>
+<span class="pc bpc" id="L672" title="1 of 2 branches missed.">    if (options.getCloudStorageOptions().isAutoRepairImplicitDirectoriesEnabled()) {</span>
+<span class="fc" id="L673">      StorageResourceId srcParentId = pathCodec.validatePathAndGetId(getParentPath(src), true);</span>
+<span class="fc" id="L674">      srcParentInfoFuture =</span>
+<span class="fc" id="L675">          cachedExecutor.submit(</span>
+<span class="fc" id="L676">              () -&gt; getFileInfoInternal(srcParentId, /* inferImplicitDirectories= */ false));</span>
     }
 
-<span class="fc bfc" id="L669" title="All 2 branches covered.">    if (srcInfo.isDirectory()) {</span>
-<span class="fc" id="L670">      renameDirectoryInternal(srcInfo, dst, coopLockOp);</span>
+<span class="fc bfc" id="L679" title="All 2 branches covered.">    if (srcInfo.isDirectory()) {</span>
+<span class="fc" id="L680">      renameDirectoryInternal(srcInfo, dst, coopLockOp);</span>
     } else {
-<span class="fc" id="L672">      coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
+<span class="fc" id="L682">      coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
 
-<span class="fc" id="L674">      StorageResourceId srcResourceId = pathCodec.validatePathAndGetId(src, true);</span>
-<span class="fc" id="L675">      StorageResourceId dstResourceId = pathCodec.validatePathAndGetId(dst, true);</span>
+<span class="fc" id="L684">      StorageResourceId srcResourceId = pathCodec.validatePathAndGetId(src, true);</span>
+<span class="fc" id="L685">      StorageResourceId dstResourceId = pathCodec.validatePathAndGetId(dst, true);</span>
 
-<span class="fc" id="L677">      gcs.copy(</span>
-<span class="fc" id="L678">          srcResourceId.getBucketName(), ImmutableList.of(srcResourceId.getObjectName()),</span>
-<span class="fc" id="L679">          dstResourceId.getBucketName(), ImmutableList.of(dstResourceId.getObjectName()));</span>
+<span class="fc" id="L687">      gcs.copy(</span>
+<span class="fc" id="L688">          srcResourceId.getBucketName(), ImmutableList.of(srcResourceId.getObjectName()),</span>
+<span class="fc" id="L689">          dstResourceId.getBucketName(), ImmutableList.of(dstResourceId.getObjectName()));</span>
 
-<span class="fc" id="L681">      tryUpdateTimestampsForParentDirectories(ImmutableList.of(dst), ImmutableList.&lt;URI&gt;of());</span>
+<span class="fc" id="L691">      tryUpdateTimestampsForParentDirectories(ImmutableList.of(dst), ImmutableList.&lt;URI&gt;of());</span>
 
       // TODO(b/110833109): populate generation ID in StorageResourceId when getting info
-<span class="fc" id="L684">      gcs.deleteObjects(</span>
-<span class="fc" id="L685">          ImmutableList.of(</span>
+<span class="fc" id="L694">      gcs.deleteObjects(</span>
+<span class="fc" id="L695">          ImmutableList.of(</span>
               new StorageResourceId(
-<span class="fc" id="L687">                  srcInfo.getItemInfo().getBucketName(),</span>
-<span class="fc" id="L688">                  srcInfo.getItemInfo().getObjectName(),</span>
-<span class="fc" id="L689">                  srcInfo.getItemInfo().getContentGeneration())));</span>
+<span class="fc" id="L697">                  srcInfo.getItemInfo().getBucketName(),</span>
+<span class="fc" id="L698">                  srcInfo.getItemInfo().getObjectName(),</span>
+<span class="fc" id="L699">                  srcInfo.getItemInfo().getContentGeneration())));</span>
 
       // Any path that was deleted, we should update the parent except for parents we also deleted
-<span class="fc" id="L692">      tryUpdateTimestampsForParentDirectories(ImmutableList.of(src), ImmutableList.of());</span>
+<span class="fc" id="L702">      tryUpdateTimestampsForParentDirectories(ImmutableList.of(src), ImmutableList.of());</span>
     }
 
-<span class="fc" id="L695">    repairImplicitDirectory(srcParentInfoFuture);</span>
-<span class="fc" id="L696">  }</span>
+<span class="fc" id="L705">    repairImplicitDirectory(srcParentInfoFuture);</span>
+<span class="fc" id="L706">  }</span>
 
   private URI getDstUri(FileInfo srcInfo, FileInfo dstInfo, @Nullable FileInfo dstParentInfo)
       throws IOException {
-<span class="fc" id="L700">    URI src = srcInfo.getPath();</span>
-<span class="fc" id="L701">    URI dst = dstInfo.getPath();</span>
+<span class="fc" id="L710">    URI src = srcInfo.getPath();</span>
+<span class="fc" id="L711">    URI dst = dstInfo.getPath();</span>
 
     // Throw if src is a file and dst == GCS_ROOT
-<span class="fc bfc" id="L704" title="All 4 branches covered.">    if (!srcInfo.isDirectory() &amp;&amp; dst.equals(GCS_ROOT)) {</span>
-<span class="fc" id="L705">      throw new IOException(&quot;A file cannot be created in root.&quot;);</span>
+<span class="fc bfc" id="L714" title="All 4 branches covered.">    if (!srcInfo.isDirectory() &amp;&amp; dst.equals(GCS_ROOT)) {</span>
+<span class="fc" id="L715">      throw new IOException(&quot;A file cannot be created in root.&quot;);</span>
     }
 
     // Throw if the destination is a file that already exists and it's not a source file.
-<span class="fc bfc" id="L709" title="All 2 branches covered.">    if (dstInfo.exists()</span>
-<span class="fc bfc" id="L710" title="All 2 branches covered.">        &amp;&amp; !dstInfo.isDirectory()</span>
-<span class="pc bpc" id="L711" title="1 of 4 branches missed.">        &amp;&amp; (srcInfo.isDirectory() || !dst.equals(src))) {</span>
-<span class="fc" id="L712">      throw new IOException(&quot;Cannot overwrite existing file: &quot; + dst);</span>
+<span class="fc bfc" id="L719" title="All 2 branches covered.">    if (dstInfo.exists()</span>
+<span class="fc bfc" id="L720" title="All 2 branches covered.">        &amp;&amp; !dstInfo.isDirectory()</span>
+<span class="pc bpc" id="L721" title="1 of 4 branches missed.">        &amp;&amp; (srcInfo.isDirectory() || !dst.equals(src))) {</span>
+<span class="fc" id="L722">      throw new IOException(&quot;Cannot overwrite existing file: &quot; + dst);</span>
     }
 
     // Rename operation cannot be completed if parent of destination does not exist.
-<span class="pc bpc" id="L716" title="1 of 4 branches missed.">    if (dstParentInfo != null &amp;&amp; !dstParentInfo.exists()) {</span>
-<span class="fc" id="L717">      throw new IOException(</span>
-<span class="fc" id="L718">          &quot;Cannot rename because path does not exist: &quot; + dstParentInfo.getPath());</span>
+<span class="pc bpc" id="L726" title="1 of 4 branches missed.">    if (dstParentInfo != null &amp;&amp; !dstParentInfo.exists()) {</span>
+<span class="fc" id="L727">      throw new IOException(</span>
+<span class="fc" id="L728">          &quot;Cannot rename because path does not exist: &quot; + dstParentInfo.getPath());</span>
     }
 
     // Leaf item of the source path.
-<span class="fc" id="L722">    String srcItemName = getItemName(src);</span>
+<span class="fc" id="L732">    String srcItemName = getItemName(src);</span>
 
     // Having taken care of the initial checks, apply the regular rules.
     // After applying the rules, we will be left with 2 paths such that:
     // -- either both are files or both are directories
     // -- src exists and dst leaf does not exist
-<span class="fc bfc" id="L728" title="All 2 branches covered.">    if (srcInfo.isDirectory()) {</span>
+<span class="fc bfc" id="L738" title="All 2 branches covered.">    if (srcInfo.isDirectory()) {</span>
       // -- if src is a directory
       //    -- dst is an existing file =&gt; disallowed
       //    -- dst is a directory =&gt; rename the directory.
@@ -734,55 +744,55 @@ public class GoogleCloudStorageFileSystem {
       // If the destination path looks like a file, make it look like a
       // directory path. This is because users often type 'mv foo bar'
       // rather than 'mv foo bar/'.
-<span class="fc bfc" id="L737" title="All 2 branches covered.">      if (!dstInfo.isDirectory()) {</span>
-<span class="fc" id="L738">        dst = FileInfo.convertToDirectoryPath(pathCodec, dst);</span>
-<span class="fc" id="L739">        dstInfo = getFileInfo(dst);</span>
+<span class="fc bfc" id="L747" title="All 2 branches covered.">      if (!dstInfo.isDirectory()) {</span>
+<span class="fc" id="L748">        dst = FileInfo.convertToDirectoryPath(pathCodec, dst);</span>
+<span class="fc" id="L749">        dstInfo = getFileInfo(dst);</span>
       }
 
       // Throw if renaming directory to self - this is forbidden
-<span class="pc bpc" id="L743" title="1 of 2 branches missed.">      if (src.equals(dst)) {</span>
-<span class="nc" id="L744">        throw new IOException(&quot;Rename dir to self is forbidden&quot;);</span>
+<span class="pc bpc" id="L753" title="1 of 2 branches missed.">      if (src.equals(dst)) {</span>
+<span class="nc" id="L754">        throw new IOException(&quot;Rename dir to self is forbidden&quot;);</span>
       }
 
-<span class="fc" id="L747">      URI dstRelativeToSrc = src.relativize(dst);</span>
+<span class="fc" id="L757">      URI dstRelativeToSrc = src.relativize(dst);</span>
       // Throw if dst URI relative to src is not equal to dst,
       // because this means that src is a parent directory of dst
       // and src can not be &quot;renamed&quot; to its subdirectory
-<span class="pc bpc" id="L751" title="1 of 2 branches missed.">      if (!dstRelativeToSrc.equals(dst)) {</span>
-<span class="nc" id="L752">        throw new IOException(&quot;Rename to subdir is forbidden&quot;);</span>
+<span class="pc bpc" id="L761" title="1 of 2 branches missed.">      if (!dstRelativeToSrc.equals(dst)) {</span>
+<span class="nc" id="L762">        throw new IOException(&quot;Rename to subdir is forbidden&quot;);</span>
       }
 
-<span class="fc bfc" id="L755" title="All 2 branches covered.">      if (dstInfo.exists()) {</span>
-<span class="pc bpc" id="L756" title="1 of 2 branches missed.">        if (dst.equals(GCS_ROOT)) {</span>
-<span class="nc" id="L757">          dst = pathCodec.getPath(srcItemName, null, true);</span>
+<span class="fc bfc" id="L765" title="All 2 branches covered.">      if (dstInfo.exists()) {</span>
+<span class="pc bpc" id="L766" title="1 of 2 branches missed.">        if (dst.equals(GCS_ROOT)) {</span>
+<span class="nc" id="L767">          dst = pathCodec.getPath(srcItemName, null, true);</span>
         } else {
-<span class="fc" id="L759">          dst = FileInfo.convertToDirectoryPath(pathCodec, dst.resolve(srcItemName));</span>
+<span class="fc" id="L769">          dst = FileInfo.convertToDirectoryPath(pathCodec, dst.resolve(srcItemName));</span>
         }
       }
-<span class="fc" id="L762">    } else {</span>
+<span class="fc" id="L772">    } else {</span>
       // -- src is a file
       //    -- dst is a file =&gt; rename the file.
       //    -- dst is a directory =&gt; similar to the previous case after
       //                             appending src file-name to dst
 
-<span class="fc bfc" id="L768" title="All 2 branches covered.">      if (dstInfo.isDirectory()) {</span>
-<span class="pc bpc" id="L769" title="1 of 2 branches missed.">        if (!dstInfo.exists()) {</span>
-<span class="nc" id="L770">          throw new IOException(&quot;Cannot rename because path does not exist: &quot; + dstInfo.getPath());</span>
+<span class="fc bfc" id="L778" title="All 2 branches covered.">      if (dstInfo.isDirectory()) {</span>
+<span class="pc bpc" id="L779" title="1 of 2 branches missed.">        if (!dstInfo.exists()) {</span>
+<span class="nc" id="L780">          throw new IOException(&quot;Cannot rename because path does not exist: &quot; + dstInfo.getPath());</span>
         } else {
-<span class="fc" id="L772">          dst = dst.resolve(srcItemName);</span>
+<span class="fc" id="L782">          dst = dst.resolve(srcItemName);</span>
         }
       } else {
         // Destination is a file.
         // See if there is a directory of that name.
-<span class="fc" id="L777">        URI dstDir = FileInfo.convertToDirectoryPath(pathCodec, dst);</span>
-<span class="fc" id="L778">        FileInfo dstDirInfo = getFileInfo(dstDir);</span>
-<span class="pc bpc" id="L779" title="1 of 2 branches missed.">        if (dstDirInfo.exists()) {</span>
-<span class="nc" id="L780">          dst = dstDir.resolve(srcItemName);</span>
+<span class="fc" id="L787">        URI dstDir = FileInfo.convertToDirectoryPath(pathCodec, dst);</span>
+<span class="fc" id="L788">        FileInfo dstDirInfo = getFileInfo(dstDir);</span>
+<span class="pc bpc" id="L789" title="1 of 2 branches missed.">        if (dstDirInfo.exists()) {</span>
+<span class="nc" id="L790">          dst = dstDir.resolve(srcItemName);</span>
         }
       }
     }
 
-<span class="fc" id="L785">    return dst;</span>
+<span class="fc" id="L795">    return dst;</span>
   }
 
   /**
@@ -796,13 +806,13 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException if the Compose operation was unsuccessful
    */
   public void compose(List&lt;URI&gt; sources, URI destination, String contentType) throws IOException {
-<span class="fc" id="L799">    StorageResourceId destResource = StorageResourceId.fromObjectName(destination.toString());</span>
-<span class="fc" id="L800">    List&lt;String&gt; sourceObjects =</span>
-<span class="fc" id="L801">        Lists.transform(</span>
-<span class="fc" id="L802">            sources, uri -&gt; StorageResourceId.fromObjectName(uri.toString()).getObjectName());</span>
-<span class="fc" id="L803">    gcs.compose(</span>
-<span class="fc" id="L804">        destResource.getBucketName(), sourceObjects, destResource.getObjectName(), contentType);</span>
-<span class="fc" id="L805">  }</span>
+<span class="fc" id="L809">    StorageResourceId destResource = StorageResourceId.fromObjectName(destination.toString());</span>
+<span class="fc" id="L810">    List&lt;String&gt; sourceObjects =</span>
+<span class="fc" id="L811">        Lists.transform(</span>
+<span class="fc" id="L812">            sources, uri -&gt; StorageResourceId.fromObjectName(uri.toString()).getObjectName());</span>
+<span class="fc" id="L813">    gcs.compose(</span>
+<span class="fc" id="L814">        destResource.getBucketName(), sourceObjects, destResource.getObjectName(), contentType);</span>
+<span class="fc" id="L815">  }</span>
 
   /**
    * Renames given directory without checking any parameters.
@@ -813,115 +823,115 @@ public class GoogleCloudStorageFileSystem {
    */
   private void renameDirectoryInternal(
       FileInfo srcInfo, URI dst, Optional&lt;CoopLockOperationRename&gt; coopLockOp) throws IOException {
-<span class="fc" id="L816">    checkArgument(srcInfo.isDirectory(), &quot;'%s' should be a directory&quot;, srcInfo);</span>
-<span class="fc" id="L817">    checkArgument(dst.toString().endsWith(PATH_DELIMITER), &quot;'%s' should be a directory&quot;, dst);</span>
+<span class="fc" id="L826">    checkArgument(srcInfo.isDirectory(), &quot;'%s' should be a directory&quot;, srcInfo);</span>
+<span class="fc" id="L827">    checkArgument(dst.toString().endsWith(PATH_DELIMITER), &quot;'%s' should be a directory&quot;, dst);</span>
 
-<span class="fc" id="L819">    URI src = srcInfo.getPath();</span>
+<span class="fc" id="L829">    URI src = srcInfo.getPath();</span>
 
     // Mapping from each src to its respective dst.
     // Sort src items so that parent directories appear before their children.
     // That allows us to copy parent directories before we copy their children.
-<span class="fc" id="L824">    Map&lt;FileInfo, URI&gt; srcToDstItemNames = new TreeMap&lt;&gt;(FILE_INFO_PATH_COMPARATOR);</span>
-<span class="fc" id="L825">    Map&lt;FileInfo, URI&gt; srcToDstMarkerItemNames = new TreeMap&lt;&gt;(FILE_INFO_PATH_COMPARATOR);</span>
+<span class="fc" id="L834">    Map&lt;FileInfo, URI&gt; srcToDstItemNames = new TreeMap&lt;&gt;(FILE_INFO_PATH_COMPARATOR);</span>
+<span class="fc" id="L835">    Map&lt;FileInfo, URI&gt; srcToDstMarkerItemNames = new TreeMap&lt;&gt;(FILE_INFO_PATH_COMPARATOR);</span>
 
     // List of individual paths to rename;
     // we will try to carry out the copies in this list's order.
-<span class="fc" id="L829">    List&lt;FileInfo&gt; srcItemInfos = listAllFileInfoForPrefix(src);</span>
+<span class="fc" id="L839">    List&lt;FileInfo&gt; srcItemInfos = listAllFileInfoForPrefix(src);</span>
 
     // Create a list of sub-items to copy.
-<span class="fc" id="L832">    Pattern markerFilePattern = options.getMarkerFilePattern();</span>
-<span class="fc" id="L833">    String prefix = src.toString();</span>
-<span class="fc bfc" id="L834" title="All 2 branches covered.">    for (FileInfo srcItemInfo : srcItemInfos) {</span>
-<span class="fc" id="L835">      String relativeItemName = srcItemInfo.getPath().toString().substring(prefix.length());</span>
-<span class="fc" id="L836">      URI dstItemName = dst.resolve(relativeItemName);</span>
-<span class="fc bfc" id="L837" title="All 4 branches covered.">      if (markerFilePattern != null &amp;&amp; markerFilePattern.matcher(relativeItemName).matches()) {</span>
-<span class="fc" id="L838">        srcToDstMarkerItemNames.put(srcItemInfo, dstItemName);</span>
+<span class="fc" id="L842">    Pattern markerFilePattern = options.getMarkerFilePattern();</span>
+<span class="fc" id="L843">    String prefix = src.toString();</span>
+<span class="fc bfc" id="L844" title="All 2 branches covered.">    for (FileInfo srcItemInfo : srcItemInfos) {</span>
+<span class="fc" id="L845">      String relativeItemName = srcItemInfo.getPath().toString().substring(prefix.length());</span>
+<span class="fc" id="L846">      URI dstItemName = dst.resolve(relativeItemName);</span>
+<span class="fc bfc" id="L847" title="All 4 branches covered.">      if (markerFilePattern != null &amp;&amp; markerFilePattern.matcher(relativeItemName).matches()) {</span>
+<span class="fc" id="L848">        srcToDstMarkerItemNames.put(srcItemInfo, dstItemName);</span>
       } else {
-<span class="fc" id="L840">        srcToDstItemNames.put(srcItemInfo, dstItemName);</span>
+<span class="fc" id="L850">        srcToDstItemNames.put(srcItemInfo, dstItemName);</span>
       }
-<span class="fc" id="L842">    }</span>
+<span class="fc" id="L852">    }</span>
 
-<span class="fc" id="L844">    coopLockOp.ifPresent(</span>
-<span class="fc" id="L845">        o -&gt; o.persistAndScheduleRenewal(srcToDstItemNames, srcToDstMarkerItemNames));</span>
+<span class="fc" id="L854">    coopLockOp.ifPresent(</span>
+<span class="fc" id="L855">        o -&gt; o.persistAndScheduleRenewal(srcToDstItemNames, srcToDstMarkerItemNames));</span>
     try {
       // Create the destination directory.
-<span class="fc" id="L848">      mkdir(dst);</span>
+<span class="fc" id="L858">      mkdir(dst);</span>
 
       // First, copy all items except marker items
-<span class="fc" id="L851">      copyInternal(srcToDstItemNames);</span>
+<span class="fc" id="L861">      copyInternal(srcToDstItemNames);</span>
       // Finally, copy marker items (if any) to mark rename operation success
-<span class="fc" id="L853">      copyInternal(srcToDstMarkerItemNames);</span>
+<span class="fc" id="L863">      copyInternal(srcToDstMarkerItemNames);</span>
 
-<span class="fc" id="L855">      coopLockOp.ifPresent(CoopLockOperationRename::checkpoint);</span>
+<span class="fc" id="L865">      coopLockOp.ifPresent(CoopLockOperationRename::checkpoint);</span>
 
       // So far, only the destination directories are updated. Only do those now:
-<span class="pc bpc" id="L858" title="3 of 4 branches missed.">      if (!srcToDstItemNames.isEmpty() || !srcToDstMarkerItemNames.isEmpty()) {</span>
-<span class="fc" id="L859">        List&lt;URI&gt; allDestinationUris =</span>
-<span class="fc" id="L860">            new ArrayList&lt;&gt;(srcToDstItemNames.size() + srcToDstMarkerItemNames.size());</span>
-<span class="fc" id="L861">        allDestinationUris.addAll(srcToDstItemNames.values());</span>
-<span class="fc" id="L862">        allDestinationUris.addAll(srcToDstMarkerItemNames.values());</span>
+<span class="pc bpc" id="L868" title="3 of 4 branches missed.">      if (!srcToDstItemNames.isEmpty() || !srcToDstMarkerItemNames.isEmpty()) {</span>
+<span class="fc" id="L869">        List&lt;URI&gt; allDestinationUris =</span>
+<span class="fc" id="L870">            new ArrayList&lt;&gt;(srcToDstItemNames.size() + srcToDstMarkerItemNames.size());</span>
+<span class="fc" id="L871">        allDestinationUris.addAll(srcToDstItemNames.values());</span>
+<span class="fc" id="L872">        allDestinationUris.addAll(srcToDstMarkerItemNames.values());</span>
 
-<span class="fc" id="L864">        tryUpdateTimestampsForParentDirectories(allDestinationUris, allDestinationUris);</span>
+<span class="fc" id="L874">        tryUpdateTimestampsForParentDirectories(allDestinationUris, allDestinationUris);</span>
       }
 
-<span class="fc" id="L867">      List&lt;FileInfo&gt; bucketsToDelete = new ArrayList&lt;&gt;(1);</span>
-<span class="fc" id="L868">      List&lt;FileInfo&gt; srcItemsToDelete = new ArrayList&lt;&gt;(srcToDstItemNames.size() + 1);</span>
-<span class="fc" id="L869">      srcItemsToDelete.addAll(srcToDstItemNames.keySet());</span>
-<span class="pc bpc" id="L870" title="1 of 2 branches missed.">      if (srcInfo.getItemInfo().isBucket()) {</span>
-<span class="nc" id="L871">        bucketsToDelete.add(srcInfo);</span>
+<span class="fc" id="L877">      List&lt;FileInfo&gt; bucketsToDelete = new ArrayList&lt;&gt;(1);</span>
+<span class="fc" id="L878">      List&lt;FileInfo&gt; srcItemsToDelete = new ArrayList&lt;&gt;(srcToDstItemNames.size() + 1);</span>
+<span class="fc" id="L879">      srcItemsToDelete.addAll(srcToDstItemNames.keySet());</span>
+<span class="pc bpc" id="L880" title="1 of 2 branches missed.">      if (srcInfo.getItemInfo().isBucket()) {</span>
+<span class="nc" id="L881">        bucketsToDelete.add(srcInfo);</span>
       } else {
         // If src is a directory then srcItemInfos does not contain its own name,
         // therefore add it to the list before we delete items in the list.
-<span class="fc" id="L875">        srcItemsToDelete.add(srcInfo);</span>
+<span class="fc" id="L885">        srcItemsToDelete.add(srcInfo);</span>
       }
 
       // First delete marker files from the src
-<span class="fc" id="L879">      deleteInternal(new ArrayList&lt;&gt;(srcToDstMarkerItemNames.keySet()), new ArrayList&lt;&gt;());</span>
+<span class="fc" id="L889">      deleteInternal(new ArrayList&lt;&gt;(srcToDstMarkerItemNames.keySet()), new ArrayList&lt;&gt;());</span>
       // Then delete rest of the items that we successfully copied.
-<span class="fc" id="L881">      deleteInternal(srcItemsToDelete, bucketsToDelete);</span>
+<span class="fc" id="L891">      deleteInternal(srcItemsToDelete, bucketsToDelete);</span>
 
       // if we deleted a bucket, then there no need to update timestamps
-<span class="pc bpc" id="L884" title="1 of 2 branches missed.">      if (bucketsToDelete.isEmpty()) {</span>
-<span class="fc" id="L885">        List&lt;URI&gt; srcItemNames =</span>
-<span class="fc" id="L886">            srcItemInfos.stream().map(FileInfo::getPath).collect(toCollection(ArrayList::new));</span>
+<span class="pc bpc" id="L894" title="1 of 2 branches missed.">      if (bucketsToDelete.isEmpty()) {</span>
+<span class="fc" id="L895">        List&lt;URI&gt; srcItemNames =</span>
+<span class="fc" id="L896">            srcItemInfos.stream().map(FileInfo::getPath).collect(toCollection(ArrayList::new));</span>
         // Any path that was deleted, we should update the parent except for parents we also deleted
-<span class="fc" id="L888">        tryUpdateTimestampsForParentDirectories(srcItemNames, srcItemNames);</span>
+<span class="fc" id="L898">        tryUpdateTimestampsForParentDirectories(srcItemNames, srcItemNames);</span>
       }
 
-<span class="fc" id="L891">      coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
+<span class="fc" id="L901">      coopLockOp.ifPresent(CoopLockOperationRename::unlock);</span>
     } finally {
-<span class="fc" id="L893">      coopLockOp.ifPresent(CoopLockOperationRename::cancelRenewal);</span>
+<span class="fc" id="L903">      coopLockOp.ifPresent(CoopLockOperationRename::cancelRenewal);</span>
     }
-<span class="fc" id="L895">  }</span>
+<span class="fc" id="L905">  }</span>
 
   /** Copies items in given map that maps source items to destination items. */
   private void copyInternal(Map&lt;FileInfo, URI&gt; srcToDstItemNames) throws IOException {
-<span class="fc bfc" id="L899" title="All 2 branches covered.">    if (srcToDstItemNames.isEmpty()) {</span>
-<span class="fc" id="L900">      return;</span>
+<span class="fc bfc" id="L909" title="All 2 branches covered.">    if (srcToDstItemNames.isEmpty()) {</span>
+<span class="fc" id="L910">      return;</span>
     }
 
-<span class="fc" id="L903">    String srcBucketName = null;</span>
-<span class="fc" id="L904">    String dstBucketName = null;</span>
-<span class="fc" id="L905">    List&lt;String&gt; srcObjectNames = new ArrayList&lt;&gt;(srcToDstItemNames.size());</span>
-<span class="fc" id="L906">    List&lt;String&gt; dstObjectNames = new ArrayList&lt;&gt;(srcToDstItemNames.size());</span>
+<span class="fc" id="L913">    String srcBucketName = null;</span>
+<span class="fc" id="L914">    String dstBucketName = null;</span>
+<span class="fc" id="L915">    List&lt;String&gt; srcObjectNames = new ArrayList&lt;&gt;(srcToDstItemNames.size());</span>
+<span class="fc" id="L916">    List&lt;String&gt; dstObjectNames = new ArrayList&lt;&gt;(srcToDstItemNames.size());</span>
 
     // Prepare list of items to copy.
-<span class="fc bfc" id="L909" title="All 2 branches covered.">    for (Map.Entry&lt;FileInfo, URI&gt; srcToDstItemName : srcToDstItemNames.entrySet()) {</span>
-<span class="fc" id="L910">      StorageResourceId srcResourceId = srcToDstItemName.getKey().getItemInfo().getResourceId();</span>
-<span class="fc" id="L911">      srcBucketName = srcResourceId.getBucketName();</span>
-<span class="fc" id="L912">      String srcObjectName = srcResourceId.getObjectName();</span>
-<span class="fc" id="L913">      srcObjectNames.add(srcObjectName);</span>
+<span class="fc bfc" id="L919" title="All 2 branches covered.">    for (Map.Entry&lt;FileInfo, URI&gt; srcToDstItemName : srcToDstItemNames.entrySet()) {</span>
+<span class="fc" id="L920">      StorageResourceId srcResourceId = srcToDstItemName.getKey().getItemInfo().getResourceId();</span>
+<span class="fc" id="L921">      srcBucketName = srcResourceId.getBucketName();</span>
+<span class="fc" id="L922">      String srcObjectName = srcResourceId.getObjectName();</span>
+<span class="fc" id="L923">      srcObjectNames.add(srcObjectName);</span>
 
-<span class="fc" id="L915">      StorageResourceId dstResourceId =</span>
-<span class="fc" id="L916">          pathCodec.validatePathAndGetId(srcToDstItemName.getValue(), true);</span>
-<span class="fc" id="L917">      dstBucketName = dstResourceId.getBucketName();</span>
-<span class="fc" id="L918">      String dstObjectName = dstResourceId.getObjectName();</span>
-<span class="fc" id="L919">      dstObjectNames.add(dstObjectName);</span>
-<span class="fc" id="L920">    }</span>
+<span class="fc" id="L925">      StorageResourceId dstResourceId =</span>
+<span class="fc" id="L926">          pathCodec.validatePathAndGetId(srcToDstItemName.getValue(), true);</span>
+<span class="fc" id="L927">      dstBucketName = dstResourceId.getBucketName();</span>
+<span class="fc" id="L928">      String dstObjectName = dstResourceId.getObjectName();</span>
+<span class="fc" id="L929">      dstObjectNames.add(dstObjectName);</span>
+<span class="fc" id="L930">    }</span>
 
     // Perform copy.
-<span class="fc" id="L923">    gcs.copy(srcBucketName, srcObjectNames, dstBucketName, dstObjectNames);</span>
-<span class="fc" id="L924">  }</span>
+<span class="fc" id="L933">    gcs.copy(srcBucketName, srcObjectNames, dstBucketName, dstObjectNames);</span>
+<span class="fc" id="L934">  }</span>
 
   /**
    * If the given item is a directory then the paths of its immediate
@@ -933,7 +943,7 @@ public class GoogleCloudStorageFileSystem {
    */
   public List&lt;URI&gt; listFileNames(FileInfo fileInfo)
       throws IOException {
-<span class="fc" id="L936">    return listFileNames(fileInfo, false);</span>
+<span class="fc" id="L946">    return listFileNames(fileInfo, false);</span>
   }
 
   /**
@@ -949,52 +959,52 @@ public class GoogleCloudStorageFileSystem {
   public List&lt;URI&gt; listFileNames(FileInfo fileInfo, boolean recursive)
       throws IOException {
 
-<span class="fc" id="L952">    Preconditions.checkNotNull(fileInfo);</span>
-<span class="fc" id="L953">    URI path = fileInfo.getPath();</span>
-<span class="fc" id="L954">    logger.atFine().log(&quot;listFileNames(%s)&quot;, path);</span>
-<span class="fc" id="L955">    List&lt;URI&gt; paths = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L962">    Preconditions.checkNotNull(fileInfo);</span>
+<span class="fc" id="L963">    URI path = fileInfo.getPath();</span>
+<span class="fc" id="L964">    logger.atFine().log(&quot;listFileNames(%s)&quot;, path);</span>
+<span class="fc" id="L965">    List&lt;URI&gt; paths = new ArrayList&lt;&gt;();</span>
     List&lt;String&gt; childNames;
 
     // If it is a directory, obtain info about its children.
-<span class="fc bfc" id="L959" title="All 2 branches covered.">    if (fileInfo.isDirectory()) {</span>
-<span class="fc bfc" id="L960" title="All 2 branches covered.">      if (fileInfo.exists()) {</span>
-<span class="fc bfc" id="L961" title="All 2 branches covered.">        if (fileInfo.isGlobalRoot()) {</span>
-<span class="fc" id="L962">          childNames = gcs.listBucketNames();</span>
+<span class="fc bfc" id="L969" title="All 2 branches covered.">    if (fileInfo.isDirectory()) {</span>
+<span class="fc bfc" id="L970" title="All 2 branches covered.">      if (fileInfo.exists()) {</span>
+<span class="fc bfc" id="L971" title="All 2 branches covered.">        if (fileInfo.isGlobalRoot()) {</span>
+<span class="fc" id="L972">          childNames = gcs.listBucketNames();</span>
 
           // Obtain path for each child.
-<span class="fc bfc" id="L965" title="All 2 branches covered.">          for (String childName : childNames) {</span>
-<span class="fc" id="L966">            URI childPath = pathCodec.getPath(childName, null, true);</span>
-<span class="fc" id="L967">            paths.add(childPath);</span>
-<span class="fc" id="L968">            logger.atFine().log(&quot;listFileNames: added: %s&quot;, childPath);</span>
-<span class="fc" id="L969">          }</span>
+<span class="fc bfc" id="L975" title="All 2 branches covered.">          for (String childName : childNames) {</span>
+<span class="fc" id="L976">            URI childPath = pathCodec.getPath(childName, null, true);</span>
+<span class="fc" id="L977">            paths.add(childPath);</span>
+<span class="fc" id="L978">            logger.atFine().log(&quot;listFileNames: added: %s&quot;, childPath);</span>
+<span class="fc" id="L979">          }</span>
         } else {
           // A null delimiter asks GCS to return all objects with a given prefix,
           // regardless of their 'directory depth' relative to the prefix;
           // that is what we want for a recursive list. On the other hand,
           // when a delimiter is specified, only items with relative depth
           // of 1 are returned.
-<span class="pc bpc" id="L976" title="1 of 2 branches missed.">          String delimiter = recursive ? null : PATH_DELIMITER;</span>
+<span class="pc bpc" id="L986" title="1 of 2 branches missed.">          String delimiter = recursive ? null : PATH_DELIMITER;</span>
 
-<span class="fc" id="L978">          GoogleCloudStorageItemInfo itemInfo = fileInfo.getItemInfo();</span>
+<span class="fc" id="L988">          GoogleCloudStorageItemInfo itemInfo = fileInfo.getItemInfo();</span>
           // Obtain paths of children.
-<span class="fc" id="L980">          childNames =</span>
-<span class="fc" id="L981">              gcs.listObjectNames(itemInfo.getBucketName(), itemInfo.getObjectName(), delimiter);</span>
+<span class="fc" id="L990">          childNames =</span>
+<span class="fc" id="L991">              gcs.listObjectNames(itemInfo.getBucketName(), itemInfo.getObjectName(), delimiter);</span>
 
           // Obtain path for each child.
-<span class="fc bfc" id="L984" title="All 2 branches covered.">          for (String childName : childNames) {</span>
-<span class="fc" id="L985">            URI childPath = pathCodec.getPath(itemInfo.getBucketName(), childName, false);</span>
-<span class="fc" id="L986">            paths.add(childPath);</span>
-<span class="fc" id="L987">            logger.atFine().log(&quot;listFileNames: added: %s&quot;, childPath);</span>
-<span class="fc" id="L988">          }</span>
-<span class="fc" id="L989">        }</span>
+<span class="fc bfc" id="L994" title="All 2 branches covered.">          for (String childName : childNames) {</span>
+<span class="fc" id="L995">            URI childPath = pathCodec.getPath(itemInfo.getBucketName(), childName, false);</span>
+<span class="fc" id="L996">            paths.add(childPath);</span>
+<span class="fc" id="L997">            logger.atFine().log(&quot;listFileNames: added: %s&quot;, childPath);</span>
+<span class="fc" id="L998">          }</span>
+<span class="fc" id="L999">        }</span>
       }
     } else {
-<span class="fc" id="L992">      paths.add(path);</span>
-<span class="fc" id="L993">      logger.atFine().log(</span>
+<span class="fc" id="L1002">      paths.add(path);</span>
+<span class="fc" id="L1003">      logger.atFine().log(</span>
           &quot;listFileNames: added single original path since !isDirectory(): %s&quot;, path);
     }
 
-<span class="fc" id="L997">    return paths;</span>
+<span class="fc" id="L1007">    return paths;</span>
   }
 
   /**
@@ -1003,26 +1013,26 @@ public class GoogleCloudStorageFileSystem {
    */
   private void repairImplicitDirectory(Future&lt;GoogleCloudStorageItemInfo&gt; infoFuture)
       throws IOException {
-<span class="pc bpc" id="L1006" title="1 of 2 branches missed.">    if (infoFuture == null) {</span>
-<span class="nc" id="L1007">      return;</span>
+<span class="pc bpc" id="L1016" title="1 of 2 branches missed.">    if (infoFuture == null) {</span>
+<span class="nc" id="L1017">      return;</span>
     }
 
-<span class="fc" id="L1010">    checkState(</span>
-<span class="fc" id="L1011">        options.getCloudStorageOptions().isAutoRepairImplicitDirectoriesEnabled(),</span>
+<span class="fc" id="L1020">    checkState(</span>
+<span class="fc" id="L1021">        options.getCloudStorageOptions().isAutoRepairImplicitDirectoriesEnabled(),</span>
         &quot;implicit directories auto repair should be enabled&quot;);
 
-<span class="fc" id="L1014">    GoogleCloudStorageItemInfo info = getFromFuture(infoFuture, &quot;Failed to get info from future&quot;);</span>
-<span class="fc" id="L1015">    StorageResourceId resourceId = info.getResourceId();</span>
-<span class="fc" id="L1016">    logger.atFine().log(&quot;repairImplicitDirectory(%s)&quot;, resourceId);</span>
+<span class="fc" id="L1024">    GoogleCloudStorageItemInfo info = getFromFuture(infoFuture, &quot;Failed to get info from future&quot;);</span>
+<span class="fc" id="L1025">    StorageResourceId resourceId = info.getResourceId();</span>
+<span class="fc" id="L1026">    logger.atFine().log(&quot;repairImplicitDirectory(%s)&quot;, resourceId);</span>
 
-<span class="fc bfc" id="L1018" title="All 2 branches covered.">    if (info.exists()</span>
-<span class="pc bpc" id="L1019" title="1 of 2 branches missed.">        || resourceId.isRoot()</span>
-<span class="pc bpc" id="L1020" title="1 of 2 branches missed.">        || resourceId.isBucket()</span>
-<span class="pc bpc" id="L1021" title="1 of 2 branches missed.">        || PATH_DELIMITER.equals(resourceId.getObjectName())) {</span>
-<span class="fc" id="L1022">      return;</span>
+<span class="fc bfc" id="L1028" title="All 2 branches covered.">    if (info.exists()</span>
+<span class="pc bpc" id="L1029" title="1 of 2 branches missed.">        || resourceId.isRoot()</span>
+<span class="pc bpc" id="L1030" title="1 of 2 branches missed.">        || resourceId.isBucket()</span>
+<span class="pc bpc" id="L1031" title="1 of 2 branches missed.">        || PATH_DELIMITER.equals(resourceId.getObjectName())) {</span>
+<span class="fc" id="L1032">      return;</span>
     }
 
-<span class="fc" id="L1025">    checkState(resourceId.isDirectory(), &quot;'%s' should be a directory&quot;, resourceId);</span>
+<span class="fc" id="L1035">    checkState(resourceId.isDirectory(), &quot;'%s' should be a directory&quot;, resourceId);</span>
 
     // Note that we do not update parent directory timestamps. The idea is that:
     // 1) directory repair isn't a user-invoked action
@@ -1030,21 +1040,21 @@ public class GoogleCloudStorageFileSystem {
     //    markers to help GCSFS and GHFS find directories that already &quot;existed&quot;
     // 3) it's extra RPCs on top of the list and create empty object RPCs
     try {
-<span class="fc" id="L1033">      gcs.createEmptyObject(resourceId);</span>
-<span class="fc" id="L1034">      logger.atInfo().log(&quot;Successfully repaired '%s' directory.&quot;, resourceId);</span>
-<span class="nc" id="L1035">    } catch (IOException e) {</span>
-<span class="nc" id="L1036">      logger.atWarning().withCause(e).log(&quot;Failed to repair '%s' directory&quot;, resourceId);</span>
-<span class="fc" id="L1037">    }</span>
-<span class="fc" id="L1038">  }</span>
+<span class="fc" id="L1043">      gcs.createEmptyObject(resourceId);</span>
+<span class="fc" id="L1044">      logger.atInfo().log(&quot;Successfully repaired '%s' directory.&quot;, resourceId);</span>
+<span class="nc" id="L1045">    } catch (IOException e) {</span>
+<span class="nc" id="L1046">      logger.atWarning().withCause(e).log(&quot;Failed to repair '%s' directory&quot;, resourceId);</span>
+<span class="fc" id="L1047">    }</span>
+<span class="fc" id="L1048">  }</span>
 
   private static &lt;T&gt; T getFromFuture(Future&lt;T&gt; future, String message) throws IOException {
     try {
-<span class="fc" id="L1042">      return future.get();</span>
-<span class="nc" id="L1043">    } catch (InterruptedException | ExecutionException e) {</span>
-<span class="nc bnc" id="L1044" title="All 2 branches missed.">      if (e instanceof InterruptedException) {</span>
-<span class="nc" id="L1045">        Thread.currentThread().interrupt();</span>
+<span class="fc" id="L1052">      return future.get();</span>
+<span class="nc" id="L1053">    } catch (InterruptedException | ExecutionException e) {</span>
+<span class="nc bnc" id="L1054" title="All 2 branches missed.">      if (e instanceof InterruptedException) {</span>
+<span class="nc" id="L1055">        Thread.currentThread().interrupt();</span>
       }
-<span class="nc" id="L1047">      throw new IOException(message, e);</span>
+<span class="nc" id="L1057">      throw new IOException(message, e);</span>
     }
   }
 
@@ -1057,14 +1067,14 @@ public class GoogleCloudStorageFileSystem {
    * @param prefix the prefix to use to list all matching objects.
    */
   public List&lt;FileInfo&gt; listAllFileInfoForPrefix(URI prefix) throws IOException {
-<span class="fc" id="L1060">    logger.atFine().log(&quot;listAllFileInfoForPrefixPage(%s)&quot;, prefix);</span>
-<span class="fc" id="L1061">    StorageResourceId prefixId = getPrefixId(prefix);</span>
-<span class="fc" id="L1062">    List&lt;GoogleCloudStorageItemInfo&gt; itemInfos =</span>
-<span class="fc" id="L1063">        gcs.listObjectInfo(</span>
-<span class="fc" id="L1064">            prefixId.getBucketName(), prefixId.getObjectName(), /* delimiter= */ null);</span>
-<span class="fc" id="L1065">    List&lt;FileInfo&gt; fileInfos = FileInfo.fromItemInfos(pathCodec, itemInfos);</span>
-<span class="fc" id="L1066">    fileInfos.sort(FILE_INFO_PATH_COMPARATOR);</span>
-<span class="fc" id="L1067">    return fileInfos;</span>
+<span class="fc" id="L1070">    logger.atFine().log(&quot;listAllFileInfoForPrefixPage(%s)&quot;, prefix);</span>
+<span class="fc" id="L1071">    StorageResourceId prefixId = getPrefixId(prefix);</span>
+<span class="fc" id="L1072">    List&lt;GoogleCloudStorageItemInfo&gt; itemInfos =</span>
+<span class="fc" id="L1073">        gcs.listObjectInfo(</span>
+<span class="fc" id="L1074">            prefixId.getBucketName(), prefixId.getObjectName(), /* delimiter= */ null);</span>
+<span class="fc" id="L1075">    List&lt;FileInfo&gt; fileInfos = FileInfo.fromItemInfos(pathCodec, itemInfos);</span>
+<span class="fc" id="L1076">    fileInfos.sort(FILE_INFO_PATH_COMPARATOR);</span>
+<span class="fc" id="L1077">    return fileInfos;</span>
   }
 
   /**
@@ -1076,24 +1086,24 @@ public class GoogleCloudStorageFileSystem {
    */
   public ListPage&lt;FileInfo&gt; listAllFileInfoForPrefixPage(URI prefix, String pageToken)
       throws IOException {
-<span class="fc" id="L1079">    logger.atFine().log(&quot;listAllFileInfoForPrefixPage(%s, %s)&quot;, prefix, pageToken);</span>
-<span class="fc" id="L1080">    StorageResourceId prefixId = getPrefixId(prefix);</span>
-<span class="fc" id="L1081">    ListPage&lt;GoogleCloudStorageItemInfo&gt; itemInfosPage =</span>
-<span class="fc" id="L1082">        gcs.listObjectInfoPage(</span>
-<span class="fc" id="L1083">            prefixId.getBucketName(), prefixId.getObjectName(), /* delimiter= */ null, pageToken);</span>
-<span class="fc" id="L1084">    List&lt;FileInfo&gt; fileInfosPage = FileInfo.fromItemInfos(pathCodec, itemInfosPage.getItems());</span>
-<span class="fc" id="L1085">    fileInfosPage.sort(FILE_INFO_PATH_COMPARATOR);</span>
-<span class="fc" id="L1086">    return new ListPage&lt;&gt;(fileInfosPage, itemInfosPage.getNextPageToken());</span>
+<span class="fc" id="L1089">    logger.atFine().log(&quot;listAllFileInfoForPrefixPage(%s, %s)&quot;, prefix, pageToken);</span>
+<span class="fc" id="L1090">    StorageResourceId prefixId = getPrefixId(prefix);</span>
+<span class="fc" id="L1091">    ListPage&lt;GoogleCloudStorageItemInfo&gt; itemInfosPage =</span>
+<span class="fc" id="L1092">        gcs.listObjectInfoPage(</span>
+<span class="fc" id="L1093">            prefixId.getBucketName(), prefixId.getObjectName(), /* delimiter= */ null, pageToken);</span>
+<span class="fc" id="L1094">    List&lt;FileInfo&gt; fileInfosPage = FileInfo.fromItemInfos(pathCodec, itemInfosPage.getItems());</span>
+<span class="fc" id="L1095">    fileInfosPage.sort(FILE_INFO_PATH_COMPARATOR);</span>
+<span class="fc" id="L1096">    return new ListPage&lt;&gt;(fileInfosPage, itemInfosPage.getNextPageToken());</span>
   }
 
   private StorageResourceId getPrefixId(URI prefix) {
-<span class="fc" id="L1090">    Preconditions.checkNotNull(prefix, &quot;prefix could not be null&quot;);</span>
+<span class="fc" id="L1100">    Preconditions.checkNotNull(prefix, &quot;prefix could not be null&quot;);</span>
 
-<span class="fc" id="L1092">    StorageResourceId prefixId = pathCodec.validatePathAndGetId(prefix, true);</span>
-<span class="fc" id="L1093">    Preconditions.checkArgument(</span>
-<span class="pc bpc" id="L1094" title="1 of 2 branches missed.">        !prefixId.isRoot(), &quot;prefix must not be global root, got '%s'&quot;, prefix);</span>
+<span class="fc" id="L1102">    StorageResourceId prefixId = pathCodec.validatePathAndGetId(prefix, true);</span>
+<span class="fc" id="L1103">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L1104" title="1 of 2 branches missed.">        !prefixId.isRoot(), &quot;prefix must not be global root, got '%s'&quot;, prefix);</span>
 
-<span class="fc" id="L1096">    return prefixId;</span>
+<span class="fc" id="L1106">    return prefixId;</span>
   }
 
   /**
@@ -1110,56 +1120,56 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException
    */
   public List&lt;FileInfo&gt; listFileInfo(URI path) throws IOException {
-<span class="fc" id="L1113">    Preconditions.checkNotNull(path, &quot;path can not be null&quot;);</span>
-<span class="fc" id="L1114">    logger.atFine().log(&quot;listFileInfo(%s)&quot;, path);</span>
+<span class="fc" id="L1123">    Preconditions.checkNotNull(path, &quot;path can not be null&quot;);</span>
+<span class="fc" id="L1124">    logger.atFine().log(&quot;listFileInfo(%s)&quot;, path);</span>
 
-<span class="fc" id="L1116">    StorageResourceId pathId = pathCodec.validatePathAndGetId(path, true);</span>
-<span class="fc" id="L1117">    StorageResourceId dirId =</span>
-<span class="fc" id="L1118">        pathCodec.validatePathAndGetId(FileInfo.convertToDirectoryPath(pathCodec, path), true);</span>
+<span class="fc" id="L1126">    StorageResourceId pathId = pathCodec.validatePathAndGetId(path, true);</span>
+<span class="fc" id="L1127">    StorageResourceId dirId =</span>
+<span class="fc" id="L1128">        pathCodec.validatePathAndGetId(FileInfo.convertToDirectoryPath(pathCodec, path), true);</span>
 
-<span class="fc" id="L1120">    ExecutorService dirExecutor =</span>
-<span class="fc bfc" id="L1121" title="All 2 branches covered.">        options.isStatusParallelEnabled()</span>
-<span class="fc" id="L1122">            ? Executors.newFixedThreadPool(2, DAEMON_THREAD_FACTORY)</span>
+<span class="fc" id="L1130">    ExecutorService dirExecutor =</span>
+<span class="fc bfc" id="L1131" title="All 2 branches covered.">        options.isStatusParallelEnabled()</span>
+<span class="fc" id="L1132">            ? Executors.newFixedThreadPool(2, DAEMON_THREAD_FACTORY)</span>
             : new LazyExecutorService();
     try {
-<span class="fc" id="L1125">      Future&lt;GoogleCloudStorageItemInfo&gt; dirFuture =</span>
-<span class="fc" id="L1126">          dirExecutor.submit(() -&gt; gcs.getItemInfo(dirId));</span>
-<span class="fc" id="L1127">      Future&lt;List&lt;GoogleCloudStorageItemInfo&gt;&gt; dirChildrenFutures =</span>
-<span class="fc" id="L1128">          dirExecutor.submit(</span>
+<span class="fc" id="L1135">      Future&lt;GoogleCloudStorageItemInfo&gt; dirFuture =</span>
+<span class="fc" id="L1136">          dirExecutor.submit(() -&gt; gcs.getItemInfo(dirId));</span>
+<span class="fc" id="L1137">      Future&lt;List&lt;GoogleCloudStorageItemInfo&gt;&gt; dirChildrenFutures =</span>
+<span class="fc" id="L1138">          dirExecutor.submit(</span>
               () -&gt;
-<span class="fc bfc" id="L1130" title="All 2 branches covered.">                  dirId.isRoot()</span>
-<span class="fc" id="L1131">                      ? gcs.listBucketInfo()</span>
-<span class="fc" id="L1132">                      : gcs.listObjectInfo(</span>
-<span class="fc" id="L1133">                          dirId.getBucketName(), dirId.getObjectName(), PATH_DELIMITER));</span>
-<span class="fc" id="L1134">      dirExecutor.shutdown();</span>
+<span class="fc bfc" id="L1140" title="All 2 branches covered.">                  dirId.isRoot()</span>
+<span class="fc" id="L1141">                      ? gcs.listBucketInfo()</span>
+<span class="fc" id="L1142">                      : gcs.listObjectInfo(</span>
+<span class="fc" id="L1143">                          dirId.getBucketName(), dirId.getObjectName(), PATH_DELIMITER));</span>
+<span class="fc" id="L1144">      dirExecutor.shutdown();</span>
 
-<span class="fc bfc" id="L1136" title="All 2 branches covered.">      if (!pathId.isDirectory()) {</span>
-<span class="fc" id="L1137">        GoogleCloudStorageItemInfo pathInfo = gcs.getItemInfo(pathId);</span>
-<span class="fc bfc" id="L1138" title="All 2 branches covered.">        if (pathInfo.exists()) {</span>
-<span class="fc" id="L1139">          List&lt;FileInfo&gt; listedInfo = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L1140">          listedInfo.add(FileInfo.fromItemInfo(pathCodec, pathInfo));</span>
-<span class="fc" id="L1141">          return listedInfo;</span>
+<span class="fc bfc" id="L1146" title="All 2 branches covered.">      if (!pathId.isDirectory()) {</span>
+<span class="fc" id="L1147">        GoogleCloudStorageItemInfo pathInfo = gcs.getItemInfo(pathId);</span>
+<span class="fc bfc" id="L1148" title="All 2 branches covered.">        if (pathInfo.exists()) {</span>
+<span class="fc" id="L1149">          List&lt;FileInfo&gt; listedInfo = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1150">          listedInfo.add(FileInfo.fromItemInfo(pathCodec, pathInfo));</span>
+<span class="fc" id="L1151">          return listedInfo;</span>
         }
       }
 
       try {
-<span class="fc" id="L1146">        GoogleCloudStorageItemInfo dirInfo = dirFuture.get();</span>
-<span class="fc" id="L1147">        List&lt;GoogleCloudStorageItemInfo&gt; dirItemInfos = dirChildrenFutures.get();</span>
-<span class="fc bfc" id="L1148" title="All 4 branches covered.">        if (!dirInfo.exists() &amp;&amp; dirItemInfos.isEmpty()) {</span>
-<span class="fc" id="L1149">          throw new FileNotFoundException(&quot;Item not found: &quot; + path);</span>
+<span class="fc" id="L1156">        GoogleCloudStorageItemInfo dirInfo = dirFuture.get();</span>
+<span class="fc" id="L1157">        List&lt;GoogleCloudStorageItemInfo&gt; dirItemInfos = dirChildrenFutures.get();</span>
+<span class="fc bfc" id="L1158" title="All 4 branches covered.">        if (!dirInfo.exists() &amp;&amp; dirItemInfos.isEmpty()) {</span>
+<span class="fc" id="L1159">          throw new FileNotFoundException(&quot;Item not found: &quot; + path);</span>
         }
 
-<span class="fc" id="L1152">        List&lt;FileInfo&gt; fileInfos = FileInfo.fromItemInfos(pathCodec, dirItemInfos);</span>
-<span class="fc" id="L1153">        fileInfos.sort(FILE_INFO_PATH_COMPARATOR);</span>
-<span class="fc" id="L1154">        return fileInfos;</span>
-<span class="fc" id="L1155">      } catch (InterruptedException | ExecutionException e) {</span>
-<span class="pc bpc" id="L1156" title="1 of 2 branches missed.">        if (e instanceof InterruptedException) {</span>
-<span class="fc" id="L1157">          Thread.currentThread().interrupt();</span>
+<span class="fc" id="L1162">        List&lt;FileInfo&gt; fileInfos = FileInfo.fromItemInfos(pathCodec, dirItemInfos);</span>
+<span class="fc" id="L1163">        fileInfos.sort(FILE_INFO_PATH_COMPARATOR);</span>
+<span class="fc" id="L1164">        return fileInfos;</span>
+<span class="fc" id="L1165">      } catch (InterruptedException | ExecutionException e) {</span>
+<span class="pc bpc" id="L1166" title="1 of 2 branches missed.">        if (e instanceof InterruptedException) {</span>
+<span class="fc" id="L1167">          Thread.currentThread().interrupt();</span>
         }
-<span class="fc" id="L1159">        throw new IOException(String.format(&quot;Failed to listFileInfo for '%s'&quot;, path), e);</span>
+<span class="fc" id="L1169">        throw new IOException(String.format(&quot;Failed to listFileInfo for '%s'&quot;, path), e);</span>
       }
     } finally {
-<span class="fc" id="L1162">      dirExecutor.shutdownNow();</span>
+<span class="fc" id="L1172">      dirExecutor.shutdownNow();</span>
     }
   }
 
@@ -1171,74 +1181,74 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException
    */
   public FileInfo getFileInfo(URI path) throws IOException {
-<span class="fc" id="L1174">    logger.atFine().log(&quot;getFileInfo(%s)&quot;, path);</span>
-<span class="pc bpc" id="L1175" title="1 of 2 branches missed.">    checkArgument(path != null, &quot;path must not be null&quot;);</span>
+<span class="fc" id="L1184">    logger.atFine().log(&quot;getFileInfo(%s)&quot;, path);</span>
+<span class="pc bpc" id="L1185" title="1 of 2 branches missed.">    checkArgument(path != null, &quot;path must not be null&quot;);</span>
     // Validate the given path. true == allow empty object name.
     // One should be able to get info about top level directory (== bucket),
     // therefore we allow object name to be empty.
-<span class="fc" id="L1179">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
-<span class="fc" id="L1180">    FileInfo fileInfo =</span>
-<span class="fc" id="L1181">        FileInfo.fromItemInfo(</span>
+<span class="fc" id="L1189">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
+<span class="fc" id="L1190">    FileInfo fileInfo =</span>
+<span class="fc" id="L1191">        FileInfo.fromItemInfo(</span>
             pathCodec,
-<span class="fc" id="L1183">            getFileInfoInternal(resourceId, gcs.getOptions().isInferImplicitDirectoriesEnabled()));</span>
-<span class="fc" id="L1184">    logger.atFine().log(&quot;getFileInfo: %s&quot;, fileInfo);</span>
-<span class="fc" id="L1185">    return fileInfo;</span>
+<span class="fc" id="L1193">            getFileInfoInternal(resourceId, gcs.getOptions().isInferImplicitDirectoriesEnabled()));</span>
+<span class="fc" id="L1194">    logger.atFine().log(&quot;getFileInfo: %s&quot;, fileInfo);</span>
+<span class="fc" id="L1195">    return fileInfo;</span>
   }
 
   /** @see #getFileInfo(URI) */
   private GoogleCloudStorageItemInfo getFileInfoInternal(
       StorageResourceId resourceId, boolean inferImplicitDirectories) throws IOException {
-<span class="fc bfc" id="L1191" title="All 4 branches covered.">    if (resourceId.isRoot() || resourceId.isBucket()) {</span>
-<span class="fc" id="L1192">      return gcs.getItemInfo(resourceId);</span>
+<span class="fc bfc" id="L1201" title="All 4 branches covered.">    if (resourceId.isRoot() || resourceId.isBucket()) {</span>
+<span class="fc" id="L1202">      return gcs.getItemInfo(resourceId);</span>
     }
-<span class="fc" id="L1194">    StorageResourceId dirId = FileInfo.convertToDirectoryPath(resourceId);</span>
+<span class="fc" id="L1204">    StorageResourceId dirId = FileInfo.convertToDirectoryPath(resourceId);</span>
 
-<span class="fc" id="L1196">    ExecutorService dirExecutor =</span>
-<span class="fc bfc" id="L1197" title="All 2 branches covered.">        options.isStatusParallelEnabled()</span>
-<span class="fc bfc" id="L1198" title="All 2 branches covered.">            ? resourceId.isDirectory()</span>
-<span class="fc" id="L1199">                ? Executors.newSingleThreadExecutor(DAEMON_THREAD_FACTORY)</span>
-<span class="fc" id="L1200">                : Executors.newFixedThreadPool(2, DAEMON_THREAD_FACTORY)</span>
+<span class="fc" id="L1206">    ExecutorService dirExecutor =</span>
+<span class="fc bfc" id="L1207" title="All 2 branches covered.">        options.isStatusParallelEnabled()</span>
+<span class="fc bfc" id="L1208" title="All 2 branches covered.">            ? resourceId.isDirectory()</span>
+<span class="fc" id="L1209">                ? Executors.newSingleThreadExecutor(DAEMON_THREAD_FACTORY)</span>
+<span class="fc" id="L1210">                : Executors.newFixedThreadPool(2, DAEMON_THREAD_FACTORY)</span>
             : new LazyExecutorService();
     try {
-<span class="fc" id="L1203">      Future&lt;List&lt;String&gt;&gt; dirChildFuture =</span>
-<span class="fc" id="L1204">          dirExecutor.submit(</span>
+<span class="fc" id="L1213">      Future&lt;List&lt;String&gt;&gt; dirChildFuture =</span>
+<span class="fc" id="L1214">          dirExecutor.submit(</span>
               () -&gt;
-<span class="fc" id="L1206">                  gcs.listObjectNames(</span>
-<span class="fc" id="L1207">                      dirId.getBucketName(), dirId.getObjectName(), PATH_DELIMITER, 1));</span>
-<span class="fc" id="L1208">      Future&lt;GoogleCloudStorageItemInfo&gt; dirFuture =</span>
-<span class="fc bfc" id="L1209" title="All 2 branches covered.">          resourceId.isDirectory()</span>
-<span class="fc" id="L1210">              ? Futures.immediateFuture(gcs.getItemInfo(resourceId))</span>
-<span class="fc" id="L1211">              : dirExecutor.submit(() -&gt; gcs.getItemInfo(dirId));</span>
-<span class="fc" id="L1212">      dirExecutor.shutdown();</span>
+<span class="fc" id="L1216">                  gcs.listObjectNames(</span>
+<span class="fc" id="L1217">                      dirId.getBucketName(), dirId.getObjectName(), PATH_DELIMITER, 1));</span>
+<span class="fc" id="L1218">      Future&lt;GoogleCloudStorageItemInfo&gt; dirFuture =</span>
+<span class="fc bfc" id="L1219" title="All 2 branches covered.">          resourceId.isDirectory()</span>
+<span class="fc" id="L1220">              ? Futures.immediateFuture(gcs.getItemInfo(resourceId))</span>
+<span class="fc" id="L1221">              : dirExecutor.submit(() -&gt; gcs.getItemInfo(dirId));</span>
+<span class="fc" id="L1222">      dirExecutor.shutdown();</span>
 
-<span class="fc bfc" id="L1214" title="All 2 branches covered.">      if (!resourceId.isDirectory()) {</span>
-<span class="fc" id="L1215">        GoogleCloudStorageItemInfo itemInfo = gcs.getItemInfo(resourceId);</span>
-<span class="fc bfc" id="L1216" title="All 2 branches covered.">        if (itemInfo.exists()) {</span>
-<span class="fc" id="L1217">          return itemInfo;</span>
+<span class="fc bfc" id="L1224" title="All 2 branches covered.">      if (!resourceId.isDirectory()) {</span>
+<span class="fc" id="L1225">        GoogleCloudStorageItemInfo itemInfo = gcs.getItemInfo(resourceId);</span>
+<span class="fc bfc" id="L1226" title="All 2 branches covered.">        if (itemInfo.exists()) {</span>
+<span class="fc" id="L1227">          return itemInfo;</span>
         }
       }
 
       try {
-<span class="fc" id="L1222">        GoogleCloudStorageItemInfo dirInfo = dirFuture.get();</span>
-<span class="fc bfc" id="L1223" title="All 2 branches covered.">        if (dirInfo.exists()) {</span>
-<span class="fc" id="L1224">          return dirInfo;</span>
+<span class="fc" id="L1232">        GoogleCloudStorageItemInfo dirInfo = dirFuture.get();</span>
+<span class="fc bfc" id="L1233" title="All 2 branches covered.">        if (dirInfo.exists()) {</span>
+<span class="fc" id="L1234">          return dirInfo;</span>
         }
 
-<span class="fc bfc" id="L1227" title="All 2 branches covered.">        if (dirChildFuture.get().isEmpty()) {</span>
-<span class="fc" id="L1228">          return GoogleCloudStorageItemInfo.createNotFound(resourceId);</span>
+<span class="fc bfc" id="L1237" title="All 2 branches covered.">        if (dirChildFuture.get().isEmpty()) {</span>
+<span class="fc" id="L1238">          return GoogleCloudStorageItemInfo.createNotFound(resourceId);</span>
         }
 
-<span class="fc bfc" id="L1231" title="All 2 branches covered.">        return inferImplicitDirectories</span>
-<span class="fc" id="L1232">            ? GoogleCloudStorageItemInfo.createInferredDirectory(dirId)</span>
-<span class="fc" id="L1233">            : GoogleCloudStorageItemInfo.createNotFound(dirId);</span>
-<span class="fc" id="L1234">      } catch (ExecutionException | InterruptedException e) {</span>
-<span class="pc bpc" id="L1235" title="1 of 2 branches missed.">        if (e instanceof InterruptedException) {</span>
-<span class="fc" id="L1236">          Thread.currentThread().interrupt();</span>
+<span class="fc bfc" id="L1241" title="All 2 branches covered.">        return inferImplicitDirectories</span>
+<span class="fc" id="L1242">            ? GoogleCloudStorageItemInfo.createInferredDirectory(dirId)</span>
+<span class="fc" id="L1243">            : GoogleCloudStorageItemInfo.createNotFound(dirId);</span>
+<span class="fc" id="L1244">      } catch (ExecutionException | InterruptedException e) {</span>
+<span class="pc bpc" id="L1245" title="1 of 2 branches missed.">        if (e instanceof InterruptedException) {</span>
+<span class="fc" id="L1246">          Thread.currentThread().interrupt();</span>
         }
-<span class="fc" id="L1238">        throw new IOException(String.format(&quot;Filed to get file info for '%s'&quot;, resourceId), e);</span>
+<span class="fc" id="L1248">        throw new IOException(String.format(&quot;Filed to get file info for '%s'&quot;, resourceId), e);</span>
       }
     } finally {
-<span class="fc" id="L1241">      dirExecutor.shutdownNow();</span>
+<span class="fc" id="L1251">      dirExecutor.shutdownNow();</span>
     }
   }
 
@@ -1251,78 +1261,78 @@ public class GoogleCloudStorageFileSystem {
    * @throws IOException
    */
   public List&lt;FileInfo&gt; getFileInfos(List&lt;URI&gt; paths) throws IOException {
-<span class="pc bpc" id="L1254" title="1 of 2 branches missed.">    checkArgument(paths != null, &quot;paths must not be null&quot;);</span>
-<span class="fc" id="L1255">    logger.atFine().log(&quot;getFileInfos(%d paths)&quot;, paths.size());</span>
+<span class="pc bpc" id="L1264" title="1 of 2 branches missed.">    checkArgument(paths != null, &quot;paths must not be null&quot;);</span>
+<span class="fc" id="L1265">    logger.atFine().log(&quot;getFileInfos(%d paths)&quot;, paths.size());</span>
 
-<span class="pc bpc" id="L1257" title="1 of 2 branches missed.">    if (paths.size() == 1) {</span>
-<span class="nc" id="L1258">      return new ArrayList&lt;&gt;(Collections.singleton(getFileInfo(paths.get(0))));</span>
+<span class="pc bpc" id="L1267" title="1 of 2 branches missed.">    if (paths.size() == 1) {</span>
+<span class="nc" id="L1268">      return new ArrayList&lt;&gt;(Collections.singleton(getFileInfo(paths.get(0))));</span>
     }
 
-<span class="fc" id="L1261">    int maxThreads = gcs.getOptions().getBatchThreads();</span>
-<span class="fc bfc" id="L1262" title="All 2 branches covered.">    ExecutorService fileInfoExecutor =</span>
+<span class="fc" id="L1271">    int maxThreads = gcs.getOptions().getBatchThreads();</span>
+<span class="fc bfc" id="L1272" title="All 2 branches covered.">    ExecutorService fileInfoExecutor =</span>
         maxThreads == 0
-<span class="fc" id="L1264">            ? MoreExecutors.newDirectExecutorService()</span>
-<span class="fc" id="L1265">            : Executors.newFixedThreadPool(</span>
-<span class="fc" id="L1266">                Math.min(maxThreads, paths.size()), DAEMON_THREAD_FACTORY);</span>
+<span class="fc" id="L1274">            ? MoreExecutors.newDirectExecutorService()</span>
+<span class="fc" id="L1275">            : Executors.newFixedThreadPool(</span>
+<span class="fc" id="L1276">                Math.min(maxThreads, paths.size()), DAEMON_THREAD_FACTORY);</span>
     try {
-<span class="fc" id="L1268">      List&lt;Future&lt;FileInfo&gt;&gt; infoFutures = new ArrayList&lt;&gt;(paths.size());</span>
-<span class="fc bfc" id="L1269" title="All 2 branches covered.">      for (URI path : paths) {</span>
-<span class="fc" id="L1270">        infoFutures.add(fileInfoExecutor.submit(() -&gt; getFileInfo(path)));</span>
-<span class="fc" id="L1271">      }</span>
-<span class="fc" id="L1272">      fileInfoExecutor.shutdown();</span>
+<span class="fc" id="L1278">      List&lt;Future&lt;FileInfo&gt;&gt; infoFutures = new ArrayList&lt;&gt;(paths.size());</span>
+<span class="fc bfc" id="L1279" title="All 2 branches covered.">      for (URI path : paths) {</span>
+<span class="fc" id="L1280">        infoFutures.add(fileInfoExecutor.submit(() -&gt; getFileInfo(path)));</span>
+<span class="fc" id="L1281">      }</span>
+<span class="fc" id="L1282">      fileInfoExecutor.shutdown();</span>
 
-<span class="fc" id="L1274">      List&lt;FileInfo&gt; infos = new ArrayList&lt;&gt;(paths.size());</span>
-<span class="fc bfc" id="L1275" title="All 2 branches covered.">      for (Future&lt;FileInfo&gt; infoFuture : infoFutures) {</span>
+<span class="fc" id="L1284">      List&lt;FileInfo&gt; infos = new ArrayList&lt;&gt;(paths.size());</span>
+<span class="fc bfc" id="L1285" title="All 2 branches covered.">      for (Future&lt;FileInfo&gt; infoFuture : infoFutures) {</span>
         try {
-<span class="fc" id="L1277">          infos.add(infoFuture.get());</span>
-<span class="fc" id="L1278">        } catch (InterruptedException | ExecutionException e) {</span>
-<span class="pc bpc" id="L1279" title="1 of 2 branches missed.">          if (e instanceof InterruptedException) {</span>
-<span class="nc" id="L1280">            Thread.currentThread().interrupt();</span>
+<span class="fc" id="L1287">          infos.add(infoFuture.get());</span>
+<span class="fc" id="L1288">        } catch (InterruptedException | ExecutionException e) {</span>
+<span class="pc bpc" id="L1289" title="1 of 2 branches missed.">          if (e instanceof InterruptedException) {</span>
+<span class="nc" id="L1290">            Thread.currentThread().interrupt();</span>
           }
-<span class="fc" id="L1282">          throw new IOException(</span>
-<span class="fc" id="L1283">              String.format(&quot;Failed to getFileInfos for %d paths&quot;, paths.size()), e);</span>
-<span class="fc" id="L1284">        }</span>
-<span class="fc" id="L1285">      }</span>
-<span class="fc" id="L1286">      return infos;</span>
+<span class="fc" id="L1292">          throw new IOException(</span>
+<span class="fc" id="L1293">              String.format(&quot;Failed to getFileInfos for %d paths&quot;, paths.size()), e);</span>
+<span class="fc" id="L1294">        }</span>
+<span class="fc" id="L1295">      }</span>
+<span class="fc" id="L1296">      return infos;</span>
     } finally {
-<span class="fc" id="L1288">      fileInfoExecutor.shutdownNow();</span>
+<span class="fc" id="L1298">      fileInfoExecutor.shutdownNow();</span>
     }
   }
 
   /** Releases resources used by this instance. */
   public void close() {
-<span class="pc bpc" id="L1294" title="1 of 2 branches missed.">    if (gcs != null) {</span>
-<span class="fc" id="L1295">      logger.atFine().log(&quot;close()&quot;);</span>
+<span class="pc bpc" id="L1304" title="1 of 2 branches missed.">    if (gcs != null) {</span>
+<span class="fc" id="L1305">      logger.atFine().log(&quot;close()&quot;);</span>
       try {
-<span class="fc" id="L1297">        gcs.close();</span>
+<span class="fc" id="L1307">        gcs.close();</span>
       } finally {
-<span class="fc" id="L1299">        gcs = null;</span>
+<span class="fc" id="L1309">        gcs = null;</span>
 
-<span class="pc bpc" id="L1301" title="1 of 2 branches missed.">        if (updateTimestampsExecutor != null) {</span>
+<span class="pc bpc" id="L1311" title="1 of 2 branches missed.">        if (updateTimestampsExecutor != null) {</span>
           try {
-<span class="fc" id="L1303">            shutdownExecutor(updateTimestampsExecutor, /* waitSeconds= */ 10);</span>
+<span class="fc" id="L1313">            shutdownExecutor(updateTimestampsExecutor, /* waitSeconds= */ 10);</span>
           } finally {
-<span class="fc" id="L1305">            updateTimestampsExecutor = null;</span>
+<span class="fc" id="L1315">            updateTimestampsExecutor = null;</span>
           }
         }
       }
     }
-<span class="fc" id="L1310">  }</span>
+<span class="fc" id="L1320">  }</span>
 
   private static void shutdownExecutor(ExecutorService executor, long waitSeconds) {
-<span class="fc" id="L1313">    executor.shutdown();</span>
+<span class="fc" id="L1323">    executor.shutdown();</span>
     try {
-<span class="pc bpc" id="L1315" title="1 of 2 branches missed.">      if (!executor.awaitTermination(waitSeconds, TimeUnit.SECONDS)) {</span>
-<span class="nc" id="L1316">        logger.atWarning().log(&quot;Forcibly shutting down executor service.&quot;);</span>
-<span class="nc" id="L1317">        executor.shutdownNow();</span>
+<span class="pc bpc" id="L1325" title="1 of 2 branches missed.">      if (!executor.awaitTermination(waitSeconds, TimeUnit.SECONDS)) {</span>
+<span class="nc" id="L1326">        logger.atWarning().log(&quot;Forcibly shutting down executor service.&quot;);</span>
+<span class="nc" id="L1327">        executor.shutdownNow();</span>
       }
-<span class="nc" id="L1319">    } catch (InterruptedException e) {</span>
-<span class="nc" id="L1320">      Thread.currentThread().interrupt();</span>
-<span class="nc" id="L1321">      logger.atFine().withCause(e).log(</span>
+<span class="nc" id="L1329">    } catch (InterruptedException e) {</span>
+<span class="nc" id="L1330">      Thread.currentThread().interrupt();</span>
+<span class="nc" id="L1331">      logger.atFine().withCause(e).log(</span>
           &quot;Failed to await termination: forcibly shutting down executor service&quot;);
-<span class="nc" id="L1323">      executor.shutdownNow();</span>
-<span class="fc" id="L1324">    }</span>
-<span class="fc" id="L1325">  }</span>
+<span class="nc" id="L1333">      executor.shutdownNow();</span>
+<span class="fc" id="L1334">    }</span>
+<span class="fc" id="L1335">  }</span>
 
   /**
    * Creates a directory at the specified path.
@@ -1344,26 +1354,26 @@ public class GoogleCloudStorageFileSystem {
   public void mkdir(URI path)
       throws IOException {
 
-<span class="fc" id="L1347">    logger.atFine().log(&quot;mkdir(%s)&quot;, path);</span>
-<span class="fc" id="L1348">    Preconditions.checkNotNull(path);</span>
-<span class="pc bpc" id="L1349" title="1 of 2 branches missed.">    checkArgument(!path.equals(GCS_ROOT), &quot;Cannot create root directory.&quot;);</span>
+<span class="fc" id="L1357">    logger.atFine().log(&quot;mkdir(%s)&quot;, path);</span>
+<span class="fc" id="L1358">    Preconditions.checkNotNull(path);</span>
+<span class="pc bpc" id="L1359" title="1 of 2 branches missed.">    checkArgument(!path.equals(GCS_ROOT), &quot;Cannot create root directory.&quot;);</span>
 
-<span class="fc" id="L1351">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
+<span class="fc" id="L1361">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
 
     // If this is a top level directory, create the corresponding bucket.
-<span class="fc bfc" id="L1354" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
-<span class="fc" id="L1355">      gcs.create(resourceId.getBucketName());</span>
-<span class="fc" id="L1356">      return;</span>
+<span class="fc bfc" id="L1364" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
+<span class="fc" id="L1365">      gcs.create(resourceId.getBucketName());</span>
+<span class="fc" id="L1366">      return;</span>
     }
 
     // Ensure that the path looks like a directory path.
-<span class="fc" id="L1360">    resourceId = FileInfo.convertToDirectoryPath(resourceId);</span>
+<span class="fc" id="L1370">    resourceId = FileInfo.convertToDirectoryPath(resourceId);</span>
 
     // Not a top-level directory, create 0 sized object.
-<span class="fc" id="L1363">    gcs.createEmptyObject(resourceId);</span>
+<span class="fc" id="L1373">    gcs.createEmptyObject(resourceId);</span>
 
-<span class="fc" id="L1365">    tryUpdateTimestampsForParentDirectories(ImmutableList.of(path), ImmutableList.&lt;URI&gt;of());</span>
-<span class="fc" id="L1366">  }</span>
+<span class="fc" id="L1375">    tryUpdateTimestampsForParentDirectories(ImmutableList.of(path), ImmutableList.&lt;URI&gt;of());</span>
+<span class="fc" id="L1376">  }</span>
 
   /**
    * For each listed modified object, attempt to update the modification time
@@ -1373,72 +1383,72 @@ public class GoogleCloudStorageFileSystem {
    */
   protected void updateTimestampsForParentDirectories(
       List&lt;URI&gt; modifiedObjects, List&lt;URI&gt; excludedParents) throws IOException {
-<span class="fc" id="L1376">    logger.atFine().log(</span>
+<span class="fc" id="L1386">    logger.atFine().log(</span>
         &quot;updateTimestampsForParentDirectories(%s, %s)&quot;, modifiedObjects, excludedParents);
 
-<span class="fc" id="L1379">    Predicate&lt;URI&gt; updatePredicate = options.getShouldIncludeInTimestampUpdatesPredicate();</span>
-<span class="fc" id="L1380">    Set&lt;URI&gt; excludedParentPathsSet = new HashSet&lt;&gt;(excludedParents);</span>
+<span class="fc" id="L1389">    Predicate&lt;URI&gt; updatePredicate = options.getShouldIncludeInTimestampUpdatesPredicate();</span>
+<span class="fc" id="L1390">    Set&lt;URI&gt; excludedParentPathsSet = new HashSet&lt;&gt;(excludedParents);</span>
 
-<span class="fc" id="L1382">    Set&lt;URI&gt; parentUrisToUpdate = Sets.newHashSetWithExpectedSize(modifiedObjects.size());</span>
-<span class="fc bfc" id="L1383" title="All 2 branches covered.">    for (URI modifiedObjectUri : modifiedObjects) {</span>
-<span class="fc" id="L1384">      URI parentPathUri = getParentPath(modifiedObjectUri);</span>
-<span class="fc bfc" id="L1385" title="All 4 branches covered.">      if (!excludedParentPathsSet.contains(parentPathUri) &amp;&amp; updatePredicate.test(parentPathUri)) {</span>
-<span class="fc" id="L1386">        parentUrisToUpdate.add(parentPathUri);</span>
+<span class="fc" id="L1392">    Set&lt;URI&gt; parentUrisToUpdate = Sets.newHashSetWithExpectedSize(modifiedObjects.size());</span>
+<span class="fc bfc" id="L1393" title="All 2 branches covered.">    for (URI modifiedObjectUri : modifiedObjects) {</span>
+<span class="fc" id="L1394">      URI parentPathUri = getParentPath(modifiedObjectUri);</span>
+<span class="fc bfc" id="L1395" title="All 4 branches covered.">      if (!excludedParentPathsSet.contains(parentPathUri) &amp;&amp; updatePredicate.test(parentPathUri)) {</span>
+<span class="fc" id="L1396">        parentUrisToUpdate.add(parentPathUri);</span>
       }
-<span class="fc" id="L1388">    }</span>
+<span class="fc" id="L1398">    }</span>
 
-<span class="fc" id="L1390">    Map&lt;String, byte[]&gt; modificationAttributes = new HashMap&lt;&gt;();</span>
-<span class="fc" id="L1391">    FileInfo.addModificationTimeToAttributes(modificationAttributes, Clock.SYSTEM);</span>
+<span class="fc" id="L1400">    Map&lt;String, byte[]&gt; modificationAttributes = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L1401">    FileInfo.addModificationTimeToAttributes(modificationAttributes, Clock.SYSTEM);</span>
 
-<span class="fc" id="L1393">    List&lt;UpdatableItemInfo&gt; itemUpdates = new ArrayList&lt;&gt;(parentUrisToUpdate.size());</span>
+<span class="fc" id="L1403">    List&lt;UpdatableItemInfo&gt; itemUpdates = new ArrayList&lt;&gt;(parentUrisToUpdate.size());</span>
 
-<span class="fc bfc" id="L1395" title="All 2 branches covered.">    for (URI parentUri : parentUrisToUpdate) {</span>
-<span class="fc" id="L1396">      StorageResourceId resourceId = pathCodec.validatePathAndGetId(parentUri, true);</span>
-<span class="pc bpc" id="L1397" title="1 of 4 branches missed.">      if (!resourceId.isBucket() &amp;&amp; !resourceId.isRoot()) {</span>
-<span class="fc" id="L1398">        itemUpdates.add(new UpdatableItemInfo(resourceId, modificationAttributes));</span>
+<span class="fc bfc" id="L1405" title="All 2 branches covered.">    for (URI parentUri : parentUrisToUpdate) {</span>
+<span class="fc" id="L1406">      StorageResourceId resourceId = pathCodec.validatePathAndGetId(parentUri, true);</span>
+<span class="pc bpc" id="L1407" title="1 of 4 branches missed.">      if (!resourceId.isBucket() &amp;&amp; !resourceId.isRoot()) {</span>
+<span class="fc" id="L1408">        itemUpdates.add(new UpdatableItemInfo(resourceId, modificationAttributes));</span>
       }
-<span class="fc" id="L1400">    }</span>
+<span class="fc" id="L1410">    }</span>
 
-<span class="fc bfc" id="L1402" title="All 2 branches covered.">    if (!itemUpdates.isEmpty()) {</span>
-<span class="fc" id="L1403">      gcs.updateItems(itemUpdates);</span>
+<span class="fc bfc" id="L1412" title="All 2 branches covered.">    if (!itemUpdates.isEmpty()) {</span>
+<span class="fc" id="L1413">      gcs.updateItems(itemUpdates);</span>
     } else {
-<span class="fc" id="L1405">      logger.atFine().log(&quot;All paths were excluded from directory timestamp updating.&quot;);</span>
+<span class="fc" id="L1415">      logger.atFine().log(&quot;All paths were excluded from directory timestamp updating.&quot;);</span>
     }
-<span class="fc" id="L1407">  }</span>
+<span class="fc" id="L1417">  }</span>
 
   /**
    * For each listed modified object, attempt to update the modification time of the parent
    * directory.
    *
-   * &lt;p&gt;This method will log &amp; swallow exceptions thrown by the GCSIO layer.
+   * &lt;p&gt;This method will log and swallow exceptions thrown by the GCSIO layer.
    *
    * @param modifiedObjects The objects that have been modified
    * @param excludedParents A list of parent directories that we shouldn't attempt to update.
    */
   protected void tryUpdateTimestampsForParentDirectories(
       final List&lt;URI&gt; modifiedObjects, final List&lt;URI&gt; excludedParents) {
-<span class="fc" id="L1420">    logger.atFine().log(</span>
+<span class="fc" id="L1430">    logger.atFine().log(</span>
         &quot;tryUpdateTimestampsForParentDirectories(%s, %s)&quot;, modifiedObjects, excludedParents);
 
     // If we're calling tryUpdateTimestamps, we don't actually care about the results. Submit
     // these requests via a background thread and continue on.
     try {
       @SuppressWarnings(&quot;unused&quot;) // go/futurereturn-lsc
-<span class="fc" id="L1427">      Future&lt;?&gt; possiblyIgnoredError =</span>
-<span class="fc" id="L1428">          updateTimestampsExecutor.submit(</span>
+<span class="fc" id="L1437">      Future&lt;?&gt; possiblyIgnoredError =</span>
+<span class="fc" id="L1438">          updateTimestampsExecutor.submit(</span>
               () -&gt; {
                 try {
-<span class="fc" id="L1431">                  updateTimestampsForParentDirectories(modifiedObjects, excludedParents);</span>
-<span class="fc" id="L1432">                } catch (IOException ioe) {</span>
-<span class="fc" id="L1433">                  logger.atFine().withCause(ioe).log(</span>
+<span class="fc" id="L1441">                  updateTimestampsForParentDirectories(modifiedObjects, excludedParents);</span>
+<span class="fc" id="L1442">                } catch (IOException ioe) {</span>
+<span class="fc" id="L1443">                  logger.atFine().withCause(ioe).log(</span>
                       &quot;Exception caught when trying to update parent directory timestamps.&quot;);
-<span class="fc" id="L1435">                }</span>
-<span class="fc" id="L1436">              });</span>
-<span class="nc" id="L1437">    } catch (RejectedExecutionException ree) {</span>
-<span class="nc" id="L1438">      logger.atFine().withCause(ree).log(</span>
+<span class="fc" id="L1445">                }</span>
+<span class="fc" id="L1446">              });</span>
+<span class="nc" id="L1447">    } catch (RejectedExecutionException ree) {</span>
+<span class="nc" id="L1448">      logger.atFine().withCause(ree).log(</span>
           &quot;Exhausted thread pool and queue space while updating parent timestamps&quot;);
-<span class="fc" id="L1440">    }</span>
-<span class="fc" id="L1441">  }</span>
+<span class="fc" id="L1450">    }</span>
+<span class="fc" id="L1451">  }</span>
 
   /**
    * For objects whose name looks like a path (foo/bar/zoo), returns intermediate sub-paths.
@@ -1454,19 +1464,19 @@ public class GoogleCloudStorageFileSystem {
    * @return List of sub-directory like paths.
    */
   static List&lt;String&gt; getSubDirs(String objectName) {
-<span class="fc" id="L1457">    List&lt;String&gt; subdirs = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L1458" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(objectName)) {</span>
-<span class="fc" id="L1459">      int currentIndex = 0;</span>
-<span class="fc bfc" id="L1460" title="All 2 branches covered.">      while (currentIndex &lt; objectName.length()) {</span>
-<span class="fc" id="L1461">        int index = objectName.indexOf(PATH_DELIMITER, currentIndex);</span>
-<span class="fc bfc" id="L1462" title="All 2 branches covered.">        if (index &lt; 0) {</span>
-<span class="fc" id="L1463">          break;</span>
+<span class="fc" id="L1467">    List&lt;String&gt; subdirs = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L1468" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(objectName)) {</span>
+<span class="fc" id="L1469">      int currentIndex = 0;</span>
+<span class="fc bfc" id="L1470" title="All 2 branches covered.">      while (currentIndex &lt; objectName.length()) {</span>
+<span class="fc" id="L1471">        int index = objectName.indexOf(PATH_DELIMITER, currentIndex);</span>
+<span class="fc bfc" id="L1472" title="All 2 branches covered.">        if (index &lt; 0) {</span>
+<span class="fc" id="L1473">          break;</span>
         }
-<span class="fc" id="L1465">        subdirs.add(objectName.substring(0, index + PATH_DELIMITER.length()));</span>
-<span class="fc" id="L1466">        currentIndex = index + PATH_DELIMITER.length();</span>
-<span class="fc" id="L1467">      }</span>
+<span class="fc" id="L1475">        subdirs.add(objectName.substring(0, index + PATH_DELIMITER.length()));</span>
+<span class="fc" id="L1476">        currentIndex = index + PATH_DELIMITER.length();</span>
+<span class="fc" id="L1477">      }</span>
     }
-<span class="fc" id="L1469">    return subdirs;</span>
+<span class="fc" id="L1479">    return subdirs;</span>
   }
 
   /**
@@ -1482,21 +1492,21 @@ public class GoogleCloudStorageFileSystem {
   static String validateBucketName(String bucketName) {
 
     // If the name ends with /, remove it.
-<span class="fc" id="L1485">    bucketName = FileInfo.convertToFilePath(bucketName);</span>
+<span class="fc" id="L1495">    bucketName = FileInfo.convertToFilePath(bucketName);</span>
 
-<span class="fc bfc" id="L1487" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(bucketName)) {</span>
-<span class="fc" id="L1488">      throw new IllegalArgumentException(</span>
+<span class="fc bfc" id="L1497" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(bucketName)) {</span>
+<span class="fc" id="L1498">      throw new IllegalArgumentException(</span>
           &quot;Google Cloud Storage bucket name cannot be empty.&quot;);
     }
 
-<span class="fc bfc" id="L1492" title="All 2 branches covered.">    if (!BUCKET_NAME_CHAR_MATCHER.matchesAllOf(bucketName)) {</span>
-<span class="fc" id="L1493">      throw new IllegalArgumentException(</span>
-<span class="fc" id="L1494">          String.format(</span>
+<span class="fc bfc" id="L1502" title="All 2 branches covered.">    if (!BUCKET_NAME_CHAR_MATCHER.matchesAllOf(bucketName)) {</span>
+<span class="fc" id="L1503">      throw new IllegalArgumentException(</span>
+<span class="fc" id="L1504">          String.format(</span>
               &quot;Invalid bucket name '%s': bucket name must contain only 'a-z0-9_.-' characters.&quot;,
               bucketName));
     }
 
-<span class="fc" id="L1499">    return bucketName;</span>
+<span class="fc" id="L1509">    return bucketName;</span>
   }
 
   /**
@@ -1511,76 +1521,76 @@ public class GoogleCloudStorageFileSystem {
    * @param allowEmptyObjectName If true, a missing object name is not considered invalid.
    */
   static String validateObjectName(String objectName, boolean allowEmptyObjectName) {
-<span class="fc" id="L1514">    logger.atFine().log(&quot;validateObjectName('%s', %s)&quot;, objectName, allowEmptyObjectName);</span>
+<span class="fc" id="L1524">    logger.atFine().log(&quot;validateObjectName('%s', %s)&quot;, objectName, allowEmptyObjectName);</span>
 
-<span class="fc bfc" id="L1516" title="All 4 branches covered.">    if (isNullOrEmpty(objectName) || objectName.equals(PATH_DELIMITER)) {</span>
-<span class="fc bfc" id="L1517" title="All 2 branches covered.">      if (allowEmptyObjectName) {</span>
-<span class="fc" id="L1518">        objectName = &quot;&quot;;</span>
+<span class="fc bfc" id="L1526" title="All 4 branches covered.">    if (isNullOrEmpty(objectName) || objectName.equals(PATH_DELIMITER)) {</span>
+<span class="fc bfc" id="L1527" title="All 2 branches covered.">      if (allowEmptyObjectName) {</span>
+<span class="fc" id="L1528">        objectName = &quot;&quot;;</span>
       } else {
-<span class="fc" id="L1520">        throw new IllegalArgumentException(</span>
+<span class="fc" id="L1530">        throw new IllegalArgumentException(</span>
             &quot;Google Cloud Storage path must include non-empty object name.&quot;);
       }
     }
 
     // We want objectName to look like a traditional file system path,
     // therefore, disallow objectName with consecutive '/' chars.
-<span class="fc bfc" id="L1527" title="All 2 branches covered.">    for (int i = 0; i &lt; (objectName.length() - 1); i++) {</span>
-<span class="fc bfc" id="L1528" title="All 4 branches covered.">      if (objectName.charAt(i) == '/' &amp;&amp; objectName.charAt(i + 1) == '/') {</span>
-<span class="fc" id="L1529">        throw new IllegalArgumentException(</span>
-<span class="fc" id="L1530">            String.format(</span>
+<span class="fc bfc" id="L1537" title="All 2 branches covered.">    for (int i = 0; i &lt; (objectName.length() - 1); i++) {</span>
+<span class="fc bfc" id="L1538" title="All 4 branches covered.">      if (objectName.charAt(i) == '/' &amp;&amp; objectName.charAt(i + 1) == '/') {</span>
+<span class="fc" id="L1539">        throw new IllegalArgumentException(</span>
+<span class="fc" id="L1540">            String.format(</span>
                 &quot;Google Cloud Storage path must not have consecutive '/' characters, got '%s'&quot;,
                 objectName));
       }
     }
 
     // Remove leading '/' if it exists.
-<span class="fc bfc" id="L1537" title="All 2 branches covered.">    if (objectName.startsWith(PATH_DELIMITER)) {</span>
-<span class="fc" id="L1538">      objectName = objectName.substring(1);</span>
+<span class="fc bfc" id="L1547" title="All 2 branches covered.">    if (objectName.startsWith(PATH_DELIMITER)) {</span>
+<span class="fc" id="L1548">      objectName = objectName.substring(1);</span>
     }
 
-<span class="fc" id="L1541">    logger.atFine().log(&quot;validateObjectName -&gt; '%s'&quot;, objectName);</span>
-<span class="fc" id="L1542">    return objectName;</span>
+<span class="fc" id="L1551">    logger.atFine().log(&quot;validateObjectName -&gt; '%s'&quot;, objectName);</span>
+<span class="fc" id="L1552">    return objectName;</span>
   }
 
   /**
    * Gets the leaf item of the given path.
    */
   String getItemName(URI path) {
-<span class="fc" id="L1549">    Preconditions.checkNotNull(path);</span>
+<span class="fc" id="L1559">    Preconditions.checkNotNull(path);</span>
 
     // There is no leaf item for the root path.
-<span class="fc bfc" id="L1552" title="All 2 branches covered.">    if (path.equals(GCS_ROOT)) {</span>
-<span class="fc" id="L1553">      return null;</span>
+<span class="fc bfc" id="L1562" title="All 2 branches covered.">    if (path.equals(GCS_ROOT)) {</span>
+<span class="fc" id="L1563">      return null;</span>
     }
 
-<span class="fc" id="L1556">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
+<span class="fc" id="L1566">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
 
-<span class="fc bfc" id="L1558" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
-<span class="fc" id="L1559">      return resourceId.getBucketName();</span>
+<span class="fc bfc" id="L1568" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
+<span class="fc" id="L1569">      return resourceId.getBucketName();</span>
     }
 
     int index;
-<span class="fc" id="L1563">    String objectName = resourceId.getObjectName();</span>
-<span class="fc bfc" id="L1564" title="All 2 branches covered.">    if (FileInfo.objectHasDirectoryPath(objectName)) {</span>
-<span class="fc" id="L1565">      index = objectName.lastIndexOf(PATH_DELIMITER, objectName.length() - 2);</span>
+<span class="fc" id="L1573">    String objectName = resourceId.getObjectName();</span>
+<span class="fc bfc" id="L1574" title="All 2 branches covered.">    if (FileInfo.objectHasDirectoryPath(objectName)) {</span>
+<span class="fc" id="L1575">      index = objectName.lastIndexOf(PATH_DELIMITER, objectName.length() - 2);</span>
     } else {
-<span class="fc" id="L1567">      index = objectName.lastIndexOf(PATH_DELIMITER);</span>
+<span class="fc" id="L1577">      index = objectName.lastIndexOf(PATH_DELIMITER);</span>
     }
-<span class="fc bfc" id="L1569" title="All 2 branches covered.">    return index &lt; 0 ? objectName : objectName.substring(index + 1);</span>
+<span class="fc bfc" id="L1579" title="All 2 branches covered.">    return index &lt; 0 ? objectName : objectName.substring(index + 1);</span>
   }
 
   /**
    * Retrieve our internal gcs.
    */
   public GoogleCloudStorage getGcs() {
-<span class="fc" id="L1576">    return gcs;</span>
+<span class="fc" id="L1586">    return gcs;</span>
   }
 
   /**
    * The PathCodec in use by this file system.
    */
   public PathCodec getPathCodec() {
-<span class="fc" id="L1583">    return pathCodec;</span>
+<span class="fc" id="L1593">    return pathCodec;</span>
   }
 
   /**
@@ -1590,7 +1600,7 @@ public class GoogleCloudStorageFileSystem {
    * @return Path of parent directory of the given item or null for root path.
    */
   public URI getParentPath(URI path) {
-<span class="fc" id="L1593">    return getParentPath(getPathCodec(), path);</span>
+<span class="fc" id="L1603">    return getParentPath(getPathCodec(), path);</span>
   }
 
   /**
@@ -1600,29 +1610,29 @@ public class GoogleCloudStorageFileSystem {
    * @return Path of parent directory of the given item or null for root path.
    */
   private static URI getParentPath(PathCodec pathCodec, URI path) {
-<span class="fc" id="L1603">    Preconditions.checkNotNull(path);</span>
+<span class="fc" id="L1613">    Preconditions.checkNotNull(path);</span>
 
     // Root path has no parent.
-<span class="fc bfc" id="L1606" title="All 2 branches covered.">    if (path.equals(GCS_ROOT)) {</span>
-<span class="fc" id="L1607">      return null;</span>
+<span class="fc bfc" id="L1616" title="All 2 branches covered.">    if (path.equals(GCS_ROOT)) {</span>
+<span class="fc" id="L1617">      return null;</span>
     }
 
-<span class="fc" id="L1610">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
+<span class="fc" id="L1620">    StorageResourceId resourceId = pathCodec.validatePathAndGetId(path, true);</span>
 
-<span class="fc bfc" id="L1612" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
-<span class="fc" id="L1613">      return GCS_ROOT;</span>
+<span class="fc bfc" id="L1622" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
+<span class="fc" id="L1623">      return GCS_ROOT;</span>
     }
 
     int index;
-<span class="fc" id="L1617">    String objectName = resourceId.getObjectName();</span>
-<span class="fc bfc" id="L1618" title="All 2 branches covered.">    if (FileInfo.objectHasDirectoryPath(objectName)) {</span>
-<span class="fc" id="L1619">      index = objectName.lastIndexOf(PATH_DELIMITER, objectName.length() - 2);</span>
+<span class="fc" id="L1627">    String objectName = resourceId.getObjectName();</span>
+<span class="fc bfc" id="L1628" title="All 2 branches covered.">    if (FileInfo.objectHasDirectoryPath(objectName)) {</span>
+<span class="fc" id="L1629">      index = objectName.lastIndexOf(PATH_DELIMITER, objectName.length() - 2);</span>
     } else {
-<span class="fc" id="L1621">      index = objectName.lastIndexOf(PATH_DELIMITER);</span>
+<span class="fc" id="L1631">      index = objectName.lastIndexOf(PATH_DELIMITER);</span>
     }
-<span class="fc bfc" id="L1623" title="All 2 branches covered.">    return index &lt; 0</span>
-<span class="fc" id="L1624">        ? pathCodec.getPath(resourceId.getBucketName(), null, true)</span>
-<span class="fc" id="L1625">        : pathCodec.getPath(resourceId.getBucketName(), objectName.substring(0, index + 1), false);</span>
+<span class="fc bfc" id="L1633" title="All 2 branches covered.">    return index &lt; 0</span>
+<span class="fc" id="L1634">        ? pathCodec.getPath(resourceId.getBucketName(), null, true)</span>
+<span class="fc" id="L1635">        : pathCodec.getPath(resourceId.getBucketName(), objectName.substring(0, index + 1), false);</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

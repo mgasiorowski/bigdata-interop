@@ -7,7 +7,7 @@ coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryT
 coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,ForwardingBigQueryFileOutputFormat,7,121,1,7,2,30,1,11,0,8
 coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryTableHelper,3,36,0,0,1,8,1,4,1,4
 coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,IndirectBigQueryOutputCommitter,2,81,2,2,0,25,2,3,0,3
-coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryTableFieldSchema,66,41,2,0,18,10,11,6,10,6
+coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryTableFieldSchema,61,38,2,0,16,10,10,5,9,5
 coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,FederatedBigQueryOutputFormat,0,20,0,0,0,5,0,2,0,2
 coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,ForwardingBigQueryFileOutputCommitter,20,156,5,7,4,43,5,15,0,14
 coverage/bigquery-connector,com.google.cloud.hadoop.io.bigquery.output,BigQueryOutputConfiguration.JobConfigurationAdapter,0,9,0,0,0,4,0,2,0,2
@@ -51,10 +51,10 @@ coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsckRunner.new ByteSource() {...},0,17,0,0,0,2,0,2,0,2
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,InMemoryGlobberFileSystem,32,144,0,8,8,31,8,11,8,7
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsckRunner,153,773,11,35,26,173,15,35,5,21
-coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase,195,3073,40,184,26,655,41,167,7,87
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase,195,3089,40,184,26,657,41,167,7,87
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.Counter,0,444,0,0,0,45,0,1,0,1
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.GcsFileChecksum,13,55,3,3,4,11,5,5,2,5
-coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopSyncableOutputStream,39,370,3,13,6,92,4,18,1,13
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopSyncableOutputStream,39,390,3,15,6,97,4,20,1,14
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsck,12,107,0,6,3,19,0,7,0,4
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs.auth,AbstractDelegationTokenBinding.TokenSecretManager,7,14,0,0,2,3,2,2,2,2
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs.auth,GcsDelegationTokens,119,179,14,10,27,48,12,16,2,14
@@ -117,7 +117,7 @@ coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new JsonBatc
 coverage/gcsio,com.google.cloud.hadoop.gcsio,UpdatableItemInfo,0,15,0,0,0,6,0,3,0,3
 coverage/gcsio,com.google.cloud.hadoop.gcsio,PrefixMappedItemCache,1,430,3,31,1,94,3,32,0,18
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageExceptions,0,64,0,10,0,14,0,8,0,3
-coverage/gcsio,com.google.cloud.hadoop.gcsio,CreateFileOptions,6,79,0,2,2,23,1,12,1,11
+coverage/gcsio,com.google.cloud.hadoop.gcsio,CreateFileOptions,6,88,0,2,2,25,1,12,1,11
 coverage/gcsio,com.google.cloud.hadoop.gcsio,PrefixMappedItemCache.Config,0,20,0,0,0,8,0,5,0,5
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.BackOffFactory,0,5,0,0,0,1,0,1,0,1
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadOptions.GenerationReadConsistency,0,34,0,0,0,4,0,1,0,1
