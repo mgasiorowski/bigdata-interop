@@ -34,10 +34,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
 
+/** This class incapsulates logic for managing cooperative locking for delete directory operation */
 public class CoopLockOperationDelete {
 
-<span class="fc" id="L39">  private final String operationId = UUID.randomUUID().toString();</span>
-<span class="fc" id="L40">  private final Instant operationInstant = Instant.now();</span>
+<span class="fc" id="L40">  private final String operationId = UUID.randomUUID().toString();</span>
+<span class="fc" id="L41">  private final Instant operationInstant = Instant.now();</span>
 
   private final StorageResourceId resourceId;
 
@@ -47,67 +48,67 @@ public class CoopLockOperationDelete {
   private Future&lt;?&gt; lockUpdateFuture;
 
   private CoopLockOperationDelete(
-<span class="fc" id="L50">      GoogleCloudStorageImpl gcs, PathCodec pathCodec, StorageResourceId resourceId) {</span>
-<span class="fc" id="L51">    this.resourceId = resourceId;</span>
-<span class="fc" id="L52">    this.coopLockRecordsDao = new CoopLockRecordsDao(gcs);</span>
-<span class="fc" id="L53">    this.coopLockOperationDao = new CoopLockOperationDao(gcs, pathCodec);</span>
-<span class="fc" id="L54">  }</span>
+<span class="fc" id="L51">      GoogleCloudStorageImpl gcs, PathCodec pathCodec, StorageResourceId resourceId) {</span>
+<span class="fc" id="L52">    this.resourceId = resourceId;</span>
+<span class="fc" id="L53">    this.coopLockRecordsDao = new CoopLockRecordsDao(gcs);</span>
+<span class="fc" id="L54">    this.coopLockOperationDao = new CoopLockOperationDao(gcs, pathCodec);</span>
+<span class="fc" id="L55">  }</span>
 
   public static CoopLockOperationDelete create(
       GoogleCloudStorage gcs, PathCodec pathCodec, URI path) {
-<span class="pc bpc" id="L58" title="1 of 2 branches missed.">    while (gcs instanceof ForwardingGoogleCloudStorage) {</span>
-<span class="nc" id="L59">      gcs = ((ForwardingGoogleCloudStorage) gcs).getDelegate();</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">    while (gcs instanceof ForwardingGoogleCloudStorage) {</span>
+<span class="nc" id="L60">      gcs = ((ForwardingGoogleCloudStorage) gcs).getDelegate();</span>
     }
-<span class="fc" id="L61">    checkArgument(</span>
+<span class="fc" id="L62">    checkArgument(</span>
         gcs instanceof GoogleCloudStorageImpl,
         &quot;gcs should be instance of %s, but was %s&quot;,
         GoogleCloudStorageImpl.class,
-<span class="fc" id="L65">        gcs.getClass());</span>
-<span class="fc" id="L66">    return new CoopLockOperationDelete(</span>
+<span class="fc" id="L66">        gcs.getClass());</span>
+<span class="fc" id="L67">    return new CoopLockOperationDelete(</span>
         (GoogleCloudStorageImpl) gcs,
         pathCodec,
-<span class="fc" id="L69">        pathCodec.validatePathAndGetId(</span>
-<span class="fc" id="L70">            normalizeLockedResource(path), /* allowEmptyObjectName= */ true));</span>
+<span class="fc" id="L70">        pathCodec.validatePathAndGetId(</span>
+<span class="fc" id="L71">            normalizeLockedResource(path), /* allowEmptyObjectName= */ true));</span>
   }
 
   public void lock() {
     try {
-<span class="fc" id="L75">      coopLockRecordsDao.lockPaths(operationId, operationInstant, DELETE, resourceId);</span>
-<span class="nc" id="L76">    } catch (IOException e) {</span>
-<span class="nc" id="L77">      throw new RuntimeException(String.format(&quot;Failed to acquire lock for %s operation&quot;, this), e);</span>
-<span class="fc" id="L78">    }</span>
-<span class="fc" id="L79">  }</span>
+<span class="fc" id="L76">      coopLockRecordsDao.lockPaths(operationId, operationInstant, DELETE, resourceId);</span>
+<span class="nc" id="L77">    } catch (IOException e) {</span>
+<span class="nc" id="L78">      throw new RuntimeException(String.format(&quot;Failed to acquire lock for %s operation&quot;, this), e);</span>
+<span class="fc" id="L79">    }</span>
+<span class="fc" id="L80">  }</span>
 
   public void persistAndScheduleRenewal(
       List&lt;FileInfo&gt; itemsToDelete, List&lt;FileInfo&gt; bucketsToDelete) {
     try {
-<span class="fc" id="L84">      lockUpdateFuture =</span>
-<span class="fc" id="L85">          coopLockOperationDao.persistDeleteOperation(</span>
+<span class="fc" id="L85">      lockUpdateFuture =</span>
+<span class="fc" id="L86">          coopLockOperationDao.persistDeleteOperation(</span>
               operationId, operationInstant, resourceId, itemsToDelete, bucketsToDelete);
-<span class="nc" id="L87">    } catch (IOException e) {</span>
-<span class="nc" id="L88">      throw new RuntimeException(String.format(&quot;Failed to persist %s operation&quot;, this), e);</span>
-<span class="fc" id="L89">    }</span>
-<span class="fc" id="L90">  }</span>
+<span class="nc" id="L88">    } catch (IOException e) {</span>
+<span class="nc" id="L89">      throw new RuntimeException(String.format(&quot;Failed to persist %s operation&quot;, this), e);</span>
+<span class="fc" id="L90">    }</span>
+<span class="fc" id="L91">  }</span>
 
   public void unlock() {
     try {
-<span class="fc" id="L94">      coopLockRecordsDao.unlockPaths(operationId, resourceId);</span>
-<span class="nc" id="L95">    } catch (IOException e) {</span>
-<span class="nc" id="L96">      throw new RuntimeException(String.format(&quot;Failed to release lock for %s operation&quot;, this), e);</span>
-<span class="fc" id="L97">    }</span>
-<span class="fc" id="L98">  }</span>
+<span class="fc" id="L95">      coopLockRecordsDao.unlockPaths(operationId, resourceId);</span>
+<span class="nc" id="L96">    } catch (IOException e) {</span>
+<span class="nc" id="L97">      throw new RuntimeException(String.format(&quot;Failed to release lock for %s operation&quot;, this), e);</span>
+<span class="fc" id="L98">    }</span>
+<span class="fc" id="L99">  }</span>
 
   public void cancelRenewal() {
-<span class="fc" id="L101">    lockUpdateFuture.cancel(/* mayInterruptIfRunning= */ true);</span>
-<span class="fc" id="L102">  }</span>
+<span class="fc" id="L102">    lockUpdateFuture.cancel(/* mayInterruptIfRunning= */ true);</span>
+<span class="fc" id="L103">  }</span>
 
   @Override
   public String toString() {
-<span class="nc" id="L106">    return MoreObjects.toStringHelper(this)</span>
-<span class="nc" id="L107">        .add(&quot;operationId&quot;, operationId)</span>
-<span class="nc" id="L108">        .add(&quot;operationInstant&quot;, operationInstant)</span>
-<span class="nc" id="L109">        .add(&quot;resourceId&quot;, resourceId)</span>
-<span class="nc" id="L110">        .toString();</span>
+<span class="nc" id="L107">    return MoreObjects.toStringHelper(this)</span>
+<span class="nc" id="L108">        .add(&quot;operationId&quot;, operationId)</span>
+<span class="nc" id="L109">        .add(&quot;operationInstant&quot;, operationInstant)</span>
+<span class="nc" id="L110">        .add(&quot;resourceId&quot;, resourceId)</span>
+<span class="nc" id="L111">        .toString();</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

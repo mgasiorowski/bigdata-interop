@@ -23,7 +23,11 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.TreeSet;
 
-<span class="fc" id="L26">public class CoopLockRecords {</span>
+/**
+ * A data class that represents lock records for all cooperative locking operations. This records
+ * file is used to aqcuire and release locks atomcially.
+ */
+<span class="fc" id="L30">public class CoopLockRecords {</span>
   /**
    * Supported version of operation locks persistent objects format.
    *
@@ -32,40 +36,40 @@ import java.util.TreeSet;
    */
   public static final long FORMAT_VERSION = 3;
 
-<span class="fc" id="L35">  private long formatVersion = -1;</span>
-<span class="fc" id="L36">  private Set&lt;CoopLockRecord&gt; locks =</span>
-<span class="fc" id="L37">      new TreeSet&lt;&gt;(Comparator.comparing(CoopLockRecord::getOperationId));</span>
+<span class="fc" id="L39">  private long formatVersion = -1;</span>
+<span class="fc" id="L40">  private Set&lt;CoopLockRecord&gt; locks =</span>
+<span class="fc" id="L41">      new TreeSet&lt;&gt;(Comparator.comparing(CoopLockRecord::getOperationId));</span>
 
   public long getFormatVersion() {
-<span class="fc" id="L40">    return formatVersion;</span>
+<span class="fc" id="L44">    return formatVersion;</span>
   }
 
   public CoopLockRecords setFormatVersion(long formatVersion) {
-<span class="fc" id="L44">    this.formatVersion = formatVersion;</span>
-<span class="fc" id="L45">    return this;</span>
+<span class="fc" id="L48">    this.formatVersion = formatVersion;</span>
+<span class="fc" id="L49">    return this;</span>
   }
 
   public Set&lt;CoopLockRecord&gt; getLocks() {
-<span class="pc bpc" id="L49" title="1 of 2 branches missed.">    checkState(</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">    checkState(</span>
         FORMAT_VERSION == formatVersion,
         &quot;%s operation lock version is not supported, supported version is %s&quot;,
         formatVersion,
         FORMAT_VERSION);
-<span class="fc" id="L54">    return locks;</span>
+<span class="fc" id="L58">    return locks;</span>
   }
 
   public CoopLockRecords setLocks(Set&lt;CoopLockRecord&gt; locks) {
-<span class="nc" id="L58">    this.locks = new TreeSet&lt;&gt;(Comparator.comparing(CoopLockRecord::getOperationId));</span>
-<span class="nc" id="L59">    this.locks.addAll(locks);</span>
-<span class="nc" id="L60">    return this;</span>
+<span class="nc" id="L62">    this.locks = new TreeSet&lt;&gt;(Comparator.comparing(CoopLockRecord::getOperationId));</span>
+<span class="nc" id="L63">    this.locks.addAll(locks);</span>
+<span class="nc" id="L64">    return this;</span>
   }
 
   @Override
   public String toString() {
-<span class="nc" id="L65">    return MoreObjects.toStringHelper(this)</span>
-<span class="nc" id="L66">        .add(&quot;formatVersion&quot;, formatVersion)</span>
-<span class="nc" id="L67">        .add(&quot;operations&quot;, locks)</span>
-<span class="nc" id="L68">        .toString();</span>
+<span class="nc" id="L69">    return MoreObjects.toStringHelper(this)</span>
+<span class="nc" id="L70">        .add(&quot;formatVersion&quot;, formatVersion)</span>
+<span class="nc" id="L71">        .add(&quot;operations&quot;, locks)</span>
+<span class="nc" id="L72">        .toString();</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

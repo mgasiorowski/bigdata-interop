@@ -50,7 +50,7 @@ coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.ParentTimestampUpdateIncludePredicate,0,97,0,10,0,23,0,8,0,3
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsckRunner.new ByteSource() {...},0,17,0,0,0,2,0,2,0,2
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,InMemoryGlobberFileSystem,32,144,0,8,8,31,8,11,8,7
-coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsckRunner,153,773,11,35,26,173,15,35,5,21
+coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,CoopLockFsckRunner,140,772,11,35,24,173,15,35,5,21
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase,195,3089,40,184,26,657,41,167,7,87
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.Counter,0,444,0,0,0,45,0,1,0,1
 coverage/gcs-connector,com.google.cloud.hadoop.fs.gcs,GoogleHadoopFileSystemBase.GcsFileChecksum,13,55,3,3,4,11,5,5,2,5
@@ -75,16 +75,16 @@ coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockUtils,0,17,0,2,0,3
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,AutoValue_CooperativeLockingOptions.Builder,43,37,3,3,7,13,4,4,1,4
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CooperativeLockingOptions,0,23,0,0,0,7,0,3,0,3
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockRecord,0,87,0,0,0,28,0,14,0,14
-coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,DeleteOperation,29,50,4,4,5,11,6,7,2,7
-coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationDao,64,477,3,3,16,108,3,17,1,16
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,DeleteOperation,29,48,4,4,5,10,6,7,2,7
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationDao,64,478,3,3,16,109,3,17,1,16
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,AutoValue_CooperativeLockingOptions,79,15,8,0,15,6,8,3,4,3
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationDelete,63,100,1,1,12,25,2,6,1,6
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockRecords,27,36,1,1,7,9,3,4,2,4
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationType,0,24,0,0,0,3,0,1,0,1
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockOperationRename,81,134,1,1,16,31,2,7,1,7
 coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CooperativeLockingOptions.Builder,2,29,2,2,0,10,2,2,0,2
-coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,RenameOperation,48,77,6,6,7,18,8,11,2,11
-coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockRecordsDao,66,679,13,29,9,155,17,31,4,23
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,RenameOperation,48,75,6,6,7,18,8,11,2,11
+coverage/gcsio,com.google.cloud.hadoop.gcsio.cooplock,CoopLockRecordsDao,66,664,13,29,9,155,17,31,4,23
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadOptions.Builder,0,20,0,2,0,6,0,3,0,2
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageItemInfo,81,322,11,33,12,63,12,36,1,25
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadOptions.Fadvise,0,34,0,0,0,4,0,1,0,1
@@ -108,8 +108,8 @@ coverage/gcsio,com.google.cloud.hadoop.gcsio,CreateObjectOptions,0,65,0,2,0,19,0
 coverage/gcsio,com.google.cloud.hadoop.gcsio,FileInfo,1,271,3,35,0,63,3,39,0,23
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new GoogleCloudStorageWriteChannel() {...},0,29,0,0,0,2,0,2,0,2
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageImpl.new CacheLoader() {...},22,10,0,0,8,2,1,1,1,1
-coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadChannel,337,1931,58,196,61,392,54,121,4,44
-coverage/gcsio,com.google.cloud.hadoop.gcsio,BatchHelper,29,293,8,32,8,72,8,26,0,14
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageReadChannel,343,1925,59,195,62,391,55,120,4,44
+coverage/gcsio,com.google.cloud.hadoop.gcsio,BatchHelper,29,291,8,32,8,72,8,26,0,14
 coverage/gcsio,com.google.cloud.hadoop.gcsio,LegacyPathCodec,25,127,5,7,4,30,4,6,0,4
 coverage/gcsio,com.google.cloud.hadoop.gcsio,PrefixMappedItemCache.CacheValue,17,15,0,0,1,6,1,3,1,3
 coverage/gcsio,com.google.cloud.hadoop.gcsio,StorageResourceId,19,324,13,47,3,71,12,39,0,21
@@ -140,7 +140,7 @@ coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_PerformanceCachingGoogleC
 coverage/gcsio,com.google.cloud.hadoop.gcsio,PerformanceCachingGoogleCloudStorage,49,526,10,68,10,127,8,48,0,17
 coverage/gcsio,com.google.cloud.hadoop.gcsio,UriEncodingPathCodec,18,102,1,11,3,20,1,9,0,4
 coverage/gcsio,com.google.cloud.hadoop.gcsio,PerformanceCachingGoogleCloudStorageOptions.Builder,0,3,0,0,0,1,0,1,0,1
-coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageFileSystem,136,2680,43,249,29,620,41,165,0,60
+coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageFileSystem,155,2661,44,248,33,614,41,165,0,60
 coverage/gcsio,com.google.cloud.hadoop.gcsio,GoogleCloudStorageOptions.Builder,0,59,0,16,0,12,0,10,0,2
 coverage/gcsio,com.google.cloud.hadoop.gcsio,ObjectWriteConditions,12,50,1,3,2,16,2,8,1,7
 coverage/gcsio,com.google.cloud.hadoop.gcsio,AutoValue_GoogleCloudStorageOptions,585,147,86,0,77,49,46,25,3,25
@@ -188,7 +188,7 @@ coverage/util,com.google.cloud.hadoop.util,RequesterPaysOptions.Builder,0,3,0,0,
 coverage/util,com.google.cloud.hadoop.util,ClientRequestHelper,0,18,0,0,0,6,0,4,0,4
 coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.ExecutingFutureImpl.InbetweenStates,49,12,2,0,12,2,7,1,6,1
 coverage/util,com.google.cloud.hadoop.util,ApiErrorExtractor,31,453,15,91,5,112,15,74,1,35
-coverage/util,com.google.cloud.hadoop.util,AsyncWriteChannelOptions,0,21,0,0,0,8,0,4,0,4
+coverage/util,com.google.cloud.hadoop.util,AsyncWriteChannelOptions,2,19,0,0,1,7,1,3,1,3
 coverage/util,com.google.cloud.hadoop.util,RetryDeterminer.new RetryDeterminer() {...},0,22,0,6,0,5,0,5,0,2
 coverage/util,com.google.cloud.hadoop.util,LazyExecutorService.ExecutingFutureImpl.Created.new Callable() {...},0,21,0,0,0,3,0,2,0,2
 coverage/util,com.google.cloud.hadoop.util,RetryDeterminer.new RetryDeterminer() {...},0,11,0,0,0,2,0,2,0,2

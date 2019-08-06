@@ -46,7 +46,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -59,43 +59,47 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * DAO class for operation lock metadata (persisted in {@code gs://&lt;BUCKET&gt;/_lock/&lt;OPERATION&gt;.lock}
+ * file) and operation logs (persisted in {@code gs://&lt;BUCKET&gt;/_lock/&lt;OPERATION&gt;.log} file)
+ */
 public class CoopLockOperationDao {
 
-<span class="fc" id="L64">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+<span class="fc" id="L68">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
 
   public static final String RENAME_LOG_RECORD_SEPARATOR = &quot; -&gt; &quot;;
 
   private static final String OPERATION_LOG_FILE_FORMAT = &quot;%s_%s_%s.log&quot;;
   private static final String OPERATION_LOCK_FILE_FORMAT = &quot;%s_%s_%s.lock&quot;;
 
-<span class="fc" id="L71">  private static final CreateObjectOptions CREATE_OBJECT_OPTIONS =</span>
+<span class="fc" id="L75">  private static final CreateObjectOptions CREATE_OBJECT_OPTIONS =</span>
       new CreateObjectOptions(/* overwriteExisting= */ false, &quot;application/text&quot;, EMPTY_METADATA);
-<span class="fc" id="L73">  private static final CreateObjectOptions UPDATE_OBJECT_OPTIONS =</span>
+<span class="fc" id="L77">  private static final CreateObjectOptions UPDATE_OBJECT_OPTIONS =</span>
       new CreateObjectOptions(/* overwriteExisting= */ true, &quot;application/text&quot;, EMPTY_METADATA);
 
-<span class="fc" id="L76">  private static final Duration LOCK_RENEW_RETRY_BACK_OFF = Duration.ofMillis(1_100);</span>
+<span class="fc" id="L80">  private static final Duration LOCK_RENEW_RETRY_BACK_OFF = Duration.ofMillis(1_100);</span>
 
-<span class="fc" id="L78">  private static final Duration MAX_LOCK_RENEW_TIMEOUT = LOCK_RENEW_RETRY_BACK_OFF.multipliedBy(10);</span>
+<span class="fc" id="L82">  private static final Duration MAX_LOCK_RENEW_TIMEOUT = LOCK_RENEW_RETRY_BACK_OFF.multipliedBy(10);</span>
 
-<span class="fc" id="L80">  private static DateTimeFormatter LOCK_FILE_DATE_TIME_FORMAT =</span>
-<span class="fc" id="L81">      DateTimeFormatter.ofPattern(&quot;yyyyMMdd'T'HHmmss.SSSXXX&quot;).withZone(ZoneId.of(&quot;UTC&quot;));</span>
+<span class="fc" id="L84">  private static final DateTimeFormatter LOCK_FILE_DATE_TIME_FORMAT =</span>
+<span class="fc" id="L85">      DateTimeFormatter.ofPattern(&quot;yyyyMMdd'T'HHmmss.SSSXXX&quot;).withZone(ZoneOffset.UTC);</span>
 
-<span class="fc" id="L83">  private static final Gson GSON = new Gson();</span>
+<span class="fc" id="L87">  private static final Gson GSON = new Gson();</span>
 
-<span class="fc" id="L85">  private final ScheduledExecutorService scheduledThreadPool =</span>
-<span class="fc" id="L86">      Executors.newScheduledThreadPool(</span>
+<span class="fc" id="L89">  private final ScheduledExecutorService scheduledThreadPool =</span>
+<span class="fc" id="L90">      Executors.newScheduledThreadPool(</span>
           /* corePoolSize= */ 0,
-<span class="fc" id="L88">          new ThreadFactoryBuilder().setNameFormat(&quot;coop-lock-thread-%d&quot;).setDaemon(true).build());</span>
+<span class="fc" id="L92">          new ThreadFactoryBuilder().setNameFormat(&quot;coop-lock-thread-%d&quot;).setDaemon(true).build());</span>
 
   private final GoogleCloudStorage gcs;
   private final CooperativeLockingOptions options;
   private final PathCodec pathCodec;
 
-<span class="fc" id="L94">  public CoopLockOperationDao(GoogleCloudStorage gcs, PathCodec pathCodec) {</span>
-<span class="fc" id="L95">    this.gcs = gcs;</span>
-<span class="fc" id="L96">    this.options = gcs.getOptions().getCooperativeLockingOptions();</span>
-<span class="fc" id="L97">    this.pathCodec = pathCodec;</span>
-<span class="fc" id="L98">  }</span>
+<span class="fc" id="L98">  public CoopLockOperationDao(GoogleCloudStorage gcs, PathCodec pathCodec) {</span>
+<span class="fc" id="L99">    this.gcs = gcs;</span>
+<span class="fc" id="L100">    this.options = gcs.getOptions().getCooperativeLockingOptions();</span>
+<span class="fc" id="L101">    this.pathCodec = pathCodec;</span>
+<span class="fc" id="L102">  }</span>
 
   public Future&lt;?&gt; persistDeleteOperation(
       String operationId,
@@ -104,25 +108,25 @@ public class CoopLockOperationDao {
       List&lt;FileInfo&gt; itemsToDelete,
       List&lt;FileInfo&gt; bucketsToDelete)
       throws IOException {
-<span class="fc" id="L107">    URI operationLockPath =</span>
-<span class="fc" id="L108">        writeOperationFile(</span>
-<span class="fc" id="L109">            resourceId.getBucketName(),</span>
+<span class="fc" id="L111">    URI operationLockPath =</span>
+<span class="fc" id="L112">        writeOperationFile(</span>
+<span class="fc" id="L113">            resourceId.getBucketName(),</span>
             OPERATION_LOCK_FILE_FORMAT,
             CREATE_OBJECT_OPTIONS,
             CoopLockOperationType.DELETE,
             operationId,
             operationInstant,
-<span class="fc" id="L115">            ImmutableList.of(</span>
-<span class="fc" id="L116">                GSON.toJson(</span>
+<span class="fc" id="L119">            ImmutableList.of(</span>
+<span class="fc" id="L120">                GSON.toJson(</span>
                     new DeleteOperation()
-<span class="fc" id="L118">                        .setLockEpochMilli(operationInstant.toEpochMilli())</span>
-<span class="fc" id="L119">                        .setResource(resourceId.toString()))));</span>
-<span class="fc" id="L120">    List&lt;String&gt; logRecords =</span>
-<span class="fc" id="L121">        Streams.concat(itemsToDelete.stream(), bucketsToDelete.stream())</span>
-<span class="fc" id="L122">            .map(i -&gt; i.getItemInfo().getResourceId().toString())</span>
-<span class="fc" id="L123">            .collect(toImmutableList());</span>
-<span class="fc" id="L124">    writeOperationFile(</span>
-<span class="fc" id="L125">        resourceId.getBucketName(),</span>
+<span class="fc" id="L122">                        .setLockEpochMilli(operationInstant.toEpochMilli())</span>
+<span class="fc" id="L123">                        .setResource(resourceId.toString()))));</span>
+<span class="fc" id="L124">    List&lt;String&gt; logRecords =</span>
+<span class="fc" id="L125">        Streams.concat(itemsToDelete.stream(), bucketsToDelete.stream())</span>
+<span class="fc" id="L126">            .map(i -&gt; i.getItemInfo().getResourceId().toString())</span>
+<span class="fc" id="L127">            .collect(toImmutableList());</span>
+<span class="fc" id="L128">    writeOperationFile(</span>
+<span class="fc" id="L129">        resourceId.getBucketName(),</span>
         OPERATION_LOG_FILE_FORMAT,
         CREATE_OBJECT_OPTIONS,
         CoopLockOperationType.DELETE,
@@ -130,11 +134,11 @@ public class CoopLockOperationDao {
         operationInstant,
         logRecords);
     // Schedule lock expiration update
-<span class="fc" id="L133">    return scheduleLockUpdate(</span>
+<span class="fc" id="L137">    return scheduleLockUpdate(</span>
         operationId,
         operationLockPath,
         DeleteOperation.class,
-<span class="fc" id="L137">        (o, i) -&gt; o.setLockEpochMilli(i.toEpochMilli()));</span>
+<span class="fc" id="L141">        (o, i) -&gt; o.setLockEpochMilli(i.toEpochMilli()));</span>
   }
 
   public Future&lt;?&gt; persistRenameOperation(
@@ -145,32 +149,32 @@ public class CoopLockOperationDao {
       Map&lt;FileInfo, URI&gt; srcToDstItemNames,
       Map&lt;FileInfo, URI&gt; srcToDstMarkerItemNames)
       throws IOException {
-<span class="fc" id="L148">    URI operationLockPath =</span>
-<span class="fc" id="L149">        writeOperationFile(</span>
-<span class="fc" id="L150">            dst.getBucketName(),</span>
+<span class="fc" id="L152">    URI operationLockPath =</span>
+<span class="fc" id="L153">        writeOperationFile(</span>
+<span class="fc" id="L154">            dst.getBucketName(),</span>
             OPERATION_LOCK_FILE_FORMAT,
             CREATE_OBJECT_OPTIONS,
             CoopLockOperationType.RENAME,
             operationId,
             operationInstant,
-<span class="fc" id="L156">            ImmutableList.of(</span>
-<span class="fc" id="L157">                GSON.toJson(</span>
+<span class="fc" id="L160">            ImmutableList.of(</span>
+<span class="fc" id="L161">                GSON.toJson(</span>
                     new RenameOperation()
-<span class="fc" id="L159">                        .setLockEpochMilli(operationInstant.toEpochMilli())</span>
-<span class="fc" id="L160">                        .setSrcResource(src.toString())</span>
-<span class="fc" id="L161">                        .setDstResource(dst.toString())</span>
-<span class="fc" id="L162">                        .setCopySucceeded(false))));</span>
-<span class="fc" id="L163">    List&lt;String&gt; logRecords =</span>
-<span class="fc" id="L164">        Streams.concat(</span>
-<span class="fc" id="L165">                srcToDstItemNames.entrySet().stream(), srcToDstMarkerItemNames.entrySet().stream())</span>
-<span class="fc" id="L166">            .map(</span>
+<span class="fc" id="L163">                        .setLockEpochMilli(operationInstant.toEpochMilli())</span>
+<span class="fc" id="L164">                        .setSrcResource(src.toString())</span>
+<span class="fc" id="L165">                        .setDstResource(dst.toString())</span>
+<span class="fc" id="L166">                        .setCopySucceeded(false))));</span>
+<span class="fc" id="L167">    List&lt;String&gt; logRecords =</span>
+<span class="fc" id="L168">        Streams.concat(</span>
+<span class="fc" id="L169">                srcToDstItemNames.entrySet().stream(), srcToDstMarkerItemNames.entrySet().stream())</span>
+<span class="fc" id="L170">            .map(</span>
                 e -&gt;
-<span class="fc" id="L168">                    e.getKey().getItemInfo().getResourceId()</span>
+<span class="fc" id="L172">                    e.getKey().getItemInfo().getResourceId()</span>
                         + RENAME_LOG_RECORD_SEPARATOR
-<span class="fc" id="L170">                        + e.getValue())</span>
-<span class="fc" id="L171">            .collect(toImmutableList());</span>
-<span class="fc" id="L172">    writeOperationFile(</span>
-<span class="fc" id="L173">        dst.getBucketName(),</span>
+<span class="fc" id="L174">                        + e.getValue())</span>
+<span class="fc" id="L175">            .collect(toImmutableList());</span>
+<span class="fc" id="L176">    writeOperationFile(</span>
+<span class="fc" id="L177">        dst.getBucketName(),</span>
         OPERATION_LOG_FILE_FORMAT,
         CREATE_OBJECT_OPTIONS,
         CoopLockOperationType.RENAME,
@@ -178,11 +182,11 @@ public class CoopLockOperationDao {
         operationInstant,
         logRecords);
     // Schedule lock expiration update
-<span class="fc" id="L181">    return scheduleLockUpdate(</span>
+<span class="fc" id="L185">    return scheduleLockUpdate(</span>
         operationId,
         operationLockPath,
         RenameOperation.class,
-<span class="nc" id="L185">        (o, i) -&gt; o.setLockEpochMilli(i.toEpochMilli()));</span>
+<span class="nc" id="L189">        (o, i) -&gt; o.setLockEpochMilli(i.toEpochMilli()));</span>
   }
 
   public void checkpointRenameOperation(
@@ -192,99 +196,99 @@ public class CoopLockOperationDao {
       Instant operationInstant,
       boolean copySucceeded)
       throws IOException {
-<span class="fc" id="L195">    writeOperationFile(</span>
-<span class="fc" id="L196">        dst.getBucketName(),</span>
+<span class="fc" id="L199">    writeOperationFile(</span>
+<span class="fc" id="L200">        dst.getBucketName(),</span>
         OPERATION_LOCK_FILE_FORMAT,
         UPDATE_OBJECT_OPTIONS,
         CoopLockOperationType.RENAME,
         operationId,
         operationInstant,
-<span class="fc" id="L202">        ImmutableList.of(</span>
-<span class="fc" id="L203">            GSON.toJson(</span>
+<span class="fc" id="L206">        ImmutableList.of(</span>
+<span class="fc" id="L207">            GSON.toJson(</span>
                 new RenameOperation()
-<span class="fc" id="L205">                    .setLockEpochMilli(Instant.now().toEpochMilli())</span>
-<span class="fc" id="L206">                    .setSrcResource(src.toString())</span>
-<span class="fc" id="L207">                    .setDstResource(dst.toString())</span>
-<span class="fc" id="L208">                    .setCopySucceeded(copySucceeded))));</span>
-<span class="fc" id="L209">  }</span>
+<span class="fc" id="L209">                    .setLockEpochMilli(Instant.now().toEpochMilli())</span>
+<span class="fc" id="L210">                    .setSrcResource(src.toString())</span>
+<span class="fc" id="L211">                    .setDstResource(dst.toString())</span>
+<span class="fc" id="L212">                    .setCopySucceeded(copySucceeded))));</span>
+<span class="fc" id="L213">  }</span>
 
   private void renewLockOrExit(
       String operationId,
       URI operationLockPath,
       Function&lt;String, String&gt; renewFn,
       Duration timeout) {
-<span class="fc" id="L216">    Stopwatch stopwatch = Stopwatch.createStarted();</span>
-<span class="fc" id="L217">    ExecutorService timeoutExecutor = Executors.newSingleThreadExecutor();</span>
-<span class="fc" id="L218">    Future&lt;?&gt; timeoutFuture =</span>
-<span class="fc" id="L219">        timeoutExecutor.submit(</span>
+<span class="fc" id="L220">    Stopwatch stopwatch = Stopwatch.createStarted();</span>
+<span class="fc" id="L221">    ExecutorService timeoutExecutor = Executors.newSingleThreadExecutor();</span>
+<span class="fc" id="L222">    Future&lt;?&gt; timeoutFuture =</span>
+<span class="fc" id="L223">        timeoutExecutor.submit(</span>
             () -&gt; {
               try {
-<span class="nc" id="L222">                sleep(timeout.toMillis());</span>
-<span class="fc" id="L223">              } catch (InterruptedException e) {</span>
-                // Proceed further if interrupted
-<span class="nc" id="L225">              }</span>
+<span class="nc" id="L226">                sleep(timeout.toMillis());</span>
+<span class="fc" id="L227">              } catch (InterruptedException e) {</span>
+<span class="fc" id="L228">                currentThread().interrupt();</span>
+<span class="nc" id="L229">              }</span>
               // timeoutFuture was cancelled
-<span class="pc bpc" id="L227" title="1 of 2 branches missed.">              if (currentThread().isInterrupted()) {</span>
-<span class="fc" id="L228">                return;</span>
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">              if (currentThread().isInterrupted()) {</span>
+<span class="fc" id="L232">                return;</span>
               }
-<span class="nc" id="L230">              logger.atSevere().log(</span>
+<span class="nc" id="L234">              logger.atSevere().log(</span>
                   &quot;Renewal of '%s' lock for %s operation timed out (timeout %s), exiting&quot;,
                   operationLockPath, operationId, timeout);
-<span class="nc" id="L233">              System.exit(1);</span>
-<span class="nc" id="L234">            });</span>
+<span class="nc" id="L237">              System.exit(1);</span>
+<span class="nc" id="L238">            });</span>
 
-<span class="fc" id="L236">    int attempt = 1;</span>
+<span class="fc" id="L240">    int attempt = 1;</span>
     try {
       do {
         try {
-<span class="fc" id="L240">          renewLock(operationId, operationLockPath, renewFn);</span>
-<span class="fc" id="L241">          checkState(</span>
-<span class="fc" id="L242">              timeoutFuture.cancel(/* mayInterruptIfRunning= */ true),</span>
+<span class="fc" id="L244">          renewLock(operationId, operationLockPath, renewFn);</span>
+<span class="fc" id="L245">          checkState(</span>
+<span class="fc" id="L246">              timeoutFuture.cancel(/* mayInterruptIfRunning= */ true),</span>
               &quot;timeoutFuture should be successfully canceled&quot;);
-<span class="fc" id="L244">          return;</span>
-<span class="nc" id="L245">        } catch (IOException e) {</span>
-<span class="nc" id="L246">          logger.atWarning().withCause(e).log(</span>
+<span class="fc" id="L248">          return;</span>
+<span class="nc" id="L249">        } catch (IOException e) {</span>
+<span class="nc" id="L250">          logger.atWarning().withCause(e).log(</span>
               &quot;Failed to renew '%s' lock for %s operation, attempt #%d&quot;,
-<span class="nc" id="L248">              operationLockPath, operationId, attempt++);</span>
+<span class="nc" id="L252">              operationLockPath, operationId, attempt++);</span>
         }
-<span class="nc" id="L250">        sleepUninterruptibly(LOCK_RENEW_RETRY_BACK_OFF);</span>
-<span class="nc bnc" id="L251" title="All 2 branches missed.">      } while (timeout.compareTo(stopwatch.elapsed()) &gt; 0);</span>
-<span class="nc" id="L252">      logger.atSevere().log(</span>
+<span class="nc" id="L254">        sleepUninterruptibly(LOCK_RENEW_RETRY_BACK_OFF);</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">      } while (timeout.compareTo(stopwatch.elapsed()) &gt; 0);</span>
+<span class="nc" id="L256">      logger.atSevere().log(</span>
           &quot;Renewal of '%s' lock for %s operation timed out (timeout %s), exiting&quot;,
           operationLockPath, operationId, timeout);
-<span class="nc" id="L255">    } catch (Exception e) {</span>
-<span class="nc" id="L256">      logger.atSevere().withCause(e).log(</span>
+<span class="nc" id="L259">    } catch (Exception e) {</span>
+<span class="nc" id="L260">      logger.atSevere().withCause(e).log(</span>
           &quot;Failed to renew '%s' lock for %s operation, exiting&quot;, operationLockPath, operationId);
     } finally {
-<span class="fc" id="L259">      timeoutFuture.cancel(/* mayInterruptIfRunning= */ true);</span>
-<span class="fc" id="L260">      timeoutExecutor.shutdownNow();</span>
+<span class="fc" id="L263">      timeoutFuture.cancel(/* mayInterruptIfRunning= */ true);</span>
+<span class="fc" id="L264">      timeoutExecutor.shutdownNow();</span>
     }
-<span class="nc" id="L262">    System.exit(1);</span>
-<span class="nc" id="L263">  }</span>
+<span class="nc" id="L266">    System.exit(1);</span>
+<span class="nc" id="L267">  }</span>
 
   private void renewLock(
       String operationId, URI operationLockPath, Function&lt;String, String&gt; renewFn)
       throws IOException {
-<span class="fc" id="L268">    StorageResourceId lockId =</span>
-<span class="fc" id="L269">        pathCodec.validatePathAndGetId(operationLockPath, /* allowEmptyObjectNames =*/ false);</span>
-<span class="fc" id="L270">    GoogleCloudStorageItemInfo lockInfo = gcs.getItemInfo(lockId);</span>
-<span class="fc" id="L271">    checkState(lockInfo.exists(), &quot;lock file for %s operation should exist&quot;, operationId);</span>
+<span class="fc" id="L272">    StorageResourceId lockId =</span>
+<span class="fc" id="L273">        pathCodec.validatePathAndGetId(operationLockPath, /* allowEmptyObjectName= */ false);</span>
+<span class="fc" id="L274">    GoogleCloudStorageItemInfo lockInfo = gcs.getItemInfo(lockId);</span>
+<span class="fc" id="L275">    checkState(lockInfo.exists(), &quot;lock file for %s operation should exist&quot;, operationId);</span>
 
     String lock;
-<span class="fc" id="L274">    try (BufferedReader reader =</span>
-<span class="fc" id="L275">        new BufferedReader(Channels.newReader(gcs.open(lockId), UTF_8.name()))) {</span>
-<span class="fc" id="L276">      lock = reader.lines().collect(Collectors.joining());</span>
+<span class="fc" id="L278">    try (BufferedReader reader =</span>
+<span class="fc" id="L279">        new BufferedReader(Channels.newReader(gcs.open(lockId), UTF_8.name()))) {</span>
+<span class="fc" id="L280">      lock = reader.lines().collect(Collectors.joining());</span>
     }
 
-<span class="fc" id="L279">    lock = renewFn.apply(lock);</span>
-<span class="fc" id="L280">    CreateObjectOptions updateOptions =</span>
+<span class="fc" id="L283">    lock = renewFn.apply(lock);</span>
+<span class="fc" id="L284">    CreateObjectOptions updateOptions =</span>
         new CreateObjectOptions(
             /* overwriteExisting= */ true, DEFAULT_CONTENT_TYPE, EMPTY_METADATA);
-<span class="fc" id="L283">    StorageResourceId lockIdWithGeneration =</span>
+<span class="fc" id="L287">    StorageResourceId lockIdWithGeneration =</span>
         new StorageResourceId(
-<span class="fc" id="L285">            lockId.getBucketName(), lockId.getObjectName(), lockInfo.getContentGeneration());</span>
-<span class="fc" id="L286">    writeOperation(lockIdWithGeneration, updateOptions, ImmutableList.of(lock));</span>
-<span class="fc" id="L287">  }</span>
+<span class="fc" id="L289">            lockId.getBucketName(), lockId.getObjectName(), lockInfo.getContentGeneration());</span>
+<span class="fc" id="L290">    writeOperation(lockIdWithGeneration, updateOptions, ImmutableList.of(lock));</span>
+<span class="fc" id="L291">  }</span>
 
   private URI writeOperationFile(
       String bucket,
@@ -295,42 +299,42 @@ public class CoopLockOperationDao {
       Instant operationInstant,
       List&lt;String&gt; records)
       throws IOException {
-<span class="fc" id="L298">    String date = LOCK_FILE_DATE_TIME_FORMAT.format(operationInstant);</span>
-<span class="fc" id="L299">    String file = String.format(LOCK_DIRECTORY + fileNameFormat, date, operationType, operationId);</span>
-<span class="fc" id="L300">    URI path = pathCodec.getPath(bucket, file, /* allowEmptyObjectName= */ false);</span>
-<span class="fc" id="L301">    StorageResourceId resourceId =</span>
-<span class="fc" id="L302">        pathCodec.validatePathAndGetId(path, /* allowEmptyObjectName= */ false);</span>
-<span class="fc" id="L303">    writeOperation(resourceId, createObjectOptions, records);</span>
-<span class="fc" id="L304">    return path;</span>
+<span class="fc" id="L302">    String date = LOCK_FILE_DATE_TIME_FORMAT.format(operationInstant);</span>
+<span class="fc" id="L303">    String file = String.format(LOCK_DIRECTORY + fileNameFormat, date, operationType, operationId);</span>
+<span class="fc" id="L304">    URI path = pathCodec.getPath(bucket, file, /* allowEmptyObjectName= */ false);</span>
+<span class="fc" id="L305">    StorageResourceId resourceId =</span>
+<span class="fc" id="L306">        pathCodec.validatePathAndGetId(path, /* allowEmptyObjectName= */ false);</span>
+<span class="fc" id="L307">    writeOperation(resourceId, createObjectOptions, records);</span>
+<span class="fc" id="L308">    return path;</span>
   }
 
   private void writeOperation(
       StorageResourceId resourceId, CreateObjectOptions createObjectOptions, List&lt;String&gt; records)
       throws IOException {
-<span class="fc" id="L310">    try (WritableByteChannel channel = gcs.create(resourceId, createObjectOptions)) {</span>
-<span class="fc bfc" id="L311" title="All 2 branches covered.">      for (String record : records) {</span>
-<span class="fc" id="L312">        channel.write(ByteBuffer.wrap(record.getBytes(UTF_8)));</span>
-<span class="fc" id="L313">        channel.write(ByteBuffer.wrap(new byte[] {'\n'}));</span>
-<span class="fc" id="L314">      }</span>
+<span class="fc" id="L314">    try (WritableByteChannel channel = gcs.create(resourceId, createObjectOptions)) {</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">      for (String record : records) {</span>
+<span class="fc" id="L316">        channel.write(ByteBuffer.wrap(record.getBytes(UTF_8)));</span>
+<span class="fc" id="L317">        channel.write(ByteBuffer.wrap(new byte[] {'\n'}));</span>
+<span class="fc" id="L318">      }</span>
     }
-<span class="fc" id="L316">  }</span>
+<span class="fc" id="L320">  }</span>
 
   public &lt;T&gt; Future&lt;?&gt; scheduleLockUpdate(
       String operationId, URI operationLockPath, Class&lt;T&gt; clazz, BiConsumer&lt;T, Instant&gt; renewFn) {
-<span class="fc" id="L320">    long lockRenewalPeriodMilli = options.getLockExpirationTimeoutMilli() / 2;</span>
-<span class="fc" id="L321">    long lockRenewTimeoutMilli =</span>
-<span class="fc" id="L322">        Math.min(options.getLockExpirationTimeoutMilli() / 4, MAX_LOCK_RENEW_TIMEOUT.toMillis());</span>
-<span class="fc" id="L323">    return scheduledThreadPool.scheduleAtFixedRate(</span>
+<span class="fc" id="L324">    long lockRenewalPeriodMilli = options.getLockExpirationTimeoutMilli() / 2;</span>
+<span class="fc" id="L325">    long lockRenewTimeoutMilli =</span>
+<span class="fc" id="L326">        Math.min(options.getLockExpirationTimeoutMilli() / 4, MAX_LOCK_RENEW_TIMEOUT.toMillis());</span>
+<span class="fc" id="L327">    return scheduledThreadPool.scheduleAtFixedRate(</span>
         () -&gt;
-<span class="fc" id="L325">            renewLockOrExit(</span>
+<span class="fc" id="L329">            renewLockOrExit(</span>
                 operationId,
                 operationLockPath,
                 l -&gt; {
-<span class="fc" id="L329">                  T operation = GSON.fromJson(l, clazz);</span>
-<span class="fc" id="L330">                  renewFn.accept(operation, Instant.now());</span>
-<span class="fc" id="L331">                  return GSON.toJson(operation);</span>
+<span class="fc" id="L333">                  T operation = GSON.fromJson(l, clazz);</span>
+<span class="fc" id="L334">                  renewFn.accept(operation, Instant.now());</span>
+<span class="fc" id="L335">                  return GSON.toJson(operation);</span>
                 },
-<span class="fc" id="L333">                Duration.ofMillis(lockRenewTimeoutMilli)),</span>
+<span class="fc" id="L337">                Duration.ofMillis(lockRenewTimeoutMilli)),</span>
         /* initialDelay= */ lockRenewalPeriodMilli,
         /* period= */ lockRenewalPeriodMilli,
         TimeUnit.MILLISECONDS);

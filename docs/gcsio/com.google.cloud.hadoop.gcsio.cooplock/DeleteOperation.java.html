@@ -19,36 +19,36 @@ package com.google.cloud.hadoop.gcsio.cooplock;
 import com.google.common.base.MoreObjects;
 import java.util.Objects;
 
-<span class="fc" id="L22">public class DeleteOperation {</span>
+/** A data class that represents delete operation lock metadata. */
+<span class="fc" id="L23">public class DeleteOperation {</span>
   private long lockEpochMilli;
-<span class="fc" id="L24">  private String resource = null;</span>
+<span class="fc" id="L25">  private String resource = null;</span>
 
   public long getLockEpochMilli() {
-<span class="fc" id="L27">    return lockEpochMilli;</span>
+<span class="fc" id="L28">    return lockEpochMilli;</span>
   }
 
   public DeleteOperation setLockEpochMilli(long lockEpochMilli) {
-<span class="fc" id="L31">    this.lockEpochMilli = lockEpochMilli;</span>
-<span class="fc" id="L32">    return this;</span>
+<span class="fc" id="L32">    this.lockEpochMilli = lockEpochMilli;</span>
+<span class="fc" id="L33">    return this;</span>
   }
 
   public String getResource() {
-<span class="fc" id="L36">    return resource;</span>
+<span class="fc" id="L37">    return resource;</span>
   }
 
   public DeleteOperation setResource(String resource) {
-<span class="fc" id="L40">    this.resource = resource;</span>
-<span class="fc" id="L41">    return this;</span>
+<span class="fc" id="L41">    this.resource = resource;</span>
+<span class="fc" id="L42">    return this;</span>
   }
 
   @Override
   public boolean equals(Object obj) {
-<span class="pc bpc" id="L46" title="2 of 4 branches missed.">    return obj instanceof DeleteOperation &amp;&amp; equalsInternal((DeleteOperation) obj);</span>
+<span class="pc bpc" id="L47" title="2 of 4 branches missed.">    return obj instanceof DeleteOperation &amp;&amp; equalsInternal((DeleteOperation) obj);</span>
   }
 
   private boolean equalsInternal(DeleteOperation other) {
-<span class="pc bpc" id="L50" title="1 of 2 branches missed.">    return Objects.equals(lockEpochMilli, other.lockEpochMilli)</span>
-<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        &amp;&amp; Objects.equals(resource, other.resource);</span>
+<span class="pc bpc" id="L51" title="2 of 4 branches missed.">    return lockEpochMilli == other.lockEpochMilli &amp;&amp; Objects.equals(resource, other.resource);</span>
   }
 
   @Override

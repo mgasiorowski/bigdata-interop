@@ -20,15 +20,16 @@ import static com.google.cloud.hadoop.gcsio.GoogleCloudStorage.PATH_DELIMITER;
 
 import java.net.URI;
 
+/** Utility methods for cooperative locking. */
 public final class CoopLockUtils {
 
   private CoopLockUtils() {}
 
   public static URI normalizeLockedResource(URI resource) {
-<span class="fc bfc" id="L28" title="All 2 branches covered.">    if (resource.getPath().endsWith(PATH_DELIMITER)) {</span>
-<span class="fc" id="L29">      return resource;</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">    if (resource.getPath().endsWith(PATH_DELIMITER)) {</span>
+<span class="fc" id="L30">      return resource;</span>
     }
-<span class="fc" id="L31">    return URI.create(resource + PATH_DELIMITER);</span>
+<span class="fc" id="L32">    return URI.create(resource + PATH_DELIMITER);</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

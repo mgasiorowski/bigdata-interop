@@ -255,13 +255,13 @@ import org.apache.hadoop.util.ReflectionUtils;
   /**
    * Gets the output dataset project id based on the given configuration.
    *
-   * If the {@link BigQueryConfiguration#OUTPUT_PROJECT_ID_KEY} is missing, this
-   * resolves to referencing the {@link BigQueryConfiguration#PROJECT_ID_KEY} key.
+   * &lt;p&gt;If the {@link BigQueryConfiguration#OUTPUT_PROJECT_ID_KEY} is missing, this resolves to
+   * referencing the {@link BigQueryConfiguration#PROJECT_ID_KEY} key.
    *
-   * The load job can be configured with two project identifiers. Configuration key
-   * {@link BigQueryConfiguration#PROJECT_ID_KEY} can set the project on whose behalf
-   * to perform BigQuery load operation, while {@link BigQueryConfiguration#OUTPUT_PROJECT_ID_KEY}
-   * can be used to name the project that the target dataset belongs to.
+   * &lt;p&gt;The load job can be configured with two project identifiers. Configuration key {@link
+   * BigQueryConfiguration#PROJECT_ID_KEY} can set the project on whose behalf to perform BigQuery
+   * load operation, while {@link BigQueryConfiguration#OUTPUT_PROJECT_ID_KEY} can be used to name
+   * the project that the target dataset belongs to.
    *
    * @param conf the configuration to reference the keys from.
    * @return the project id based on the given configuration.
@@ -275,8 +275,8 @@ import org.apache.hadoop.util.ReflectionUtils;
     }
 <span class="fc bfc" id="L276" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(projectId)) {</span>
 <span class="fc" id="L277">      throw new IOException(</span>
-              &quot;Must supply a value for configuration setting: &quot;
-                      + BigQueryConfiguration.OUTPUT_PROJECT_ID_KEY);
+          &quot;Must supply a value for configuration setting: &quot;
+              + BigQueryConfiguration.OUTPUT_PROJECT_ID_KEY);
     }
 <span class="fc" id="L281">    return projectId;</span>
   }
@@ -284,13 +284,13 @@ import org.apache.hadoop.util.ReflectionUtils;
   /**
    * Gets the project id to be used to run BQ load job based on the given configuration.
    *
-   * If the {@link BigQueryConfiguration#PROJECT_ID_KEY} is missing, this resolves to
-   * referencing the {@link BigQueryConfiguration#OUTPUT_PROJECT_ID_KEY} key.
+   * &lt;p&gt;If the {@link BigQueryConfiguration#PROJECT_ID_KEY} is missing, this resolves to referencing
+   * the {@link BigQueryConfiguration#OUTPUT_PROJECT_ID_KEY} key.
    *
-   * The load job can be configured with two project identifiers. Configuration key
-   * {@link BigQueryConfiguration#PROJECT_ID_KEY} can set the project on whose behalf
-   * to perform BigQuery load operation, while {@link BigQueryConfiguration#OUTPUT_PROJECT_ID_KEY}
-   * can be used to name the project that the target dataset belongs to.
+   * &lt;p&gt;The load job can be configured with two project identifiers. Configuration key {@link
+   * BigQueryConfiguration#PROJECT_ID_KEY} can set the project on whose behalf to perform BigQuery
+   * load operation, while {@link BigQueryConfiguration#OUTPUT_PROJECT_ID_KEY} can be used to name
+   * the project that the target dataset belongs to.
    *
    * @param conf the configuration to reference the keys from.
    * @return the project id based on the given configuration.
@@ -304,10 +304,9 @@ import org.apache.hadoop.util.ReflectionUtils;
     }
 <span class="fc bfc" id="L305" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(projectId)) {</span>
 <span class="fc" id="L306">      throw new IOException(</span>
-          &quot;Must supply a value for configuration setting: &quot;
-              + BigQueryConfiguration.PROJECT_ID_KEY);
+          &quot;Must supply a value for configuration setting: &quot; + BigQueryConfiguration.PROJECT_ID_KEY);
     }
-<span class="fc" id="L310">    return projectId;</span>
+<span class="fc" id="L309">    return projectId;</span>
   }
 
   /**
@@ -321,13 +320,13 @@ import org.apache.hadoop.util.ReflectionUtils;
    */
   static TableReference getTableReference(Configuration conf) throws IOException {
     // Ensure the BigQuery output information is valid.
-<span class="fc" id="L324">    String projectId = getProjectId(conf);</span>
-<span class="fc" id="L325">    String datasetId =</span>
-<span class="fc" id="L326">        ConfigurationUtil.getMandatoryConfig(conf, BigQueryConfiguration.OUTPUT_DATASET_ID_KEY);</span>
-<span class="fc" id="L327">    String tableId =</span>
-<span class="fc" id="L328">        ConfigurationUtil.getMandatoryConfig(conf, BigQueryConfiguration.OUTPUT_TABLE_ID_KEY);</span>
+<span class="fc" id="L323">    String projectId = getProjectId(conf);</span>
+<span class="fc" id="L324">    String datasetId =</span>
+<span class="fc" id="L325">        ConfigurationUtil.getMandatoryConfig(conf, BigQueryConfiguration.OUTPUT_DATASET_ID_KEY);</span>
+<span class="fc" id="L326">    String tableId =</span>
+<span class="fc" id="L327">        ConfigurationUtil.getMandatoryConfig(conf, BigQueryConfiguration.OUTPUT_TABLE_ID_KEY);</span>
 
-<span class="fc" id="L330">    return new TableReference().setProjectId(projectId).setDatasetId(datasetId).setTableId(tableId);</span>
+<span class="fc" id="L329">    return new TableReference().setProjectId(projectId).setDatasetId(datasetId).setTableId(tableId);</span>
   }
 
   /**
@@ -338,17 +337,17 @@ import org.apache.hadoop.util.ReflectionUtils;
    * @throws IOException if a table schema was set in the configuration but couldn't be parsed.
    */
   static Optional&lt;BigQueryTableSchema&gt; getTableSchema(Configuration conf) throws IOException {
-<span class="fc" id="L341">    String fieldsJson = conf.get(BigQueryConfiguration.OUTPUT_TABLE_SCHEMA_KEY);</span>
-<span class="fc bfc" id="L342" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(fieldsJson)) {</span>
+<span class="fc" id="L340">    String fieldsJson = conf.get(BigQueryConfiguration.OUTPUT_TABLE_SCHEMA_KEY);</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(fieldsJson)) {</span>
       try {
-<span class="fc" id="L344">        TableSchema tableSchema = BigQueryTableHelper.createTableSchemaFromFields(fieldsJson);</span>
-<span class="fc" id="L345">        return Optional.of(BigQueryTableSchema.wrap(tableSchema));</span>
-<span class="fc" id="L346">      } catch (IOException e) {</span>
-<span class="fc" id="L347">        throw new IOException(</span>
+<span class="fc" id="L343">        TableSchema tableSchema = BigQueryTableHelper.createTableSchemaFromFields(fieldsJson);</span>
+<span class="fc" id="L344">        return Optional.of(BigQueryTableSchema.wrap(tableSchema));</span>
+<span class="fc" id="L345">      } catch (IOException e) {</span>
+<span class="fc" id="L346">        throw new IOException(</span>
             &quot;Unable to parse key '&quot; + BigQueryConfiguration.OUTPUT_TABLE_SCHEMA_KEY + &quot;'.&quot;, e);
       }
     }
-<span class="fc" id="L351">    return Optional.empty();</span>
+<span class="fc" id="L350">    return Optional.empty();</span>
   }
 
   /**
@@ -362,18 +361,18 @@ import org.apache.hadoop.util.ReflectionUtils;
    */
   static Optional&lt;BigQueryTimePartitioning&gt; getTablePartitioning(Configuration conf)
       throws IOException {
-<span class="fc" id="L365">    String fieldsJson = conf.get(BigQueryConfiguration.OUTPUT_TABLE_PARTITIONING_KEY);</span>
-<span class="pc bpc" id="L366" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(fieldsJson)) {</span>
+<span class="fc" id="L364">    String fieldsJson = conf.get(BigQueryConfiguration.OUTPUT_TABLE_PARTITIONING_KEY);</span>
+<span class="pc bpc" id="L365" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(fieldsJson)) {</span>
       try {
-<span class="fc" id="L368">        TimePartitioning tablePartitioning = BigQueryTimePartitioning.getFromJson(fieldsJson);</span>
-<span class="fc" id="L369">        return Optional.of(BigQueryTimePartitioning.wrap(tablePartitioning));</span>
-<span class="nc" id="L370">      } catch (IOException e) {</span>
-<span class="nc" id="L371">        throw new IOException(</span>
+<span class="fc" id="L367">        TimePartitioning tablePartitioning = BigQueryTimePartitioning.getFromJson(fieldsJson);</span>
+<span class="fc" id="L368">        return Optional.of(BigQueryTimePartitioning.wrap(tablePartitioning));</span>
+<span class="nc" id="L369">      } catch (IOException e) {</span>
+<span class="nc" id="L370">        throw new IOException(</span>
             &quot;Unable to parse key '&quot; + BigQueryConfiguration.OUTPUT_TABLE_PARTITIONING_KEY + &quot;'.&quot;,
             e);
       }
     }
-<span class="nc" id="L376">    return Optional.empty();</span>
+<span class="nc" id="L375">    return Optional.empty();</span>
   }
 
   /**
@@ -384,7 +383,7 @@ import org.apache.hadoop.util.ReflectionUtils;
    *     configuration.
    */
   public static String getKmsKeyName(Configuration conf) throws IOException {
-<span class="fc" id="L387">    return conf.get(BigQueryConfiguration.OUTPUT_TABLE_KMS_KEY_NAME_KEY);</span>
+<span class="fc" id="L386">    return conf.get(BigQueryConfiguration.OUTPUT_TABLE_KMS_KEY_NAME_KEY);</span>
   }
 
   /**
@@ -396,10 +395,10 @@ import org.apache.hadoop.util.ReflectionUtils;
    */
   public static BigQueryFileFormat getFileFormat(Configuration conf) throws IOException {
     // Ensure the BigQuery output information is valid.
-<span class="fc" id="L399">    String fileFormatName =</span>
-<span class="fc" id="L400">        ConfigurationUtil.getMandatoryConfig(conf, BigQueryConfiguration.OUTPUT_FILE_FORMAT_KEY);</span>
+<span class="fc" id="L398">    String fileFormatName =</span>
+<span class="fc" id="L399">        ConfigurationUtil.getMandatoryConfig(conf, BigQueryConfiguration.OUTPUT_FILE_FORMAT_KEY);</span>
 
-<span class="fc" id="L402">    return BigQueryFileFormat.fromName(fileFormatName);</span>
+<span class="fc" id="L401">    return BigQueryFileFormat.fromName(fileFormatName);</span>
   }
 
   /**
@@ -413,25 +412,25 @@ import org.apache.hadoop.util.ReflectionUtils;
   @SuppressWarnings(&quot;rawtypes&quot;)
   public static FileOutputFormat getFileOutputFormat(Configuration conf) throws IOException {
     // Ensure the BigQuery output information is valid.
-<span class="fc" id="L416">    ConfigurationUtil.getMandatoryConfig(conf, BigQueryConfiguration.OUTPUT_FORMAT_CLASS_KEY);</span>
+<span class="fc" id="L415">    ConfigurationUtil.getMandatoryConfig(conf, BigQueryConfiguration.OUTPUT_FORMAT_CLASS_KEY);</span>
 
-<span class="fc" id="L418">    Class&lt;?&gt; confClass = conf.getClass(BigQueryConfiguration.OUTPUT_FORMAT_CLASS_KEY, null);</span>
+<span class="fc" id="L417">    Class&lt;?&gt; confClass = conf.getClass(BigQueryConfiguration.OUTPUT_FORMAT_CLASS_KEY, null);</span>
 
     // Fail if the default value was used, or the class isn't a FileOutputFormat.
-<span class="pc bpc" id="L421" title="1 of 2 branches missed.">    if (confClass == null) {</span>
-<span class="nc" id="L422">      throw new IOException(</span>
+<span class="pc bpc" id="L420" title="1 of 2 branches missed.">    if (confClass == null) {</span>
+<span class="nc" id="L421">      throw new IOException(</span>
           &quot;Unable to resolve value for the configuration key '&quot;
               + BigQueryConfiguration.OUTPUT_FORMAT_CLASS_KEY
               + &quot;'.&quot;);
-<span class="pc bpc" id="L426" title="1 of 2 branches missed.">    } else if (!FileOutputFormat.class.isAssignableFrom(confClass)) {</span>
-<span class="nc" id="L427">      throw new IOException(&quot;The class &quot; + confClass.getName() + &quot; is not a FileOutputFormat.&quot;);</span>
+<span class="pc bpc" id="L425" title="1 of 2 branches missed.">    } else if (!FileOutputFormat.class.isAssignableFrom(confClass)) {</span>
+<span class="nc" id="L426">      throw new IOException(&quot;The class &quot; + confClass.getName() + &quot; is not a FileOutputFormat.&quot;);</span>
     }
 
-<span class="fc" id="L430">    Class&lt;? extends FileOutputFormat&gt; fileOutputClass =</span>
-<span class="fc" id="L431">        confClass.asSubclass(FileOutputFormat.class);</span>
+<span class="fc" id="L429">    Class&lt;? extends FileOutputFormat&gt; fileOutputClass =</span>
+<span class="fc" id="L430">        confClass.asSubclass(FileOutputFormat.class);</span>
 
     // Create a new instance and configure it if it's configurable.
-<span class="fc" id="L434">    return ReflectionUtils.newInstance(fileOutputClass, conf);</span>
+<span class="fc" id="L433">    return ReflectionUtils.newInstance(fileOutputClass, conf);</span>
   }
 
   /**
@@ -443,21 +442,21 @@ import org.apache.hadoop.util.ReflectionUtils;
    *     file system isn't GCS.
    */
   public static Path getGcsOutputPath(Configuration conf) throws IOException {
-<span class="fc" id="L446">    Job tempJob = new JobConfigurationAdapter(conf);</span>
+<span class="fc" id="L445">    Job tempJob = new JobConfigurationAdapter(conf);</span>
 
     // Error if the output path is missing.
-<span class="fc" id="L449">    Path outputPath = FileOutputFormat.getOutputPath(tempJob);</span>
-<span class="fc bfc" id="L450" title="All 2 branches covered.">    if (outputPath == null) {</span>
-<span class="fc" id="L451">      throw new IOException(&quot;FileOutputFormat output path not set.&quot;);</span>
+<span class="fc" id="L448">    Path outputPath = FileOutputFormat.getOutputPath(tempJob);</span>
+<span class="fc bfc" id="L449" title="All 2 branches covered.">    if (outputPath == null) {</span>
+<span class="fc" id="L450">      throw new IOException(&quot;FileOutputFormat output path not set.&quot;);</span>
     }
 
     // Error if the output file system isn't GCS.
-<span class="fc" id="L455">    FileSystem fs = outputPath.getFileSystem(conf);</span>
-<span class="pc bpc" id="L456" title="1 of 2 branches missed.">    if (!&quot;gs&quot;.equals(fs.getScheme())) {</span>
-<span class="nc" id="L457">      throw new IOException(&quot;Output FileSystem must be GCS ('gs' scheme).&quot;);</span>
+<span class="fc" id="L454">    FileSystem fs = outputPath.getFileSystem(conf);</span>
+<span class="pc bpc" id="L455" title="1 of 2 branches missed.">    if (!&quot;gs&quot;.equals(fs.getScheme())) {</span>
+<span class="nc" id="L456">      throw new IOException(&quot;Output FileSystem must be GCS ('gs' scheme).&quot;);</span>
     }
 
-<span class="fc" id="L460">    return outputPath;</span>
+<span class="fc" id="L459">    return outputPath;</span>
   }
 
   /**
@@ -469,7 +468,7 @@ import org.apache.hadoop.util.ReflectionUtils;
    * @return the write disposition of the output table.
    */
   public static String getWriteDisposition(Configuration conf) {
-<span class="fc" id="L472">    return conf.get(</span>
+<span class="fc" id="L471">    return conf.get(</span>
         BigQueryConfiguration.OUTPUT_TABLE_WRITE_DISPOSITION_KEY,
         BigQueryConfiguration.OUTPUT_TABLE_WRITE_DISPOSITION_DEFAULT);
   }
@@ -484,9 +483,9 @@ import org.apache.hadoop.util.ReflectionUtils;
   @VisibleForTesting
   static void setFileOutputFormatOutputPath(Configuration conf, String outputPath)
       throws IOException {
-<span class="fc" id="L487">    Job tempJob = new JobConfigurationAdapter(conf);</span>
-<span class="fc" id="L488">    FileOutputFormat.setOutputPath(tempJob, new Path(outputPath));</span>
-<span class="fc" id="L489">  }</span>
+<span class="fc" id="L486">    Job tempJob = new JobConfigurationAdapter(conf);</span>
+<span class="fc" id="L487">    FileOutputFormat.setOutputPath(tempJob, new Path(outputPath));</span>
+<span class="fc" id="L488">  }</span>
 
   /**
    * This class provides a workaround for setting FileOutputFormat's output path. Creating a job
@@ -500,13 +499,13 @@ import org.apache.hadoop.util.ReflectionUtils;
     private final Configuration config;
 
     public JobConfigurationAdapter(Configuration config) throws IOException {
-<span class="fc" id="L503">      super();</span>
-<span class="fc" id="L504">      this.config = config;</span>
-<span class="fc" id="L505">    }</span>
+<span class="fc" id="L502">      super();</span>
+<span class="fc" id="L503">      this.config = config;</span>
+<span class="fc" id="L504">    }</span>
 
     @Override
     public Configuration getConfiguration() {
-<span class="fc" id="L509">      return config;</span>
+<span class="fc" id="L508">      return config;</span>
     }
   }
 }

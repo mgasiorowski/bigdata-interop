@@ -22,7 +22,6 @@ import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystem;
 import com.google.common.collect.ImmutableSet;
 import java.net.URI;
 import java.util.Arrays;
-import java.util.Set;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.util.Tool;
@@ -37,56 +36,55 @@ import org.apache.hadoop.util.ToolRunner;
  *       com.google.cloud.hadoop.fs.gcs.CoopLockFsck --rollForward gs://my-bucket
  * &lt;/code&gt;
  */
-<span class="fc" id="L40">public class CoopLockFsck extends Configured implements Tool {</span>
+<span class="fc" id="L39">public class CoopLockFsck extends Configured implements Tool {</span>
 
   static final String COMMAND_CHECK = &quot;--check&quot;;
   static final String COMMAND_ROLL_FORWARD = &quot;--rollForward&quot;;
   static final String COMMAND_ROLL_BACK = &quot;--rollBack&quot;;
 
-<span class="fc" id="L46">  private static final Set&lt;String&gt; FSCK_COMMANDS =</span>
-<span class="fc" id="L47">      ImmutableSet.of(COMMAND_CHECK, COMMAND_ROLL_FORWARD, COMMAND_ROLL_BACK);</span>
+<span class="fc" id="L45">  private static final ImmutableSet&lt;String&gt; FSCK_COMMANDS =</span>
+<span class="fc" id="L46">      ImmutableSet.of(COMMAND_CHECK, COMMAND_ROLL_FORWARD, COMMAND_ROLL_BACK);</span>
 
   public static void main(String[] args) throws Exception {
-<span class="fc bfc" id="L50" title="All 4 branches covered.">    if (args.length == 1 &amp;&amp; &quot;--help&quot;.equals(args[0])) {</span>
-<span class="fc" id="L51">      System.out.println(</span>
+<span class="fc bfc" id="L49" title="All 4 branches covered.">    if (args.length == 1 &amp;&amp; &quot;--help&quot;.equals(args[0])) {</span>
+<span class="fc" id="L50">      System.out.println(</span>
           &quot;FSCK tool to recover failed directory mutations guarded by&quot;
               + &quot; GCS Connector Cooperative Locking feature.&quot;
               + &quot;\n\nUsage:&quot;
-<span class="fc" id="L55">              + String.format(</span>
+<span class="fc" id="L54">              + String.format(</span>
                   &quot;\n\thadoop jar /usr/lib/hadoop/lib/gcs-connector.jar %s &lt;COMMAND&gt; gs://&lt;BUCKET&gt;&quot;,
-<span class="fc" id="L57">                  CoopLockFsck.class.getCanonicalName())</span>
+<span class="fc" id="L56">                  CoopLockFsck.class.getCanonicalName())</span>
               + &quot;\n\nSupported commands:&quot;
-<span class="fc" id="L59">              + String.format(&quot;\n\t%s - prints out failed operation for the bucket&quot;, COMMAND_CHECK)</span>
-<span class="fc" id="L60">              + String.format(</span>
+<span class="fc" id="L58">              + String.format(&quot;\n\t%s - prints out failed operation for the bucket&quot;, COMMAND_CHECK)</span>
+<span class="fc" id="L59">              + String.format(</span>
                   &quot;\n\t%s - recover directory operations in the bucket by rolling them forward&quot;,
                   COMMAND_ROLL_FORWARD)
-<span class="fc" id="L63">              + String.format(</span>
+<span class="fc" id="L62">              + String.format(</span>
                   &quot;\n\t%s - recover directory operations in the bucket by rolling them back&quot;,
                   COMMAND_ROLL_BACK));
-<span class="fc" id="L66">      return;</span>
+<span class="fc" id="L65">      return;</span>
     }
 
     // Let ToolRunner handle generic command-line options
-<span class="nc" id="L70">    int result = ToolRunner.run(new Configuration(), new CoopLockFsck(), args);</span>
+<span class="nc" id="L69">    int result = ToolRunner.run(new Configuration(), new CoopLockFsck(), args);</span>
 
-<span class="nc" id="L72">    System.exit(result);</span>
-<span class="nc" id="L73">  }</span>
+<span class="nc" id="L71">    System.exit(result);</span>
+<span class="nc" id="L72">  }</span>
 
   @Override
   public int run(String[] args) throws Exception {
-<span class="fc bfc" id="L77" title="All 2 branches covered.">    checkArgument(</span>
-<span class="fc" id="L78">        args.length == 2, &quot;2 arguments should be specified, but were: %s&quot;, Arrays.asList(args));</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">    checkArgument(</span>
+<span class="fc" id="L77">        args.length == 2, &quot;2 arguments should be specified, but were: %s&quot;, Arrays.asList(args));</span>
 
-<span class="fc" id="L80">    String command = args[0];</span>
-<span class="fc" id="L81">    checkArgument(FSCK_COMMANDS.contains(command), &quot;Unknown %s command, should be %s&quot;, command);</span>
+<span class="fc" id="L79">    String command = args[0];</span>
+<span class="fc" id="L80">    checkArgument(FSCK_COMMANDS.contains(command), &quot;Unknown %s command, should be %s&quot;, command);</span>
 
-<span class="fc" id="L83">    String bucket = args[1];</span>
-<span class="fc" id="L84">    checkArgument(</span>
-<span class="fc" id="L85">        bucket.startsWith(GoogleCloudStorageFileSystem.SCHEME + &quot;://&quot;),</span>
+<span class="fc" id="L82">    String bucket = args[1];</span>
+<span class="fc" id="L83">    checkArgument(</span>
+<span class="fc" id="L84">        bucket.startsWith(GoogleCloudStorageFileSystem.SCHEME + &quot;://&quot;),</span>
         &quot;bucket parameter should have 'gs://' scheme&quot;);
 
-<span class="fc" id="L88">    return new CoopLockFsckRunner(getConf(), URI.create(bucket), command).run();</span>
+<span class="fc" id="L87">    return new CoopLockFsckRunner(getConf(), URI.create(bucket), command).run();</span>
   }
 }
-
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

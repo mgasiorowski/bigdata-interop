@@ -170,7 +170,7 @@ public class BatchHelper {
     }
 <span class="fc" id="L171">  }</span>
 
-  private &lt;T&gt; void execute(StorageRequest&lt;T&gt; req, JsonBatchCallback&lt;T&gt; callback)
+  private static &lt;T&gt; void execute(StorageRequest&lt;T&gt; req, JsonBatchCallback&lt;T&gt; callback)
       throws IOException {
     try {
 <span class="fc" id="L176">      T result = req.execute();</span>
