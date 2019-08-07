@@ -479,17 +479,26 @@ import org.apache.hadoop.fs.permission.FsPermission;
 <span class="fc" id="L479">              &quot;fs.gs.inputstream.fast.fail.on.not.found.enable&quot;, true);</span>
 
   /**
+   * If true, reading a file with GZIP content encoding (HTTP header &quot;Content-Encoding: gzip&quot;) will
+   * result in failure (IOException is thrown).
+   */
+  public static final GoogleHadoopFileSystemConfigurationProperty&lt;Boolean&gt;
+<span class="fc" id="L486">      GCS_INPUT_STREAM_SUPPORT_GZIP_ENCODING_ENABLE =</span>
+          new GoogleHadoopFileSystemConfigurationProperty&lt;&gt;(
+<span class="fc" id="L488">              &quot;fs.gs.inputstream.support.gzip.encoding.enable&quot;, false);</span>
+
+  /**
    * If forward seeks are within this many bytes of the current position, seeks are performed by
    * reading and discarding bytes in-place rather than opening a new underlying stream.
    */
   public static final GoogleHadoopFileSystemConfigurationProperty&lt;Long&gt;
-<span class="fc" id="L486">      GCS_INPUT_STREAM_INPLACE_SEEK_LIMIT =</span>
+<span class="fc" id="L495">      GCS_INPUT_STREAM_INPLACE_SEEK_LIMIT =</span>
           new GoogleHadoopFileSystemConfigurationProperty&lt;&gt;(
-<span class="fc" id="L488">              &quot;fs.gs.inputstream.inplace.seek.limit&quot;, 8 * 1024 * 1024L);</span>
+<span class="fc" id="L497">              &quot;fs.gs.inputstream.inplace.seek.limit&quot;, 8 * 1024 * 1024L);</span>
 
   /** Tunes reading objects behavior to optimize HTTP GET requests for various use cases. */
   public static final GoogleHadoopFileSystemConfigurationProperty&lt;Fadvise&gt;
-<span class="fc" id="L492">      GCS_INPUT_STREAM_FADVISE =</span>
+<span class="fc" id="L501">      GCS_INPUT_STREAM_FADVISE =</span>
           new GoogleHadoopFileSystemConfigurationProperty&lt;&gt;(
               &quot;fs.gs.inputstream.fadvise&quot;, Fadvise.AUTO);
 
@@ -498,13 +507,13 @@ import org.apache.hadoop.fs.permission.FsPermission;
    * read an object.
    */
   public static final GoogleHadoopFileSystemConfigurationProperty&lt;Integer&gt;
-<span class="fc" id="L501">      GCS_INPUT_STREAM_MIN_RANGE_REQUEST_SIZE =</span>
+<span class="fc" id="L510">      GCS_INPUT_STREAM_MIN_RANGE_REQUEST_SIZE =</span>
           new GoogleHadoopFileSystemConfigurationProperty&lt;&gt;(
               &quot;fs.gs.inputstream.min.range.request.size&quot;,
-<span class="fc" id="L504">              GoogleCloudStorageReadOptions.DEFAULT_MIN_RANGE_REQUEST_SIZE);</span>
+<span class="fc" id="L513">              GoogleCloudStorageReadOptions.DEFAULT_MIN_RANGE_REQUEST_SIZE);</span>
 
   /** Override configuration file path. This file must be a valid Hadoop configuration file. */
-<span class="fc" id="L507">  public static final GoogleHadoopFileSystemConfigurationProperty&lt;String&gt; GCS_CONFIG_OVERRIDE_FILE =</span>
+<span class="fc" id="L516">  public static final GoogleHadoopFileSystemConfigurationProperty&lt;String&gt; GCS_CONFIG_OVERRIDE_FILE =</span>
       new GoogleHadoopFileSystemConfigurationProperty&lt;&gt;(&quot;fs.gs.config.override.file&quot;, null);
 
   /**
@@ -512,129 +521,131 @@ import org.apache.hadoop.fs.permission.FsPermission;
    * isolation.
    */
   public static final GoogleHadoopFileSystemConfigurationProperty&lt;Boolean&gt;
-<span class="fc" id="L515">      GCS_COOPERATIVE_LOCKING_ENABLE =</span>
+<span class="fc" id="L524">      GCS_COOPERATIVE_LOCKING_ENABLE =</span>
           new GoogleHadoopFileSystemConfigurationProperty&lt;&gt;(
-<span class="fc" id="L517">              &quot;fs.gs.cooperative.locking.enable&quot;, false);</span>
+<span class="fc" id="L526">              &quot;fs.gs.cooperative.locking.enable&quot;, false);</span>
 
   /** Configuration key for lock expiration when using cooperative locking. */
   public static final GoogleHadoopFileSystemConfigurationProperty&lt;Long&gt;
-<span class="fc" id="L521">      GCS_COOPERATIVE_LOCKING_EXPIRATION_TIMEOUT_MS =</span>
+<span class="fc" id="L530">      GCS_COOPERATIVE_LOCKING_EXPIRATION_TIMEOUT_MS =</span>
           new GoogleHadoopFileSystemConfigurationProperty&lt;&gt;(
               &quot;fs.gs.cooperative.locking.expiration.timeout.ms&quot;,
-<span class="fc" id="L524">              CooperativeLockingOptions.LOCK_EXPIRATION_TIMEOUT_MS_DEFAULT);</span>
+<span class="fc" id="L533">              CooperativeLockingOptions.LOCK_EXPIRATION_TIMEOUT_MS_DEFAULT);</span>
 
   /** Configuration key for maximum allowed concurrent operations when using cooperative locking. */
   public static final GoogleHadoopFileSystemConfigurationProperty&lt;Integer&gt;
-<span class="fc" id="L528">      GCS_COOPERATIVE_LOCKING_MAX_CONCURRENT_OPERATIONS =</span>
+<span class="fc" id="L537">      GCS_COOPERATIVE_LOCKING_MAX_CONCURRENT_OPERATIONS =</span>
           new GoogleHadoopFileSystemConfigurationProperty&lt;&gt;(
               &quot;fs.gs.cooperative.locking.max.concurrent.operations&quot;,
-<span class="fc" id="L531">              CooperativeLockingOptions.MAX_CONCURRENT_OPERATIONS_DEFAULT);</span>
+<span class="fc" id="L540">              CooperativeLockingOptions.MAX_CONCURRENT_OPERATIONS_DEFAULT);</span>
 
   // TODO(b/120887495): This @VisibleForTesting annotation was being ignored by prod code.
   // Please check that removing it is correct, and remove this comment along with it.
   // @VisibleForTesting
   static GoogleCloudStorageFileSystemOptions.Builder getGcsFsOptionsBuilder(Configuration config) {
-<span class="fc" id="L537">    return GoogleCloudStorageFileSystemOptions.builder()</span>
-<span class="fc" id="L538">        .setBucketDeleteEnabled(GCE_BUCKET_DELETE_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L539">        .setShouldIncludeInTimestampUpdatesPredicate(</span>
-<span class="fc" id="L540">            ParentTimestampUpdateIncludePredicate.create(config))</span>
-<span class="fc" id="L541">        .setMarkerFilePattern(GCS_MARKER_FILE_PATTERN.get(config, config::get))</span>
-<span class="fc" id="L542">        .setPerformanceCacheEnabled(GCS_PERFORMANCE_CACHE_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L543">        .setCooperativeLockingEnabled(</span>
-<span class="fc" id="L544">            GCS_COOPERATIVE_LOCKING_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L545">        .setPerformanceCacheOptions(getPerformanceCachingOptions(config))</span>
-<span class="fc" id="L546">        .setStatusParallelEnabled(GCS_STATUS_PARALLEL_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L547">        .setCloudStorageOptions(getGcsOptionsBuilder(config).build());</span>
+<span class="fc" id="L546">    return GoogleCloudStorageFileSystemOptions.builder()</span>
+<span class="fc" id="L547">        .setBucketDeleteEnabled(GCE_BUCKET_DELETE_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L548">        .setShouldIncludeInTimestampUpdatesPredicate(</span>
+<span class="fc" id="L549">            ParentTimestampUpdateIncludePredicate.create(config))</span>
+<span class="fc" id="L550">        .setMarkerFilePattern(GCS_MARKER_FILE_PATTERN.get(config, config::get))</span>
+<span class="fc" id="L551">        .setPerformanceCacheEnabled(GCS_PERFORMANCE_CACHE_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L552">        .setCooperativeLockingEnabled(</span>
+<span class="fc" id="L553">            GCS_COOPERATIVE_LOCKING_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L554">        .setPerformanceCacheOptions(getPerformanceCachingOptions(config))</span>
+<span class="fc" id="L555">        .setStatusParallelEnabled(GCS_STATUS_PARALLEL_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L556">        .setCloudStorageOptions(getGcsOptionsBuilder(config).build());</span>
   }
 
   @VisibleForTesting
   static GoogleCloudStorageOptions.Builder getGcsOptionsBuilder(Configuration config) {
-<span class="fc" id="L552">    String projectId = GCS_PROJECT_ID.get(config, config::get);</span>
-<span class="fc" id="L553">    return GoogleCloudStorageOptions.builder()</span>
-<span class="fc" id="L554">        .setAutoRepairImplicitDirectoriesEnabled(</span>
-<span class="fc" id="L555">            GCS_REPAIR_IMPLICIT_DIRECTORIES_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L556">        .setInferImplicitDirectoriesEnabled(</span>
-<span class="fc" id="L557">            GCS_INFER_IMPLICIT_DIRECTORIES_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L558">        .setCopyWithRewriteEnabled(GCS_COPY_WITH_REWRITE_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L559">        .setMaxBytesRewrittenPerCall(GCS_REWRITE_MAX_BYTES_PER_CALL.get(config, config::getLong))</span>
-<span class="fc" id="L560">        .setCopyMaxRequestsPerBatch(GCS_COPY_MAX_REQUESTS_PER_BATCH.get(config, config::getLong))</span>
-<span class="fc" id="L561">        .setCopyBatchThreads(GCS_COPY_BATCH_THREADS.get(config, config::getInt))</span>
-<span class="fc" id="L562">        .setTransportType(GCS_HTTP_TRANSPORT.get(config, config::getEnum))</span>
-<span class="fc" id="L563">        .setProxyAddress(GCS_PROXY_ADDRESS.get(config, config::get))</span>
-<span class="fc" id="L564">        .setProxyUsername(GCS_PROXY_USERNAME.getPassword(config))</span>
-<span class="fc" id="L565">        .setProxyPassword(GCS_PROXY_PASSWORD.getPassword(config))</span>
-<span class="fc" id="L566">        .setProjectId(projectId)</span>
-<span class="fc" id="L567">        .setMaxListItemsPerCall(GCS_MAX_LIST_ITEMS_PER_CALL.get(config, config::getLong))</span>
-<span class="fc" id="L568">        .setMaxRequestsPerBatch(GCS_MAX_REQUESTS_PER_BATCH.get(config, config::getLong))</span>
-<span class="fc" id="L569">        .setBatchThreads(GCS_BATCH_THREADS.get(config, config::getInt))</span>
-<span class="fc" id="L570">        .setMaxHttpRequestRetries(GCS_HTTP_MAX_RETRY.get(config, config::getInt))</span>
-<span class="fc" id="L571">        .setHttpRequestConnectTimeout(GCS_HTTP_CONNECT_TIMEOUT.get(config, config::getInt))</span>
-<span class="fc" id="L572">        .setHttpRequestReadTimeout(GCS_HTTP_READ_TIMEOUT.get(config, config::getInt))</span>
-<span class="fc" id="L573">        .setAppName(getApplicationName(config))</span>
-<span class="fc" id="L574">        .setMaxWaitMillisForEmptyObjectCreation(</span>
-<span class="fc" id="L575">            GCS_MAX_WAIT_MILLIS_EMPTY_OBJECT_CREATE.get(config, config::getInt))</span>
-<span class="fc" id="L576">        .setReadChannelOptions(getReadChannelOptions(config))</span>
-<span class="fc" id="L577">        .setWriteChannelOptions(getWriteChannelOptions(config))</span>
-<span class="fc" id="L578">        .setRequesterPaysOptions(getRequesterPaysOptions(config, projectId))</span>
-<span class="fc" id="L579">        .setCooperativeLockingOptions(getCooperativeLockingOptions(config));</span>
+<span class="fc" id="L561">    String projectId = GCS_PROJECT_ID.get(config, config::get);</span>
+<span class="fc" id="L562">    return GoogleCloudStorageOptions.builder()</span>
+<span class="fc" id="L563">        .setAutoRepairImplicitDirectoriesEnabled(</span>
+<span class="fc" id="L564">            GCS_REPAIR_IMPLICIT_DIRECTORIES_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L565">        .setInferImplicitDirectoriesEnabled(</span>
+<span class="fc" id="L566">            GCS_INFER_IMPLICIT_DIRECTORIES_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L567">        .setCopyWithRewriteEnabled(GCS_COPY_WITH_REWRITE_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L568">        .setMaxBytesRewrittenPerCall(GCS_REWRITE_MAX_BYTES_PER_CALL.get(config, config::getLong))</span>
+<span class="fc" id="L569">        .setCopyMaxRequestsPerBatch(GCS_COPY_MAX_REQUESTS_PER_BATCH.get(config, config::getLong))</span>
+<span class="fc" id="L570">        .setCopyBatchThreads(GCS_COPY_BATCH_THREADS.get(config, config::getInt))</span>
+<span class="fc" id="L571">        .setTransportType(GCS_HTTP_TRANSPORT.get(config, config::getEnum))</span>
+<span class="fc" id="L572">        .setProxyAddress(GCS_PROXY_ADDRESS.get(config, config::get))</span>
+<span class="fc" id="L573">        .setProxyUsername(GCS_PROXY_USERNAME.getPassword(config))</span>
+<span class="fc" id="L574">        .setProxyPassword(GCS_PROXY_PASSWORD.getPassword(config))</span>
+<span class="fc" id="L575">        .setProjectId(projectId)</span>
+<span class="fc" id="L576">        .setMaxListItemsPerCall(GCS_MAX_LIST_ITEMS_PER_CALL.get(config, config::getLong))</span>
+<span class="fc" id="L577">        .setMaxRequestsPerBatch(GCS_MAX_REQUESTS_PER_BATCH.get(config, config::getLong))</span>
+<span class="fc" id="L578">        .setBatchThreads(GCS_BATCH_THREADS.get(config, config::getInt))</span>
+<span class="fc" id="L579">        .setMaxHttpRequestRetries(GCS_HTTP_MAX_RETRY.get(config, config::getInt))</span>
+<span class="fc" id="L580">        .setHttpRequestConnectTimeout(GCS_HTTP_CONNECT_TIMEOUT.get(config, config::getInt))</span>
+<span class="fc" id="L581">        .setHttpRequestReadTimeout(GCS_HTTP_READ_TIMEOUT.get(config, config::getInt))</span>
+<span class="fc" id="L582">        .setAppName(getApplicationName(config))</span>
+<span class="fc" id="L583">        .setMaxWaitMillisForEmptyObjectCreation(</span>
+<span class="fc" id="L584">            GCS_MAX_WAIT_MILLIS_EMPTY_OBJECT_CREATE.get(config, config::getInt))</span>
+<span class="fc" id="L585">        .setReadChannelOptions(getReadChannelOptions(config))</span>
+<span class="fc" id="L586">        .setWriteChannelOptions(getWriteChannelOptions(config))</span>
+<span class="fc" id="L587">        .setRequesterPaysOptions(getRequesterPaysOptions(config, projectId))</span>
+<span class="fc" id="L588">        .setCooperativeLockingOptions(getCooperativeLockingOptions(config));</span>
   }
 
   private static PerformanceCachingGoogleCloudStorageOptions getPerformanceCachingOptions(
       Configuration config) {
-<span class="fc" id="L584">    return PerformanceCachingGoogleCloudStorageOptions.builder()</span>
-<span class="fc" id="L585">        .setMaxEntryAgeMillis(</span>
-<span class="fc" id="L586">            GCS_PERFORMANCE_CACHE_MAX_ENTRY_AGE_MILLIS.get(config, config::getLong))</span>
-<span class="fc" id="L587">        .setListCachingEnabled(</span>
-<span class="fc" id="L588">            GCS_PERFORMANCE_CACHE_LIST_CACHING_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L589">        .build();</span>
+<span class="fc" id="L593">    return PerformanceCachingGoogleCloudStorageOptions.builder()</span>
+<span class="fc" id="L594">        .setMaxEntryAgeMillis(</span>
+<span class="fc" id="L595">            GCS_PERFORMANCE_CACHE_MAX_ENTRY_AGE_MILLIS.get(config, config::getLong))</span>
+<span class="fc" id="L596">        .setListCachingEnabled(</span>
+<span class="fc" id="L597">            GCS_PERFORMANCE_CACHE_LIST_CACHING_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L598">        .build();</span>
   }
 
   private static String getApplicationName(Configuration config) {
-<span class="fc" id="L593">    String appNameSuffix = nullToEmpty(GCS_APPLICATION_NAME_SUFFIX.get(config, config::get));</span>
-<span class="fc" id="L594">    String applicationName = GoogleHadoopFileSystem.GHFS_ID + appNameSuffix;</span>
-<span class="fc" id="L595">    logger.atFine().log(&quot;Setting GCS application name to %s&quot;, applicationName);</span>
-<span class="fc" id="L596">    return applicationName;</span>
+<span class="fc" id="L602">    String appNameSuffix = nullToEmpty(GCS_APPLICATION_NAME_SUFFIX.get(config, config::get));</span>
+<span class="fc" id="L603">    String applicationName = GoogleHadoopFileSystem.GHFS_ID + appNameSuffix;</span>
+<span class="fc" id="L604">    logger.atFine().log(&quot;Setting GCS application name to %s&quot;, applicationName);</span>
+<span class="fc" id="L605">    return applicationName;</span>
   }
 
   private static GoogleCloudStorageReadOptions getReadChannelOptions(Configuration config) {
-<span class="fc" id="L600">    return GoogleCloudStorageReadOptions.builder()</span>
-<span class="fc" id="L601">        .setFastFailOnNotFound(</span>
-<span class="fc" id="L602">            GCS_INPUT_STREAM_FAST_FAIL_ON_NOT_FOUND_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L603">        .setInplaceSeekLimit(GCS_INPUT_STREAM_INPLACE_SEEK_LIMIT.get(config, config::getLong))</span>
-<span class="fc" id="L604">        .setBufferSize(GCS_INPUT_STREAM_BUFFER_SIZE.get(config, config::getInt))</span>
-<span class="fc" id="L605">        .setFadvise(GCS_INPUT_STREAM_FADVISE.get(config, config::getEnum))</span>
-<span class="fc" id="L606">        .setMinRangeRequestSize(GCS_INPUT_STREAM_MIN_RANGE_REQUEST_SIZE.get(config, config::getInt))</span>
-<span class="fc" id="L607">        .setGenerationReadConsistency(GCS_GENERATION_READ_CONSISTENCY.get(config, config::getEnum))</span>
-<span class="fc" id="L608">        .build();</span>
+<span class="fc" id="L609">    return GoogleCloudStorageReadOptions.builder()</span>
+<span class="fc" id="L610">        .setFastFailOnNotFound(</span>
+<span class="fc" id="L611">            GCS_INPUT_STREAM_FAST_FAIL_ON_NOT_FOUND_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L612">        .setSupportGzipEncoding(</span>
+<span class="fc" id="L613">            GCS_INPUT_STREAM_SUPPORT_GZIP_ENCODING_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L614">        .setInplaceSeekLimit(GCS_INPUT_STREAM_INPLACE_SEEK_LIMIT.get(config, config::getLong))</span>
+<span class="fc" id="L615">        .setBufferSize(GCS_INPUT_STREAM_BUFFER_SIZE.get(config, config::getInt))</span>
+<span class="fc" id="L616">        .setFadvise(GCS_INPUT_STREAM_FADVISE.get(config, config::getEnum))</span>
+<span class="fc" id="L617">        .setMinRangeRequestSize(GCS_INPUT_STREAM_MIN_RANGE_REQUEST_SIZE.get(config, config::getInt))</span>
+<span class="fc" id="L618">        .setGenerationReadConsistency(GCS_GENERATION_READ_CONSISTENCY.get(config, config::getEnum))</span>
+<span class="fc" id="L619">        .build();</span>
   }
 
   private static AsyncWriteChannelOptions getWriteChannelOptions(Configuration config) {
-<span class="fc" id="L612">    return AsyncWriteChannelOptions.builder()</span>
-<span class="fc" id="L613">        .setBufferSize(GCS_OUTPUT_STREAM_BUFFER_SIZE.get(config, config::getInt))</span>
-<span class="fc" id="L614">        .setPipeBufferSize(GCS_OUTPUT_STREAM_PIPE_BUFFER_SIZE.get(config, config::getInt))</span>
-<span class="fc" id="L615">        .setUploadChunkSize(GCS_OUTPUT_STREAM_UPLOAD_CHUNK_SIZE.get(config, config::getInt))</span>
-<span class="fc" id="L616">        .setDirectUploadEnabled(</span>
-<span class="fc" id="L617">            GCS_OUTPUT_STREAM_DIRECT_UPLOAD_ENABLE.get(config, config::getBoolean))</span>
-<span class="fc" id="L618">        .build();</span>
+<span class="fc" id="L623">    return AsyncWriteChannelOptions.builder()</span>
+<span class="fc" id="L624">        .setBufferSize(GCS_OUTPUT_STREAM_BUFFER_SIZE.get(config, config::getInt))</span>
+<span class="fc" id="L625">        .setPipeBufferSize(GCS_OUTPUT_STREAM_PIPE_BUFFER_SIZE.get(config, config::getInt))</span>
+<span class="fc" id="L626">        .setUploadChunkSize(GCS_OUTPUT_STREAM_UPLOAD_CHUNK_SIZE.get(config, config::getInt))</span>
+<span class="fc" id="L627">        .setDirectUploadEnabled(</span>
+<span class="fc" id="L628">            GCS_OUTPUT_STREAM_DIRECT_UPLOAD_ENABLE.get(config, config::getBoolean))</span>
+<span class="fc" id="L629">        .build();</span>
   }
 
   private static RequesterPaysOptions getRequesterPaysOptions(
       Configuration config, String projectId) {
-<span class="fc" id="L623">    String requesterPaysProjectId = GCS_REQUESTER_PAYS_PROJECT_ID.get(config, config::get);</span>
-<span class="fc" id="L624">    return RequesterPaysOptions.builder()</span>
-<span class="pc bpc" id="L625" title="1 of 2 branches missed.">        .setMode(GCS_REQUESTER_PAYS_MODE.get(config, config::getEnum))</span>
-<span class="fc" id="L626">        .setProjectId(requesterPaysProjectId == null ? projectId : requesterPaysProjectId)</span>
-<span class="fc" id="L627">        .setBuckets(GCS_REQUESTER_PAYS_BUCKETS.getStringCollection(config))</span>
-<span class="fc" id="L628">        .build();</span>
+<span class="fc" id="L634">    String requesterPaysProjectId = GCS_REQUESTER_PAYS_PROJECT_ID.get(config, config::get);</span>
+<span class="fc" id="L635">    return RequesterPaysOptions.builder()</span>
+<span class="pc bpc" id="L636" title="1 of 2 branches missed.">        .setMode(GCS_REQUESTER_PAYS_MODE.get(config, config::getEnum))</span>
+<span class="fc" id="L637">        .setProjectId(requesterPaysProjectId == null ? projectId : requesterPaysProjectId)</span>
+<span class="fc" id="L638">        .setBuckets(GCS_REQUESTER_PAYS_BUCKETS.getStringCollection(config))</span>
+<span class="fc" id="L639">        .build();</span>
   }
 
   private static CooperativeLockingOptions getCooperativeLockingOptions(Configuration config) {
-<span class="fc" id="L632">    return CooperativeLockingOptions.builder()</span>
-<span class="fc" id="L633">        .setLockExpirationTimeoutMilli(</span>
-<span class="fc" id="L634">            GCS_COOPERATIVE_LOCKING_EXPIRATION_TIMEOUT_MS.get(config, config::getLong))</span>
-<span class="fc" id="L635">        .setMaxConcurrentOperations(</span>
-<span class="fc" id="L636">            GCS_COOPERATIVE_LOCKING_MAX_CONCURRENT_OPERATIONS.get(config, config::getInt))</span>
-<span class="fc" id="L637">        .build();</span>
+<span class="fc" id="L643">    return CooperativeLockingOptions.builder()</span>
+<span class="fc" id="L644">        .setLockExpirationTimeoutMilli(</span>
+<span class="fc" id="L645">            GCS_COOPERATIVE_LOCKING_EXPIRATION_TIMEOUT_MS.get(config, config::getLong))</span>
+<span class="fc" id="L646">        .setMaxConcurrentOperations(</span>
+<span class="fc" id="L647">            GCS_COOPERATIVE_LOCKING_MAX_CONCURRENT_OPERATIONS.get(config, config::getInt))</span>
+<span class="fc" id="L648">        .build();</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

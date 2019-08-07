@@ -809,11 +809,11 @@ public class GoogleCloudStorageReadChannel implements SeekableByteChannel {
         !metadataInitialized,
         &quot;can not initialize metadata, it already initialized for '%s'&quot;, resourceIdString);
 <span class="fc" id="L811">    gzipEncoded = nullToEmpty(encoding).contains(GZIP_ENCODING);</span>
-<span class="fc bfc" id="L812" title="All 2 branches covered.">    if (gzipEncoded) {</span>
-<span class="fc" id="L813">      size = Long.MAX_VALUE;</span>
-    } else {
-<span class="fc" id="L815">      size = sizeFromMetadata;</span>
+<span class="fc bfc" id="L812" title="All 4 branches covered.">    if (gzipEncoded &amp;&amp; !readOptions.getSupportGzipEncoding()) {</span>
+<span class="fc" id="L813">      throw new IOException(</span>
+          &quot;Can't read GZIP encoded files - content encoding support is disabled.&quot;);
     }
+<span class="fc bfc" id="L816" title="All 2 branches covered.">    size = gzipEncoded ? Long.MAX_VALUE : sizeFromMetadata;</span>
 <span class="fc bfc" id="L817" title="All 4 branches covered.">    randomAccess = !gzipEncoded &amp;&amp; readOptions.getFadvise() == Fadvise.RANDOM;</span>
 <span class="fc" id="L818">    checkEncodingAndAccess();</span>
 
@@ -1154,10 +1154,10 @@ public class GoogleCloudStorageReadChannel implements SeekableByteChannel {
     }
 <span class="fc" id="L1155">    String msg =</span>
 <span class="fc" id="L1156">        String.format(&quot;Error reading '%s' at position %d&quot;, resourceIdString, currentPosition);</span>
-<span class="pc bpc" id="L1157" title="1 of 2 branches missed.">    if (errorExtractor.rangeNotSatisfiable(e)) {</span>
+<span class="fc bfc" id="L1157" title="All 2 branches covered.">    if (errorExtractor.rangeNotSatisfiable(e)) {</span>
 <span class="fc" id="L1158">      throw (EOFException) new EOFException(msg).initCause(e);</span>
     }
-<span class="nc" id="L1160">    throw new IOException(msg, e);</span>
+<span class="fc" id="L1160">    throw new IOException(msg, e);</span>
   }
 
   private Get createDataRequest(String rangeHeader) throws IOException {

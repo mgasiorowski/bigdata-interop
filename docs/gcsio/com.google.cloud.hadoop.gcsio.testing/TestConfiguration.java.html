@@ -14,36 +14,37 @@
 
 package com.google.cloud.hadoop.gcsio.testing;
 
+
 /** Access to test configurations values. */
-<span class="fc" id="L18">public abstract class TestConfiguration {</span>
+<span class="fc" id="L19">public abstract class TestConfiguration {</span>
   public static final String GCS_TEST_PROJECT_ID = &quot;GCS_TEST_PROJECT_ID&quot;;
   public static final String GCS_TEST_SERVICE_ACCOUNT = &quot;GCS_TEST_SERVICE_ACCOUNT&quot;;
   public static final String GCS_TEST_PRIVATE_KEYFILE = &quot;GCS_TEST_PRIVATE_KEYFILE&quot;;
 
   /** Environment-based test configuration. */
-<span class="fc" id="L24">  public static class EnvironmentBasedTestConfiguration extends TestConfiguration {</span>
+<span class="fc" id="L25">  public static class EnvironmentBasedTestConfiguration extends TestConfiguration {</span>
     @Override
     public String getProjectId() {
-<span class="fc" id="L27">      return System.getenv(GCS_TEST_PROJECT_ID);</span>
+<span class="fc" id="L28">      return System.getenv(GCS_TEST_PROJECT_ID);</span>
     }
 
     @Override
     public String getServiceAccount() {
-<span class="fc" id="L32">      return System.getenv(GCS_TEST_SERVICE_ACCOUNT);</span>
+<span class="fc" id="L33">      return System.getenv(GCS_TEST_SERVICE_ACCOUNT);</span>
     }
 
     @Override
     public String getPrivateKeyFile() {
-<span class="fc" id="L37">      return System.getenv(GCS_TEST_PRIVATE_KEYFILE);</span>
+<span class="fc" id="L38">      return System.getenv(GCS_TEST_PRIVATE_KEYFILE);</span>
     }
   }
 
   public static TestConfiguration getInstance() {
-<span class="fc" id="L42">    return LazyHolder.INSTANCE;</span>
+<span class="fc" id="L43">    return LazyHolder.INSTANCE;</span>
   }
 
   private static class LazyHolder {
-<span class="fc" id="L46">    private static final TestConfiguration INSTANCE = new EnvironmentBasedTestConfiguration();</span>
+<span class="fc" id="L47">    private static final TestConfiguration INSTANCE = new EnvironmentBasedTestConfiguration();</span>
   }
 
   public abstract String getProjectId();

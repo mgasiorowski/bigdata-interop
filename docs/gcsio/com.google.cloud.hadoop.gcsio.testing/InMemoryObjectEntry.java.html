@@ -32,8 +32,8 @@ import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.time.Duration;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 /**
@@ -108,34 +108,35 @@ public class InMemoryObjectEntry {
       String objectName,
       long createTimeMillis,
       String contentType,
-<span class="fc" id="L111">      Map&lt;String, byte[]&gt; metadata) {</span>
+      String contentEncoding,
+<span class="fc" id="L112">      Map&lt;String, byte[]&gt; metadata) {</span>
     // Override close() to commit its completed byte array into completedContents to reflect
     // the behavior that any readable contents are only well-defined if the writeStream is closed.
-<span class="fc" id="L114">    writeStream =</span>
-<span class="fc" id="L115">        new ByteArrayOutputStream() {</span>
+<span class="fc" id="L115">    writeStream =</span>
+<span class="fc" id="L116">        new ByteArrayOutputStream() {</span>
           @Override
           public synchronized void close() throws IOException {
-<span class="fc" id="L118">            synchronized (InMemoryObjectEntry.this) {</span>
-<span class="fc" id="L119">              completedContents = toByteArray();</span>
-<span class="fc" id="L120">              HashCode md5 = Hashing.md5().hashBytes(completedContents);</span>
-<span class="fc" id="L121">              HashCode crc32c = Hashing.crc32c().hashBytes(completedContents);</span>
-<span class="fc" id="L122">              writeStream = null;</span>
-<span class="fc" id="L123">              writeChannel = null;</span>
-<span class="fc" id="L124">              info =</span>
+<span class="fc" id="L119">            synchronized (InMemoryObjectEntry.this) {</span>
+<span class="fc" id="L120">              completedContents = toByteArray();</span>
+<span class="fc" id="L121">              HashCode md5 = Hashing.md5().hashBytes(completedContents);</span>
+<span class="fc" id="L122">              HashCode crc32c = Hashing.crc32c().hashBytes(completedContents);</span>
+<span class="fc" id="L123">              writeStream = null;</span>
+<span class="fc" id="L124">              writeChannel = null;</span>
+<span class="fc" id="L125">              info =</span>
                   new GoogleCloudStorageItemInfo(
-<span class="fc" id="L126">                      info.getResourceId(),</span>
-<span class="fc" id="L127">                      info.getCreationTime(),</span>
-<span class="fc" id="L128">                      /* size= */ completedContents.length,</span>
+<span class="fc" id="L127">                      info.getResourceId(),</span>
+<span class="fc" id="L128">                      info.getCreationTime(),</span>
+<span class="fc" id="L129">                      /* size= */ completedContents.length,</span>
                       /* location= */ null,
                       /* storageClass= */ null,
-<span class="fc" id="L131">                      info.getContentType(),</span>
-<span class="fc" id="L132">                      info.getContentEncoding(),</span>
-<span class="fc" id="L133">                      info.getMetadata(),</span>
+<span class="fc" id="L132">                      info.getContentType(),</span>
+<span class="fc" id="L133">                      info.getContentEncoding(),</span>
+<span class="fc" id="L134">                      info.getMetadata(),</span>
                       /* contentGeneration= */ 1,
                       /* metaGeneration= */ 1,
-<span class="fc" id="L136">                      new VerificationAttributes(md5.asBytes(), Ints.toByteArray(crc32c.asInt())));</span>
-<span class="fc" id="L137">            }</span>
-<span class="fc" id="L138">          }</span>
+<span class="fc" id="L137">                      new VerificationAttributes(md5.asBytes(), Ints.toByteArray(crc32c.asInt())));</span>
+<span class="fc" id="L138">            }</span>
+<span class="fc" id="L139">          }</span>
         };
 
     // We have to delegate because we can't extend from the inner class returned by,
@@ -143,11 +144,11 @@ public class InMemoryObjectEntry {
     // when trying to write to a closed channel; probably because it relies on the underlying
     // output stream throwing when closed. The ByteArrayOutputStream doesn't enforce throwing
     // when closed, so we have to manually do it.
-<span class="fc" id="L146">    WritableByteChannel delegateWriteChannel = Channels.newChannel(writeStream);</span>
-<span class="fc" id="L147">    writeChannel = new WritableByteChannelImpl(delegateWriteChannel);</span>
+<span class="fc" id="L147">    WritableByteChannel delegateWriteChannel = Channels.newChannel(writeStream);</span>
+<span class="fc" id="L148">    writeChannel = new WritableByteChannelImpl(delegateWriteChannel);</span>
 
     // Size 0 initially because this object exists, but contains no data.
-<span class="fc" id="L150">    info =</span>
+<span class="fc" id="L151">    info =</span>
         new GoogleCloudStorageItemInfo(
             new StorageResourceId(bucketName, objectName),
             createTimeMillis,
@@ -155,14 +156,14 @@ public class InMemoryObjectEntry {
             /* location= */ null,
             /* storageClass= */ null,
             contentType,
-            /* contentEncoding= */ null,
-<span class="fc" id="L159">            ImmutableMap.copyOf(metadata),</span>
+            contentEncoding,
+<span class="fc" id="L160">            ImmutableMap.copyOf(metadata),</span>
             /* contentGeneration= */ 0,
             /* metaGeneration= */ 0);
-<span class="fc" id="L162">  }</span>
+<span class="fc" id="L163">  }</span>
 
   /** For internal use in getShallowCopy(2). */
-<span class="fc" id="L165">  private InMemoryObjectEntry() {}</span>
+<span class="fc" id="L166">  private InMemoryObjectEntry() {}</span>
 
   /**
    * Returns true if the initial WritableByteChannel associated with this InMemoryObjectEntry has
@@ -170,7 +171,7 @@ public class InMemoryObjectEntry {
    * true, there is no longer any way to write/modify its byte contents.
    */
   private synchronized boolean isCompleted() {
-<span class="fc bfc" id="L173" title="All 2 branches covered.">    return completedContents != null;</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">    return completedContents != null;</span>
   }
 
   /**
@@ -178,7 +179,7 @@ public class InMemoryObjectEntry {
    * will never change over the lifetime of this InMemoryObjectEntry.
    */
   public synchronized String getObjectName() {
-<span class="fc" id="L181">    return info.getObjectName();</span>
+<span class="fc" id="L182">    return info.getObjectName();</span>
   }
 
   /**
@@ -186,7 +187,7 @@ public class InMemoryObjectEntry {
    * will never change over the lifetime of this InMemoryObjectEntry.
    */
   public synchronized String getBucketName() {
-<span class="fc" id="L189">    return info.getBucketName();</span>
+<span class="fc" id="L190">    return info.getBucketName();</span>
   }
 
   /**
@@ -195,31 +196,31 @@ public class InMemoryObjectEntry {
    */
   public synchronized InMemoryObjectEntry getShallowCopy(String bucketName, String objectName)
       throws IOException {
-<span class="pc bpc" id="L198" title="1 of 2 branches missed.">    if (!isCompleted()) {</span>
-<span class="nc" id="L199">      throw new IOException(&quot;Cannot getShallowCopy() before the writeChannel has been closed!&quot;);</span>
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">    if (!isCompleted()) {</span>
+<span class="nc" id="L200">      throw new IOException(&quot;Cannot getShallowCopy() before the writeChannel has been closed!&quot;);</span>
     }
-<span class="fc" id="L201">    InMemoryObjectEntry copy = new InMemoryObjectEntry();</span>
-<span class="fc" id="L202">    copy.completedContents = completedContents;</span>
-<span class="fc" id="L203">    copy.writeStream = writeStream;</span>
-<span class="fc" id="L204">    copy.writeChannel = writeChannel;</span>
+<span class="fc" id="L202">    InMemoryObjectEntry copy = new InMemoryObjectEntry();</span>
+<span class="fc" id="L203">    copy.completedContents = completedContents;</span>
+<span class="fc" id="L204">    copy.writeStream = writeStream;</span>
+<span class="fc" id="L205">    copy.writeChannel = writeChannel;</span>
 
     // because currentTimeMillis() is not very precise
     // we need to sleep to allow it to change between calls
-<span class="fc" id="L208">    sleepUninterruptibly(10, TimeUnit.MILLISECONDS);</span>
+<span class="fc" id="L209">    sleepUninterruptibly(Duration.ofMillis(10));</span>
 
-<span class="fc" id="L210">    copy.info =</span>
+<span class="fc" id="L211">    copy.info =</span>
         new GoogleCloudStorageItemInfo(
             new StorageResourceId(bucketName, objectName),
-<span class="fc" id="L213">            System.currentTimeMillis(),</span>
-<span class="fc" id="L214">            info.getSize(),</span>
+<span class="fc" id="L214">            System.currentTimeMillis(),</span>
+<span class="fc" id="L215">            info.getSize(),</span>
             /* location= */ null,
             /* storageClass= */ null,
-<span class="fc" id="L217">            info.getContentType(),</span>
-<span class="fc" id="L218">            info.getContentEncoding(),</span>
-<span class="fc" id="L219">            info.getMetadata(),</span>
-<span class="fc" id="L220">            info.getContentGeneration(),</span>
-<span class="fc" id="L221">            info.getMetaGeneration());</span>
-<span class="fc" id="L222">    return copy;</span>
+<span class="fc" id="L218">            info.getContentType(),</span>
+<span class="fc" id="L219">            info.getContentEncoding(),</span>
+<span class="fc" id="L220">            info.getMetadata(),</span>
+<span class="fc" id="L221">            info.getContentGeneration(),</span>
+<span class="fc" id="L222">            info.getMetaGeneration());</span>
+<span class="fc" id="L223">    return copy;</span>
   }
 
   /**
@@ -228,10 +229,10 @@ public class InMemoryObjectEntry {
    * closed already.
    */
   public synchronized WritableByteChannel getWriteChannel() throws IOException {
-<span class="pc bpc" id="L231" title="1 of 2 branches missed.">    if (isCompleted()) {</span>
-<span class="nc" id="L232">      throw new IOException(&quot;Cannot getWriteChannel() once it has already been closed!&quot;);</span>
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">    if (isCompleted()) {</span>
+<span class="nc" id="L233">      throw new IOException(&quot;Cannot getWriteChannel() once it has already been closed!&quot;);</span>
     }
-<span class="fc" id="L234">    return writeChannel;</span>
+<span class="fc" id="L235">    return writeChannel;</span>
   }
 
   /**
@@ -240,7 +241,7 @@ public class InMemoryObjectEntry {
    * and make them available for reading.
    */
   public synchronized SeekableByteChannel getReadChannel() throws IOException {
-<span class="nc" id="L243">    return getReadChannel(GoogleCloudStorageReadOptions.DEFAULT);</span>
+<span class="nc" id="L244">    return getReadChannel(GoogleCloudStorageReadOptions.DEFAULT);</span>
   }
 
   /**
@@ -250,17 +251,17 @@ public class InMemoryObjectEntry {
    */
   public synchronized SeekableByteChannel getReadChannel(GoogleCloudStorageReadOptions readOptions)
       throws IOException {
-<span class="pc bpc" id="L253" title="1 of 2 branches missed.">    if (!isCompleted()) {</span>
-<span class="nc" id="L254">      throw new IOException(</span>
-<span class="nc" id="L255">          String.format(</span>
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">    if (!isCompleted()) {</span>
+<span class="nc" id="L255">      throw new IOException(</span>
+<span class="nc" id="L256">          String.format(</span>
               &quot;Cannot getReadChannel() before writes have been committed! Object = %s&quot;,
-<span class="nc" id="L257">              this.getObjectName()));</span>
+<span class="nc" id="L258">              this.getObjectName()));</span>
     }
-<span class="fc" id="L259">    return new InMemoryObjectReadChannel(completedContents, readOptions) {</span>
+<span class="fc" id="L260">    return new InMemoryObjectReadChannel(completedContents, readOptions) {</span>
       @Nullable
       @Override
       protected GoogleCloudStorageItemInfo getInitialMetadata() throws IOException {
-<span class="pc bpc" id="L263" title="1 of 2 branches missed.">        return readOptions.getFastFailOnNotFound() ? getInfo() : super.getInitialMetadata();</span>
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">        return readOptions.getFastFailOnNotFound() ? getInfo() : super.getInitialMetadata();</span>
       }
     };
   }
@@ -270,10 +271,10 @@ public class InMemoryObjectEntry {
    * 'size' is only updated when the initial writer has finished closing the channel.
    */
   public synchronized GoogleCloudStorageItemInfo getInfo() {
-<span class="fc bfc" id="L273" title="All 2 branches covered.">    if (!isCompleted()) {</span>
-<span class="fc" id="L274">      return GoogleCloudStorageItemInfo.createNotFound(info.getResourceId());</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">    if (!isCompleted()) {</span>
+<span class="fc" id="L275">      return GoogleCloudStorageItemInfo.createNotFound(info.getResourceId());</span>
     }
-<span class="fc" id="L276">    return info;</span>
+<span class="fc" id="L277">    return info;</span>
   }
 
   /**
@@ -282,35 +283,35 @@ public class InMemoryObjectEntry {
    * added.
    */
   public synchronized void patchMetadata(Map&lt;String, byte[]&gt; newMetadata) throws IOException {
-<span class="pc bpc" id="L285" title="1 of 2 branches missed.">    if (!isCompleted()) {</span>
-<span class="nc" id="L286">      throw new IOException(</span>
-<span class="nc" id="L287">          String.format(</span>
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">    if (!isCompleted()) {</span>
+<span class="nc" id="L287">      throw new IOException(</span>
+<span class="nc" id="L288">          String.format(</span>
               &quot;Cannot patchMetadata() before writes have been committed! Object = %s&quot;,
-<span class="nc" id="L289">              this.getObjectName()));</span>
+<span class="nc" id="L290">              this.getObjectName()));</span>
     }
-<span class="fc" id="L291">    Map&lt;String, byte[]&gt; mergedMetadata = Maps.newHashMap(info.getMetadata());</span>
+<span class="fc" id="L292">    Map&lt;String, byte[]&gt; mergedMetadata = Maps.newHashMap(info.getMetadata());</span>
 
-<span class="fc bfc" id="L293" title="All 2 branches covered.">    for (Map.Entry&lt;String, byte[]&gt; entry : newMetadata.entrySet()) {</span>
-<span class="pc bpc" id="L294" title="1 of 4 branches missed.">      if (entry.getValue() == null &amp;&amp; mergedMetadata.containsKey(entry.getKey())) {</span>
-<span class="fc" id="L295">        mergedMetadata.remove(entry.getKey());</span>
-<span class="pc bpc" id="L296" title="1 of 2 branches missed.">      } else if (entry.getValue() != null) {</span>
-<span class="fc" id="L297">        mergedMetadata.put(entry.getKey(), entry.getValue());</span>
+<span class="fc bfc" id="L294" title="All 2 branches covered.">    for (Map.Entry&lt;String, byte[]&gt; entry : newMetadata.entrySet()) {</span>
+<span class="pc bpc" id="L295" title="1 of 4 branches missed.">      if (entry.getValue() == null &amp;&amp; mergedMetadata.containsKey(entry.getKey())) {</span>
+<span class="fc" id="L296">        mergedMetadata.remove(entry.getKey());</span>
+<span class="pc bpc" id="L297" title="1 of 2 branches missed.">      } else if (entry.getValue() != null) {</span>
+<span class="fc" id="L298">        mergedMetadata.put(entry.getKey(), entry.getValue());</span>
       }
-<span class="fc" id="L299">    }</span>
+<span class="fc" id="L300">    }</span>
 
-<span class="fc" id="L301">    info =</span>
+<span class="fc" id="L302">    info =</span>
         new GoogleCloudStorageItemInfo(
-<span class="fc" id="L303">            info.getResourceId(),</span>
-<span class="fc" id="L304">            info.getCreationTime(),</span>
+<span class="fc" id="L304">            info.getResourceId(),</span>
+<span class="fc" id="L305">            info.getCreationTime(),</span>
             /* size= */ completedContents.length,
             /* location= */ null,
             /* storageClass= */ null,
-<span class="fc" id="L308">            info.getContentType(),</span>
-<span class="fc" id="L309">            info.getContentEncoding(),</span>
+<span class="fc" id="L309">            info.getContentType(),</span>
+<span class="fc" id="L310">            info.getContentEncoding(),</span>
             mergedMetadata,
-<span class="fc" id="L311">            info.getContentGeneration(),</span>
-<span class="fc" id="L312">            info.getMetaGeneration() + 1,</span>
-<span class="fc" id="L313">            info.getVerificationAttributes());</span>
-<span class="fc" id="L314">  }</span>
+<span class="fc" id="L312">            info.getContentGeneration(),</span>
+<span class="fc" id="L313">            info.getMetaGeneration() + 1,</span>
+<span class="fc" id="L314">            info.getVerificationAttributes());</span>
+<span class="fc" id="L315">  }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

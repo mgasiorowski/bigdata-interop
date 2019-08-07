@@ -376,21 +376,23 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
             clientRequestHelper,
 <span class="fc" id="L377">            resourceId.getBucketName(),</span>
 <span class="fc" id="L378">            resourceId.getObjectName(),</span>
-<span class="fc" id="L379">            storageOptions.getWriteChannelOptions(),</span>
+<span class="fc" id="L379">            options.getContentType(),</span>
+<span class="fc" id="L380">            options.getContentEncoding(),</span>
+            /* kmsKeyName= */ null,
+<span class="fc" id="L382">            storageOptions.getWriteChannelOptions(),</span>
             writeConditions,
-            rewrittenMetadata,
-<span class="fc" id="L382">            options.getContentType()) {</span>
+<span class="fc" id="L384">            rewrittenMetadata) {</span>
 
           @Override
           public Storage.Objects.Insert createRequest(InputStreamContent inputStream)
               throws IOException {
-<span class="fc" id="L387">            return configureRequest(super.createRequest(inputStream), resourceId.getBucketName());</span>
+<span class="fc" id="L389">            return configureRequest(super.createRequest(inputStream), resourceId.getBucketName());</span>
           }
         };
 
-<span class="fc" id="L391">    channel.initialize();</span>
+<span class="fc" id="L393">    channel.initialize();</span>
 
-<span class="fc" id="L393">    return channel;</span>
+<span class="fc" id="L395">    return channel;</span>
   }
 
   /**
@@ -398,18 +400,18 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   @Override
   public WritableByteChannel create(StorageResourceId resourceId) throws IOException {
-<span class="fc" id="L401">    logger.atFine().log(&quot;create(%s)&quot;, resourceId);</span>
-<span class="fc" id="L402">    Preconditions.checkArgument(</span>
-<span class="fc" id="L403">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
+<span class="fc" id="L403">    logger.atFine().log(&quot;create(%s)&quot;, resourceId);</span>
+<span class="fc" id="L404">    Preconditions.checkArgument(</span>
+<span class="fc" id="L405">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
 
-<span class="fc" id="L405">    return create(resourceId, CreateObjectOptions.DEFAULT);</span>
+<span class="fc" id="L407">    return create(resourceId, CreateObjectOptions.DEFAULT);</span>
   }
 
   /** See {@link GoogleCloudStorage#create(String)} for details about expected behavior. */
   @Override
   public void create(String bucketName) throws IOException {
-<span class="fc" id="L411">    create(bucketName, CreateBucketOptions.DEFAULT);</span>
-<span class="fc" id="L412">  }</span>
+<span class="fc" id="L413">    create(bucketName, CreateBucketOptions.DEFAULT);</span>
+<span class="fc" id="L414">  }</span>
 
   /**
    * See {@link GoogleCloudStorage#create(String, CreateBucketOptions)} for details about expected
@@ -417,68 +419,68 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   @Override
   public void create(String bucketName, CreateBucketOptions options) throws IOException {
-<span class="fc" id="L420">    logger.atFine().log(&quot;create(%s)&quot;, bucketName);</span>
-<span class="fc" id="L421">    Preconditions.checkArgument(</span>
-<span class="fc bfc" id="L422" title="All 2 branches covered.">        !Strings.isNullOrEmpty(bucketName), &quot;bucketName must not be null or empty&quot;);</span>
-<span class="fc" id="L423">    checkNotNull(options, &quot;options must not be null&quot;);</span>
-<span class="fc" id="L424">    checkNotNull(storageOptions.getProjectId(), &quot;projectId must not be null&quot;);</span>
+<span class="fc" id="L422">    logger.atFine().log(&quot;create(%s)&quot;, bucketName);</span>
+<span class="fc" id="L423">    Preconditions.checkArgument(</span>
+<span class="fc bfc" id="L424" title="All 2 branches covered.">        !Strings.isNullOrEmpty(bucketName), &quot;bucketName must not be null or empty&quot;);</span>
+<span class="fc" id="L425">    checkNotNull(options, &quot;options must not be null&quot;);</span>
+<span class="fc" id="L426">    checkNotNull(storageOptions.getProjectId(), &quot;projectId must not be null&quot;);</span>
 
-<span class="fc" id="L426">    Bucket bucket = new Bucket();</span>
-<span class="fc" id="L427">    bucket.setName(bucketName);</span>
-<span class="fc" id="L428">    bucket.setLocation(options.getLocation());</span>
-<span class="fc" id="L429">    bucket.setStorageClass(options.getStorageClass());</span>
-<span class="fc" id="L430">    Storage.Buckets.Insert insertBucket =</span>
-<span class="fc" id="L431">        configureRequest(gcs.buckets().insert(storageOptions.getProjectId(), bucket), bucketName);</span>
+<span class="fc" id="L428">    Bucket bucket = new Bucket();</span>
+<span class="fc" id="L429">    bucket.setName(bucketName);</span>
+<span class="fc" id="L430">    bucket.setLocation(options.getLocation());</span>
+<span class="fc" id="L431">    bucket.setStorageClass(options.getStorageClass());</span>
+<span class="fc" id="L432">    Storage.Buckets.Insert insertBucket =</span>
+<span class="fc" id="L433">        configureRequest(gcs.buckets().insert(storageOptions.getProjectId(), bucket), bucketName);</span>
     // TODO(user): To match the behavior of throwing FileNotFoundException for 404, we probably
     // want to throw org.apache.commons.io.FileExistsException for 409 here.
     try {
-<span class="fc" id="L435">      ResilientOperation.retry(</span>
-<span class="fc" id="L436">          ResilientOperation.getGoogleRequestCallable(insertBucket),</span>
-<span class="fc" id="L437">          backOffFactory.newBackOff(),</span>
+<span class="fc" id="L437">      ResilientOperation.retry(</span>
+<span class="fc" id="L438">          ResilientOperation.getGoogleRequestCallable(insertBucket),</span>
+<span class="fc" id="L439">          backOffFactory.newBackOff(),</span>
           rateLimitedRetryDeterminer,
           IOException.class,
           sleeper);
-<span class="nc" id="L441">    } catch (InterruptedException e) {</span>
-<span class="nc" id="L442">      throw new IOException(e); // From sleep</span>
-<span class="fc" id="L443">    }</span>
-<span class="fc" id="L444">  }</span>
+<span class="nc" id="L443">    } catch (InterruptedException e) {</span>
+<span class="nc" id="L444">      throw new IOException(e); // From sleep</span>
+<span class="fc" id="L445">    }</span>
+<span class="fc" id="L446">  }</span>
 
   @Override
   public void createEmptyObject(StorageResourceId resourceId, CreateObjectOptions options)
       throws IOException {
-<span class="fc" id="L449">    Preconditions.checkArgument(</span>
-<span class="fc" id="L450">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
+<span class="fc" id="L451">    Preconditions.checkArgument(</span>
+<span class="fc" id="L452">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
 
-<span class="fc" id="L452">    Storage.Objects.Insert insertObject = prepareEmptyInsert(resourceId, options);</span>
+<span class="fc" id="L454">    Storage.Objects.Insert insertObject = prepareEmptyInsert(resourceId, options);</span>
     try {
-<span class="fc" id="L454">      insertObject.execute();</span>
-<span class="fc" id="L455">    } catch (IOException ioe) {</span>
-<span class="fc bfc" id="L456" title="All 2 branches covered.">      if (canIgnoreExceptionForEmptyObject(ioe, resourceId, options)) {</span>
-<span class="fc" id="L457">        logger.atInfo().withCause(ioe).log(</span>
+<span class="fc" id="L456">      insertObject.execute();</span>
+<span class="fc" id="L457">    } catch (IOException ioe) {</span>
+<span class="fc bfc" id="L458" title="All 2 branches covered.">      if (canIgnoreExceptionForEmptyObject(ioe, resourceId, options)) {</span>
+<span class="fc" id="L459">        logger.atInfo().withCause(ioe).log(</span>
             &quot;Ignoring exception; verified object already exists with desired state.&quot;);
       } else {
-<span class="fc" id="L460">        throw ioe;</span>
+<span class="fc" id="L462">        throw ioe;</span>
       }
-<span class="fc" id="L462">    }</span>
-<span class="fc" id="L463">  }</span>
+<span class="fc" id="L464">    }</span>
+<span class="fc" id="L465">  }</span>
 
   public void updateMetadata(GoogleCloudStorageItemInfo itemInfo, Map&lt;String, byte[]&gt; metadata)
       throws IOException {
-<span class="fc" id="L467">    StorageResourceId resourceId = itemInfo.getResourceId();</span>
-<span class="fc" id="L468">    Preconditions.checkArgument(</span>
-<span class="fc" id="L469">        resourceId.isStorageObject(), &quot;Expected full StorageObject ID, got %s&quot;, resourceId);</span>
+<span class="fc" id="L469">    StorageResourceId resourceId = itemInfo.getResourceId();</span>
+<span class="fc" id="L470">    Preconditions.checkArgument(</span>
+<span class="fc" id="L471">        resourceId.isStorageObject(), &quot;Expected full StorageObject ID, got %s&quot;, resourceId);</span>
 
-<span class="fc" id="L471">    StorageObject storageObject = new StorageObject().setMetadata(encodeMetadata(metadata));</span>
+<span class="fc" id="L473">    StorageObject storageObject = new StorageObject().setMetadata(encodeMetadata(metadata));</span>
 
-<span class="fc" id="L473">    Storage.Objects.Patch patchObject =</span>
-<span class="fc" id="L474">        configureRequest(</span>
-<span class="fc" id="L475">                gcs.objects()</span>
-<span class="fc" id="L476">                    .patch(resourceId.getBucketName(), resourceId.getObjectName(), storageObject),</span>
-<span class="fc" id="L477">                resourceId.getBucketName())</span>
-<span class="fc" id="L478">            .setIfMetagenerationMatch(itemInfo.getMetaGeneration());</span>
+<span class="fc" id="L475">    Storage.Objects.Patch patchObject =</span>
+<span class="fc" id="L476">        configureRequest(</span>
+<span class="fc" id="L477">                gcs.objects()</span>
+<span class="fc" id="L478">                    .patch(resourceId.getBucketName(), resourceId.getObjectName(), storageObject),</span>
+<span class="fc" id="L479">                resourceId.getBucketName())</span>
+<span class="fc" id="L480">            .setIfMetagenerationMatch(itemInfo.getMetaGeneration());</span>
 
-<span class="fc" id="L480">    patchObject.execute();</span>
-<span class="fc" id="L481">  }</span>
+<span class="fc" id="L482">    patchObject.execute();</span>
+<span class="fc" id="L483">  }</span>
 
   /**
    * See {@link GoogleCloudStorage#createEmptyObject(StorageResourceId)} for details about
@@ -487,11 +489,11 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   @Override
   public void createEmptyObject(StorageResourceId resourceId)
       throws IOException {
-<span class="fc" id="L490">    logger.atFine().log(&quot;createEmptyObject(%s)&quot;, resourceId);</span>
-<span class="fc" id="L491">    Preconditions.checkArgument(</span>
-<span class="fc" id="L492">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
-<span class="fc" id="L493">    createEmptyObject(resourceId, CreateObjectOptions.DEFAULT);</span>
-<span class="fc" id="L494">  }</span>
+<span class="fc" id="L492">    logger.atFine().log(&quot;createEmptyObject(%s)&quot;, resourceId);</span>
+<span class="fc" id="L493">    Preconditions.checkArgument(</span>
+<span class="fc" id="L494">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
+<span class="fc" id="L495">    createEmptyObject(resourceId, CreateObjectOptions.DEFAULT);</span>
+<span class="fc" id="L496">  }</span>
 
   @Override
   public void createEmptyObjects(
@@ -499,70 +501,70 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       throws IOException {
     // TODO(user): This method largely follows a pattern similar to
     // deleteObjects(List&lt;StorageResourceId&gt;); extract a generic method for both.
-<span class="fc" id="L502">    logger.atFine().log(&quot;createEmptyObjects(%s)&quot;, resourceIds);</span>
+<span class="fc" id="L504">    logger.atFine().log(&quot;createEmptyObjects(%s)&quot;, resourceIds);</span>
 
-<span class="fc bfc" id="L504" title="All 2 branches covered.">    if (resourceIds.isEmpty()) {</span>
-<span class="fc" id="L505">      return;</span>
+<span class="fc bfc" id="L506" title="All 2 branches covered.">    if (resourceIds.isEmpty()) {</span>
+<span class="fc" id="L507">      return;</span>
     }
 
     // Don't go through batch interface for a single-item case to avoid batching overhead.
-<span class="fc bfc" id="L509" title="All 2 branches covered.">    if (resourceIds.size() == 1) {</span>
-<span class="fc" id="L510">      createEmptyObject(Iterables.getOnlyElement(resourceIds), options);</span>
-<span class="fc" id="L511">      return;</span>
+<span class="fc bfc" id="L511" title="All 2 branches covered.">    if (resourceIds.size() == 1) {</span>
+<span class="fc" id="L512">      createEmptyObject(Iterables.getOnlyElement(resourceIds), options);</span>
+<span class="fc" id="L513">      return;</span>
     }
 
     // Validate that all the elements represent StorageObjects.
-<span class="fc bfc" id="L515" title="All 2 branches covered.">    for (StorageResourceId resourceId : resourceIds) {</span>
-<span class="fc" id="L516">      Preconditions.checkArgument(resourceId.isStorageObject(),</span>
+<span class="fc bfc" id="L517" title="All 2 branches covered.">    for (StorageResourceId resourceId : resourceIds) {</span>
+<span class="fc" id="L518">      Preconditions.checkArgument(resourceId.isStorageObject(),</span>
           &quot;Expected full StorageObject names only, got: '%s'&quot;, resourceId);
-<span class="fc" id="L518">    }</span>
+<span class="fc" id="L520">    }</span>
 
     // Gather exceptions to wrap in a composite exception at the end.
-<span class="fc" id="L521">    final Set&lt;IOException&gt; innerExceptions = newConcurrentHashSet();</span>
-<span class="fc" id="L522">    final CountDownLatch latch = new CountDownLatch(resourceIds.size());</span>
-<span class="fc bfc" id="L523" title="All 2 branches covered.">    for (final StorageResourceId resourceId : resourceIds) {</span>
-<span class="fc" id="L524">      final Storage.Objects.Insert insertObject = prepareEmptyInsert(resourceId, options);</span>
-<span class="fc" id="L525">      manualBatchingThreadPool.execute(</span>
+<span class="fc" id="L523">    final Set&lt;IOException&gt; innerExceptions = newConcurrentHashSet();</span>
+<span class="fc" id="L524">    final CountDownLatch latch = new CountDownLatch(resourceIds.size());</span>
+<span class="fc bfc" id="L525" title="All 2 branches covered.">    for (final StorageResourceId resourceId : resourceIds) {</span>
+<span class="fc" id="L526">      final Storage.Objects.Insert insertObject = prepareEmptyInsert(resourceId, options);</span>
+<span class="fc" id="L527">      manualBatchingThreadPool.execute(</span>
           () -&gt; {
             try {
-<span class="fc" id="L528">              insertObject.execute();</span>
-<span class="fc" id="L529">              logger.atFine().log(&quot;Successfully inserted %s&quot;, resourceId);</span>
-<span class="fc" id="L530">            } catch (IOException ioe) {</span>
-<span class="fc" id="L531">              boolean canIgnoreException = false;</span>
+<span class="fc" id="L530">              insertObject.execute();</span>
+<span class="fc" id="L531">              logger.atFine().log(&quot;Successfully inserted %s&quot;, resourceId);</span>
+<span class="fc" id="L532">            } catch (IOException ioe) {</span>
+<span class="fc" id="L533">              boolean canIgnoreException = false;</span>
               try {
-<span class="nc" id="L533">                canIgnoreException = canIgnoreExceptionForEmptyObject(ioe, resourceId, options);</span>
-<span class="fc" id="L534">              } catch (Throwable t) {</span>
+<span class="nc" id="L535">                canIgnoreException = canIgnoreExceptionForEmptyObject(ioe, resourceId, options);</span>
+<span class="fc" id="L536">              } catch (Throwable t) {</span>
                 // Make sure to catch Throwable instead of only IOException so that we can
                 // correctly wrap other such throwables and propagate them out cleanly inside
                 // innerExceptions; common sources of non-IOExceptions include Preconditions
                 // checks which get enforced at various layers in the library stack.
-<span class="fc" id="L539">                innerExceptions.add(</span>
+<span class="fc" id="L541">                innerExceptions.add(</span>
                     new IOException(&quot;Error re-fetching after rate-limit error: &quot; + resourceId, t));
-<span class="nc" id="L541">              }</span>
-<span class="pc bpc" id="L542" title="1 of 2 branches missed.">              if (canIgnoreException) {</span>
-<span class="nc" id="L543">                logger.atInfo().withCause(ioe).log(</span>
+<span class="nc" id="L543">              }</span>
+<span class="pc bpc" id="L544" title="1 of 2 branches missed.">              if (canIgnoreException) {</span>
+<span class="nc" id="L545">                logger.atInfo().withCause(ioe).log(</span>
                     &quot;Ignoring exception; verified object already exists with desired state.&quot;);
               } else {
-<span class="fc" id="L546">                innerExceptions.add(new IOException(&quot;Error inserting &quot; + resourceId, ioe));</span>
+<span class="fc" id="L548">                innerExceptions.add(new IOException(&quot;Error inserting &quot; + resourceId, ioe));</span>
               }
-<span class="nc" id="L548">            } catch (Throwable t) {</span>
-<span class="nc" id="L549">              innerExceptions.add(new IOException(&quot;Error inserting &quot; + resourceId, t));</span>
+<span class="nc" id="L550">            } catch (Throwable t) {</span>
+<span class="nc" id="L551">              innerExceptions.add(new IOException(&quot;Error inserting &quot; + resourceId, t));</span>
             } finally {
-<span class="fc" id="L551">              latch.countDown();</span>
+<span class="fc" id="L553">              latch.countDown();</span>
             }
-<span class="fc" id="L553">          });</span>
-<span class="fc" id="L554">    }</span>
+<span class="fc" id="L555">          });</span>
+<span class="fc" id="L556">    }</span>
 
     try {
-<span class="fc" id="L557">      latch.await();</span>
-<span class="nc" id="L558">    } catch (InterruptedException ie) {</span>
-<span class="nc" id="L559">      throw new IOException(ie);</span>
-<span class="fc" id="L560">    }</span>
+<span class="fc" id="L559">      latch.await();</span>
+<span class="nc" id="L560">    } catch (InterruptedException ie) {</span>
+<span class="nc" id="L561">      throw new IOException(ie);</span>
+<span class="fc" id="L562">    }</span>
 
-<span class="fc bfc" id="L562" title="All 2 branches covered.">    if (!innerExceptions.isEmpty()) {</span>
-<span class="fc" id="L563">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
+<span class="fc bfc" id="L564" title="All 2 branches covered.">    if (!innerExceptions.isEmpty()) {</span>
+<span class="fc" id="L565">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
     }
-<span class="fc" id="L565">  }</span>
+<span class="fc" id="L567">  }</span>
 
   /**
    * See {@link GoogleCloudStorage#createEmptyObjects(List)} for details about
@@ -570,8 +572,8 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   @Override
   public void createEmptyObjects(List&lt;StorageResourceId&gt; resourceIds) throws IOException {
-<span class="fc" id="L573">    createEmptyObjects(resourceIds, CreateObjectOptions.DEFAULT);</span>
-<span class="fc" id="L574">  }</span>
+<span class="fc" id="L575">    createEmptyObjects(resourceIds, CreateObjectOptions.DEFAULT);</span>
+<span class="fc" id="L576">  }</span>
 
   /**
    * See {@link GoogleCloudStorage#open(StorageResourceId)} for details about expected behavior.
@@ -579,7 +581,7 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   @Override
   public SeekableByteChannel open(StorageResourceId resourceId)
       throws IOException {
-<span class="fc" id="L582">    return open(resourceId, GoogleCloudStorageReadOptions.DEFAULT);</span>
+<span class="fc" id="L584">    return open(resourceId, GoogleCloudStorageReadOptions.DEFAULT);</span>
   }
 
   /** See {@link GoogleCloudStorage#open(StorageResourceId)} for details about expected behavior. */
@@ -587,42 +589,42 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   public SeekableByteChannel open(
       final StorageResourceId resourceId, GoogleCloudStorageReadOptions readOptions)
       throws IOException {
-<span class="fc" id="L590">    logger.atFine().log(&quot;open(%s, %s)&quot;, resourceId, readOptions);</span>
-<span class="fc" id="L591">    Preconditions.checkArgument(</span>
-<span class="fc" id="L592">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
+<span class="fc" id="L592">    logger.atFine().log(&quot;open(%s, %s)&quot;, resourceId, readOptions);</span>
+<span class="fc" id="L593">    Preconditions.checkArgument(</span>
+<span class="fc" id="L594">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
 
     // The underlying channel doesn't initially read data, which means that we won't see a
     // FileNotFoundException until read is called. As a result, in order to find out if the object
     // exists, we'll need to do an RPC (metadata or data). A metadata check should be a less
     // expensive operation than a read data operation.
     GoogleCloudStorageItemInfo info;
-<span class="fc bfc" id="L599" title="All 2 branches covered.">    if (readOptions.getFastFailOnNotFound()) {</span>
-<span class="fc" id="L600">      info = getItemInfo(resourceId);</span>
-<span class="fc bfc" id="L601" title="All 2 branches covered.">      if (!info.exists()) {</span>
-<span class="fc" id="L602">        throw GoogleCloudStorageExceptions.getFileNotFoundException(</span>
-<span class="fc" id="L603">            resourceId.getBucketName(), resourceId.getObjectName());</span>
+<span class="fc bfc" id="L601" title="All 2 branches covered.">    if (readOptions.getFastFailOnNotFound()) {</span>
+<span class="fc" id="L602">      info = getItemInfo(resourceId);</span>
+<span class="fc bfc" id="L603" title="All 2 branches covered.">      if (!info.exists()) {</span>
+<span class="fc" id="L604">        throw GoogleCloudStorageExceptions.getFileNotFoundException(</span>
+<span class="fc" id="L605">            resourceId.getBucketName(), resourceId.getObjectName());</span>
       }
     } else {
-<span class="fc" id="L606">      info = null;</span>
+<span class="fc" id="L608">      info = null;</span>
     }
 
-<span class="fc" id="L609">    return new GoogleCloudStorageReadChannel(</span>
+<span class="fc" id="L611">    return new GoogleCloudStorageReadChannel(</span>
         gcs,
-<span class="fc" id="L611">        resourceId.getBucketName(),</span>
-<span class="fc" id="L612">        resourceId.getObjectName(),</span>
+<span class="fc" id="L613">        resourceId.getBucketName(),</span>
+<span class="fc" id="L614">        resourceId.getObjectName(),</span>
         errorExtractor,
         clientRequestHelper,
-<span class="fc" id="L615">        readOptions) {</span>
+<span class="fc" id="L617">        readOptions) {</span>
 
       @Override
       @Nullable
       protected GoogleCloudStorageItemInfo getInitialMetadata() {
-<span class="fc" id="L620">        return info;</span>
+<span class="fc" id="L622">        return info;</span>
       }
 
       @Override
       protected Storage.Objects.Get createRequest() throws IOException {
-<span class="fc" id="L625">        return configureRequest(super.createRequest(), resourceId.getBucketName());</span>
+<span class="fc" id="L627">        return configureRequest(super.createRequest(), resourceId.getBucketName());</span>
       }
     };
   }
@@ -630,89 +632,89 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   /** See {@link GoogleCloudStorage#deleteBuckets(List)} for details about expected behavior. */
   @Override
   public void deleteBuckets(List&lt;String&gt; bucketNames) throws IOException {
-<span class="fc" id="L633">    logger.atFine().log(&quot;deleteBuckets(%s)&quot;, bucketNames);</span>
+<span class="fc" id="L635">    logger.atFine().log(&quot;deleteBuckets(%s)&quot;, bucketNames);</span>
 
     // Validate all the inputs first.
-<span class="fc bfc" id="L636" title="All 2 branches covered.">    for (String bucketName : bucketNames) {</span>
-<span class="fc" id="L637">      Preconditions.checkArgument(</span>
-<span class="fc bfc" id="L638" title="All 2 branches covered.">          !Strings.isNullOrEmpty(bucketName), &quot;bucketName must not be null or empty&quot;);</span>
-<span class="fc" id="L639">    }</span>
+<span class="fc bfc" id="L638" title="All 2 branches covered.">    for (String bucketName : bucketNames) {</span>
+<span class="fc" id="L639">      Preconditions.checkArgument(</span>
+<span class="fc bfc" id="L640" title="All 2 branches covered.">          !Strings.isNullOrEmpty(bucketName), &quot;bucketName must not be null or empty&quot;);</span>
+<span class="fc" id="L641">    }</span>
 
     // Gather exceptions to wrap in a composite exception at the end.
-<span class="fc" id="L642">    final List&lt;IOException&gt; innerExceptions = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L644">    final List&lt;IOException&gt; innerExceptions = new ArrayList&lt;&gt;();</span>
 
-<span class="fc bfc" id="L644" title="All 2 branches covered.">    for (final String bucketName : bucketNames) {</span>
-<span class="fc" id="L645">      final Storage.Buckets.Delete deleteBucket =</span>
-<span class="fc" id="L646">          configureRequest(gcs.buckets().delete(bucketName), bucketName);</span>
+<span class="fc bfc" id="L646" title="All 2 branches covered.">    for (final String bucketName : bucketNames) {</span>
+<span class="fc" id="L647">      final Storage.Buckets.Delete deleteBucket =</span>
+<span class="fc" id="L648">          configureRequest(gcs.buckets().delete(bucketName), bucketName);</span>
 
       try {
-<span class="fc" id="L649">        ResilientOperation.retry(</span>
-<span class="fc" id="L650">            ResilientOperation.getGoogleRequestCallable(deleteBucket),</span>
-<span class="fc" id="L651">            backOffFactory.newBackOff(),</span>
+<span class="fc" id="L651">        ResilientOperation.retry(</span>
+<span class="fc" id="L652">            ResilientOperation.getGoogleRequestCallable(deleteBucket),</span>
+<span class="fc" id="L653">            backOffFactory.newBackOff(),</span>
             rateLimitedRetryDeterminer,
             IOException.class,
             sleeper);
-<span class="fc" id="L655">      } catch (IOException e) {</span>
-<span class="fc bfc" id="L656" title="All 2 branches covered.">        if (errorExtractor.itemNotFound(e)) {</span>
-<span class="fc" id="L657">          FileNotFoundException fnfe =</span>
-<span class="fc" id="L658">              GoogleCloudStorageExceptions.getFileNotFoundException(bucketName, null);</span>
-<span class="fc" id="L659">          innerExceptions.add((FileNotFoundException) fnfe.initCause(e));</span>
-<span class="fc" id="L660">        } else {</span>
-<span class="fc" id="L661">          innerExceptions.add(new IOException(&quot;Error deleting &quot; + bucketName, e));</span>
+<span class="fc" id="L657">      } catch (IOException e) {</span>
+<span class="fc bfc" id="L658" title="All 2 branches covered.">        if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc" id="L659">          FileNotFoundException fnfe =</span>
+<span class="fc" id="L660">              GoogleCloudStorageExceptions.getFileNotFoundException(bucketName, null);</span>
+<span class="fc" id="L661">          innerExceptions.add((FileNotFoundException) fnfe.initCause(e));</span>
+<span class="fc" id="L662">        } else {</span>
+<span class="fc" id="L663">          innerExceptions.add(new IOException(&quot;Error deleting &quot; + bucketName, e));</span>
         }
-<span class="nc" id="L663">      } catch (InterruptedException e) {</span>
-<span class="nc" id="L664">        throw new IOException(e);  // From sleep</span>
-<span class="fc" id="L665">      }</span>
-<span class="fc" id="L666">    }</span>
-<span class="fc bfc" id="L667" title="All 2 branches covered.">    if (innerExceptions.size() &gt; 0) {</span>
-<span class="fc" id="L668">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
+<span class="nc" id="L665">      } catch (InterruptedException e) {</span>
+<span class="nc" id="L666">        throw new IOException(e);  // From sleep</span>
+<span class="fc" id="L667">      }</span>
+<span class="fc" id="L668">    }</span>
+<span class="fc bfc" id="L669" title="All 2 branches covered.">    if (innerExceptions.size() &gt; 0) {</span>
+<span class="fc" id="L670">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
     }
-<span class="fc" id="L670">  }</span>
+<span class="fc" id="L672">  }</span>
 
   public void deleteObject(StorageResourceId resourceId, long metaGeneration) throws IOException {
-<span class="fc" id="L673">    String bucketName = resourceId.getBucketName();</span>
-<span class="fc" id="L674">    Storage.Objects.Delete deleteObject =</span>
-<span class="fc" id="L675">        configureRequest(gcs.objects().delete(bucketName, resourceId.getObjectName()), bucketName)</span>
-<span class="fc" id="L676">            .setIfMetagenerationMatch(metaGeneration);</span>
-<span class="fc" id="L677">    deleteObject.execute();</span>
-<span class="fc" id="L678">  }</span>
+<span class="fc" id="L675">    String bucketName = resourceId.getBucketName();</span>
+<span class="fc" id="L676">    Storage.Objects.Delete deleteObject =</span>
+<span class="fc" id="L677">        configureRequest(gcs.objects().delete(bucketName, resourceId.getObjectName()), bucketName)</span>
+<span class="fc" id="L678">            .setIfMetagenerationMatch(metaGeneration);</span>
+<span class="fc" id="L679">    deleteObject.execute();</span>
+<span class="fc" id="L680">  }</span>
 
   /** See {@link GoogleCloudStorage#deleteObjects(List)} for details about expected behavior. */
   @Override
   public void deleteObjects(List&lt;StorageResourceId&gt; fullObjectNames) throws IOException {
-<span class="fc" id="L683">    logger.atFine().log(&quot;deleteObjects(%s)&quot;, fullObjectNames);</span>
+<span class="fc" id="L685">    logger.atFine().log(&quot;deleteObjects(%s)&quot;, fullObjectNames);</span>
 
-<span class="fc bfc" id="L685" title="All 2 branches covered.">    if (fullObjectNames.isEmpty()) {</span>
-<span class="fc" id="L686">      return;</span>
+<span class="fc bfc" id="L687" title="All 2 branches covered.">    if (fullObjectNames.isEmpty()) {</span>
+<span class="fc" id="L688">      return;</span>
     }
 
     // Validate that all the elements represent StorageObjects.
-<span class="fc bfc" id="L690" title="All 2 branches covered.">    for (StorageResourceId fullObjectName : fullObjectNames) {</span>
-<span class="fc" id="L691">      Preconditions.checkArgument(</span>
-<span class="fc" id="L692">          fullObjectName.isStorageObject(),</span>
+<span class="fc bfc" id="L692" title="All 2 branches covered.">    for (StorageResourceId fullObjectName : fullObjectNames) {</span>
+<span class="fc" id="L693">      Preconditions.checkArgument(</span>
+<span class="fc" id="L694">          fullObjectName.isStorageObject(),</span>
           &quot;Expected full StorageObject names only, got: %s&quot;, fullObjectName);
-<span class="fc" id="L694">    }</span>
+<span class="fc" id="L696">    }</span>
 
     // Gather exceptions to wrap in a composite exception at the end.
-<span class="fc" id="L697">    final KeySetView&lt;IOException, Boolean&gt; innerExceptions = ConcurrentHashMap.newKeySet();</span>
-<span class="fc" id="L698">    BatchHelper batchHelper =</span>
-<span class="fc" id="L699">        batchFactory.newBatchHelper(</span>
+<span class="fc" id="L699">    final KeySetView&lt;IOException, Boolean&gt; innerExceptions = ConcurrentHashMap.newKeySet();</span>
+<span class="fc" id="L700">    BatchHelper batchHelper =</span>
+<span class="fc" id="L701">        batchFactory.newBatchHelper(</span>
             httpRequestInitializer,
             gcs,
-<span class="fc" id="L702">            storageOptions.getMaxRequestsPerBatch(),</span>
-<span class="fc" id="L703">            fullObjectNames.size(),</span>
-<span class="fc" id="L704">            storageOptions.getBatchThreads());</span>
+<span class="fc" id="L704">            storageOptions.getMaxRequestsPerBatch(),</span>
+<span class="fc" id="L705">            fullObjectNames.size(),</span>
+<span class="fc" id="L706">            storageOptions.getBatchThreads());</span>
 
-<span class="fc bfc" id="L706" title="All 2 branches covered.">    for (StorageResourceId fullObjectName : fullObjectNames) {</span>
-<span class="fc" id="L707">      queueSingleObjectDelete(fullObjectName, innerExceptions, batchHelper, 1);</span>
-<span class="fc" id="L708">    }</span>
+<span class="fc bfc" id="L708" title="All 2 branches covered.">    for (StorageResourceId fullObjectName : fullObjectNames) {</span>
+<span class="fc" id="L709">      queueSingleObjectDelete(fullObjectName, innerExceptions, batchHelper, 1);</span>
+<span class="fc" id="L710">    }</span>
 
-<span class="fc" id="L710">    batchHelper.flush();</span>
+<span class="fc" id="L712">    batchHelper.flush();</span>
 
-<span class="fc bfc" id="L712" title="All 2 branches covered.">    if (innerExceptions.size() &gt; 0) {</span>
-<span class="fc" id="L713">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
+<span class="fc bfc" id="L714" title="All 2 branches covered.">    if (innerExceptions.size() &gt; 0) {</span>
+<span class="fc" id="L715">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
     }
-<span class="fc" id="L715">  }</span>
+<span class="fc" id="L717">  }</span>
 
   /** Helper to create a callback for a particular deletion request. */
   private JsonBatchCallback&lt;Void&gt; getDeletionCallback(
@@ -721,35 +723,35 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       final BatchHelper batchHelper,
       final int attempt,
       final long generation) {
-<span class="fc" id="L724">    return new JsonBatchCallback&lt;Void&gt;() {</span>
+<span class="fc" id="L726">    return new JsonBatchCallback&lt;Void&gt;() {</span>
       @Override
       public void onSuccess(Void obj, HttpHeaders responseHeaders) {
-<span class="fc" id="L727">        logger.atFine().log(&quot;Successfully deleted %s at generation %s&quot;, resourceId, generation);</span>
-<span class="fc" id="L728">      }</span>
+<span class="fc" id="L729">        logger.atFine().log(&quot;Successfully deleted %s at generation %s&quot;, resourceId, generation);</span>
+<span class="fc" id="L730">      }</span>
 
       @Override
       public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) throws IOException {
-<span class="fc bfc" id="L732" title="All 2 branches covered.">        if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc bfc" id="L734" title="All 2 branches covered.">        if (errorExtractor.itemNotFound(e)) {</span>
           // Ignore item-not-found errors. We do not have to delete what we cannot find. This
           // error typically shows up when we make a request to delete something and the server
           // receives the request but we get a retry-able error before we get a response.
           // During a retry, we no longer find the item because the server had deleted
           // it already.
-<span class="fc" id="L738">          logger.atFine().log(&quot;deleteObjects(%s): delete not found:%n%s&quot;, resourceId, e);</span>
-<span class="pc bpc" id="L739" title="3 of 4 branches missed.">        } else if (errorExtractor.preconditionNotMet(e)</span>
+<span class="fc" id="L740">          logger.atFine().log(&quot;deleteObjects(%s): delete not found:%n%s&quot;, resourceId, e);</span>
+<span class="pc bpc" id="L741" title="3 of 4 branches missed.">        } else if (errorExtractor.preconditionNotMet(e)</span>
             &amp;&amp; attempt &lt;= MAXIMUM_PRECONDITION_FAILURES_IN_DELETE) {
-<span class="nc" id="L741">          logger.atInfo().log(</span>
+<span class="nc" id="L743">          logger.atInfo().log(</span>
               &quot;Precondition not met while deleting %s at generation %s. Attempt %s. Retrying:%n%s&quot;,
-<span class="nc" id="L743">              resourceId, generation, attempt, e);</span>
-<span class="nc" id="L744">          queueSingleObjectDelete(resourceId, innerExceptions, batchHelper, attempt + 1);</span>
+<span class="nc" id="L745">              resourceId, generation, attempt, e);</span>
+<span class="nc" id="L746">          queueSingleObjectDelete(resourceId, innerExceptions, batchHelper, attempt + 1);</span>
         } else {
-<span class="fc" id="L746">          innerExceptions.add(</span>
+<span class="fc" id="L748">          innerExceptions.add(</span>
               new IOException(
-<span class="fc" id="L748">                  String.format(</span>
+<span class="fc" id="L750">                  String.format(</span>
                       &quot;Error deleting %s, stage 2 with generation %s:%n%s&quot;,
-<span class="fc" id="L750">                      resourceId, generation, e)));</span>
+<span class="fc" id="L752">                      resourceId, generation, e)));</span>
         }
-<span class="fc" id="L752">      }</span>
+<span class="fc" id="L754">      }</span>
     };
   }
 
@@ -759,55 +761,55 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       final BatchHelper batchHelper,
       final int attempt)
       throws IOException {
-<span class="fc" id="L762">    final String bucketName = resourceId.getBucketName();</span>
-<span class="fc" id="L763">    final String objectName = resourceId.getObjectName();</span>
+<span class="fc" id="L764">    final String bucketName = resourceId.getBucketName();</span>
+<span class="fc" id="L765">    final String objectName = resourceId.getObjectName();</span>
 
-<span class="fc bfc" id="L765" title="All 2 branches covered.">    if (resourceId.hasGenerationId()) {</span>
+<span class="fc bfc" id="L767" title="All 2 branches covered.">    if (resourceId.hasGenerationId()) {</span>
       // We can go direct to the deletion request instead of first fetching generation id.
-<span class="fc" id="L767">      long generationId = resourceId.getGenerationId();</span>
-<span class="fc" id="L768">      Storage.Objects.Delete deleteObject =</span>
-<span class="fc" id="L769">          configureRequest(gcs.objects().delete(bucketName, objectName), bucketName)</span>
-<span class="fc" id="L770">              .setIfGenerationMatch(generationId);</span>
-<span class="fc" id="L771">      batchHelper.queue(</span>
+<span class="fc" id="L769">      long generationId = resourceId.getGenerationId();</span>
+<span class="fc" id="L770">      Storage.Objects.Delete deleteObject =</span>
+<span class="fc" id="L771">          configureRequest(gcs.objects().delete(bucketName, objectName), bucketName)</span>
+<span class="fc" id="L772">              .setIfGenerationMatch(generationId);</span>
+<span class="fc" id="L773">      batchHelper.queue(</span>
           deleteObject,
-<span class="fc" id="L773">          getDeletionCallback(resourceId, innerExceptions, batchHelper, attempt, generationId));</span>
-<span class="fc" id="L774">    } else {</span>
+<span class="fc" id="L775">          getDeletionCallback(resourceId, innerExceptions, batchHelper, attempt, generationId));</span>
+<span class="fc" id="L776">    } else {</span>
       // We first need to get the current object version to issue a safe delete for only the
       // latest version of the object.
-<span class="fc" id="L777">      Storage.Objects.Get getObject =</span>
-<span class="fc" id="L778">          configureRequest(gcs.objects().get(bucketName, objectName), bucketName);</span>
-<span class="fc" id="L779">      batchHelper.queue(</span>
+<span class="fc" id="L779">      Storage.Objects.Get getObject =</span>
+<span class="fc" id="L780">          configureRequest(gcs.objects().get(bucketName, objectName), bucketName);</span>
+<span class="fc" id="L781">      batchHelper.queue(</span>
           getObject,
-<span class="fc" id="L781">          new JsonBatchCallback&lt;StorageObject&gt;() {</span>
+<span class="fc" id="L783">          new JsonBatchCallback&lt;StorageObject&gt;() {</span>
             @Override
             public void onSuccess(StorageObject storageObject, HttpHeaders httpHeaders)
                 throws IOException {
-<span class="fc" id="L785">              final Long generation = storageObject.getGeneration();</span>
-<span class="fc" id="L786">              Storage.Objects.Delete deleteObject =</span>
-<span class="fc" id="L787">                  configureRequest(gcs.objects().delete(bucketName, objectName), bucketName)</span>
-<span class="fc" id="L788">                      .setIfGenerationMatch(generation);</span>
+<span class="fc" id="L787">              final Long generation = storageObject.getGeneration();</span>
+<span class="fc" id="L788">              Storage.Objects.Delete deleteObject =</span>
+<span class="fc" id="L789">                  configureRequest(gcs.objects().delete(bucketName, objectName), bucketName)</span>
+<span class="fc" id="L790">                      .setIfGenerationMatch(generation);</span>
 
-<span class="fc" id="L790">              batchHelper.queue(</span>
+<span class="fc" id="L792">              batchHelper.queue(</span>
                   deleteObject,
-<span class="fc" id="L792">                  getDeletionCallback(</span>
-<span class="fc" id="L793">                      resourceId, innerExceptions, batchHelper, attempt, generation));</span>
-<span class="fc" id="L794">            }</span>
+<span class="fc" id="L794">                  getDeletionCallback(</span>
+<span class="fc" id="L795">                      resourceId, innerExceptions, batchHelper, attempt, generation));</span>
+<span class="fc" id="L796">            }</span>
 
             @Override
             public void onFailure(GoogleJsonError e, HttpHeaders httpHeaders) {
-<span class="pc bpc" id="L798" title="1 of 2 branches missed.">              if (errorExtractor.itemNotFound(e)) {</span>
+<span class="pc bpc" id="L800" title="1 of 2 branches missed.">              if (errorExtractor.itemNotFound(e)) {</span>
                 // If the item isn't found, treat it the same as if it's not found in the delete
                 // case: assume the user wanted the object gone and now it is.
-<span class="fc" id="L801">                logger.atFine().log(&quot;deleteObjects(%s): get not found:%n%s&quot;, resourceId, e);</span>
+<span class="fc" id="L803">                logger.atFine().log(&quot;deleteObjects(%s): get not found:%n%s&quot;, resourceId, e);</span>
               } else {
-<span class="nc" id="L803">                innerExceptions.add(</span>
+<span class="nc" id="L805">                innerExceptions.add(</span>
                     new IOException(
-<span class="nc" id="L805">                        String.format(&quot;Error deleting %s, stage 1:%n%s&quot;, resourceId, e)));</span>
+<span class="nc" id="L807">                        String.format(&quot;Error deleting %s, stage 1:%n%s&quot;, resourceId, e)));</span>
               }
-<span class="fc" id="L807">            }</span>
+<span class="fc" id="L809">            }</span>
           });
     }
-<span class="fc" id="L810">  }</span>
+<span class="fc" id="L812">  }</span>
 
   /**
    * Validates basic argument constraints like non-null, non-empty Strings, using {@code
@@ -829,56 +831,56 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       List&lt;String&gt; dstObjectNames,
       GoogleCloudStorage gcsImpl)
       throws IOException {
-<span class="fc bfc" id="L832" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(srcBucketName),</span>
+<span class="fc bfc" id="L834" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(srcBucketName),</span>
         &quot;srcBucketName must not be null or empty&quot;);
-<span class="fc bfc" id="L834" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(dstBucketName),</span>
+<span class="fc bfc" id="L836" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(dstBucketName),</span>
         &quot;dstBucketName must not be null or empty&quot;);
-<span class="fc bfc" id="L836" title="All 2 branches covered.">    Preconditions.checkArgument(srcObjectNames != null,</span>
+<span class="fc bfc" id="L838" title="All 2 branches covered.">    Preconditions.checkArgument(srcObjectNames != null,</span>
         &quot;srcObjectNames must not be null&quot;);
-<span class="fc bfc" id="L838" title="All 2 branches covered.">    Preconditions.checkArgument(dstObjectNames != null,</span>
+<span class="fc bfc" id="L840" title="All 2 branches covered.">    Preconditions.checkArgument(dstObjectNames != null,</span>
         &quot;dstObjectNames must not be null&quot;);
-<span class="fc bfc" id="L840" title="All 2 branches covered.">    Preconditions.checkArgument(srcObjectNames.size() == dstObjectNames.size(),</span>
+<span class="fc bfc" id="L842" title="All 2 branches covered.">    Preconditions.checkArgument(srcObjectNames.size() == dstObjectNames.size(),</span>
         &quot;Must supply same number of elements in srcObjectNames and dstObjectNames&quot;);
 
     // Avoid copy across locations or storage classes.
-<span class="fc bfc" id="L844" title="All 2 branches covered.">    if (!srcBucketName.equals(dstBucketName)) {</span>
-<span class="fc" id="L845">      GoogleCloudStorageItemInfo srcBucketInfo =</span>
-<span class="fc" id="L846">          gcsImpl.getItemInfo(new StorageResourceId(srcBucketName));</span>
-<span class="fc bfc" id="L847" title="All 2 branches covered.">      if (!srcBucketInfo.exists()) {</span>
-<span class="fc" id="L848">        throw new FileNotFoundException(&quot;Bucket not found: &quot; + srcBucketName);</span>
+<span class="fc bfc" id="L846" title="All 2 branches covered.">    if (!srcBucketName.equals(dstBucketName)) {</span>
+<span class="fc" id="L847">      GoogleCloudStorageItemInfo srcBucketInfo =</span>
+<span class="fc" id="L848">          gcsImpl.getItemInfo(new StorageResourceId(srcBucketName));</span>
+<span class="fc bfc" id="L849" title="All 2 branches covered.">      if (!srcBucketInfo.exists()) {</span>
+<span class="fc" id="L850">        throw new FileNotFoundException(&quot;Bucket not found: &quot; + srcBucketName);</span>
       }
 
-<span class="fc" id="L851">      GoogleCloudStorageItemInfo dstBucketInfo =</span>
-<span class="fc" id="L852">          gcsImpl.getItemInfo(new StorageResourceId(dstBucketName));</span>
-<span class="fc bfc" id="L853" title="All 2 branches covered.">      if (!dstBucketInfo.exists()) {</span>
-<span class="fc" id="L854">        throw new FileNotFoundException(&quot;Bucket not found: &quot; + dstBucketName);</span>
+<span class="fc" id="L853">      GoogleCloudStorageItemInfo dstBucketInfo =</span>
+<span class="fc" id="L854">          gcsImpl.getItemInfo(new StorageResourceId(dstBucketName));</span>
+<span class="fc bfc" id="L855" title="All 2 branches covered.">      if (!dstBucketInfo.exists()) {</span>
+<span class="fc" id="L856">        throw new FileNotFoundException(&quot;Bucket not found: &quot; + dstBucketName);</span>
       }
 
-<span class="fc bfc" id="L857" title="All 2 branches covered.">      if (!gcsImpl.getOptions().isCopyWithRewriteEnabled()) {</span>
-<span class="fc bfc" id="L858" title="All 2 branches covered.">        if (!srcBucketInfo.getLocation().equals(dstBucketInfo.getLocation())) {</span>
-<span class="fc" id="L859">          throw new UnsupportedOperationException(</span>
+<span class="fc bfc" id="L859" title="All 2 branches covered.">      if (!gcsImpl.getOptions().isCopyWithRewriteEnabled()) {</span>
+<span class="fc bfc" id="L860" title="All 2 branches covered.">        if (!srcBucketInfo.getLocation().equals(dstBucketInfo.getLocation())) {</span>
+<span class="fc" id="L861">          throw new UnsupportedOperationException(</span>
               &quot;This operation is not supported across two different storage locations.&quot;);
         }
 
-<span class="fc bfc" id="L863" title="All 2 branches covered.">        if (!srcBucketInfo.getStorageClass().equals(dstBucketInfo.getStorageClass())) {</span>
-<span class="fc" id="L864">          throw new UnsupportedOperationException(</span>
+<span class="fc bfc" id="L865" title="All 2 branches covered.">        if (!srcBucketInfo.getStorageClass().equals(dstBucketInfo.getStorageClass())) {</span>
+<span class="fc" id="L866">          throw new UnsupportedOperationException(</span>
               &quot;This operation is not supported across two different storage classes.&quot;);
         }
       }
     }
-<span class="fc bfc" id="L869" title="All 2 branches covered.">    for (int i = 0; i &lt; srcObjectNames.size(); i++) {</span>
-<span class="fc bfc" id="L870" title="All 2 branches covered.">      Preconditions.checkArgument(!Strings.isNullOrEmpty(srcObjectNames.get(i)),</span>
+<span class="fc bfc" id="L871" title="All 2 branches covered.">    for (int i = 0; i &lt; srcObjectNames.size(); i++) {</span>
+<span class="fc bfc" id="L872" title="All 2 branches covered.">      Preconditions.checkArgument(!Strings.isNullOrEmpty(srcObjectNames.get(i)),</span>
           &quot;srcObjectName must not be null or empty&quot;);
-<span class="fc bfc" id="L872" title="All 2 branches covered.">      Preconditions.checkArgument(!Strings.isNullOrEmpty(dstObjectNames.get(i)),</span>
+<span class="fc bfc" id="L874" title="All 2 branches covered.">      Preconditions.checkArgument(!Strings.isNullOrEmpty(dstObjectNames.get(i)),</span>
           &quot;dstObjectName must not be null or empty&quot;);
-<span class="fc bfc" id="L874" title="All 2 branches covered.">      if (srcBucketName.equals(dstBucketName)</span>
-<span class="fc bfc" id="L875" title="All 2 branches covered.">          &amp;&amp; srcObjectNames.get(i).equals(dstObjectNames.get(i))) {</span>
-<span class="fc" id="L876">        throw new IllegalArgumentException(String.format(</span>
+<span class="fc bfc" id="L876" title="All 2 branches covered.">      if (srcBucketName.equals(dstBucketName)</span>
+<span class="fc bfc" id="L877" title="All 2 branches covered.">          &amp;&amp; srcObjectNames.get(i).equals(dstObjectNames.get(i))) {</span>
+<span class="fc" id="L878">        throw new IllegalArgumentException(String.format(</span>
             &quot;Copy destination must be different from source for %s.&quot;,
-<span class="fc" id="L878">            StorageResourceId.createReadableString(srcBucketName, srcObjectNames.get(i))));</span>
+<span class="fc" id="L880">            StorageResourceId.createReadableString(srcBucketName, srcObjectNames.get(i))));</span>
       }
     }
-<span class="fc" id="L881">  }</span>
+<span class="fc" id="L883">  }</span>
 
   /**
    * See {@link GoogleCloudStorage#copy(String, List, String, List)} for details about expected
@@ -889,50 +891,50 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       String srcBucketName, List&lt;String&gt; srcObjectNames,
       String dstBucketName, List&lt;String&gt; dstObjectNames)
       throws IOException {
-<span class="fc" id="L892">    validateCopyArguments(srcBucketName, srcObjectNames, dstBucketName, dstObjectNames, this);</span>
+<span class="fc" id="L894">    validateCopyArguments(srcBucketName, srcObjectNames, dstBucketName, dstObjectNames, this);</span>
 
-<span class="pc bpc" id="L894" title="1 of 2 branches missed.">    if (srcObjectNames.isEmpty()) {</span>
-<span class="nc" id="L895">      return;</span>
+<span class="pc bpc" id="L896" title="1 of 2 branches missed.">    if (srcObjectNames.isEmpty()) {</span>
+<span class="nc" id="L897">      return;</span>
     }
 
     // Gather FileNotFoundExceptions for individual objects,
     // but only throw a single combined exception at the end.
-<span class="fc" id="L900">    KeySetView&lt;IOException, Boolean&gt; innerExceptions = ConcurrentHashMap.newKeySet();</span>
+<span class="fc" id="L902">    KeySetView&lt;IOException, Boolean&gt; innerExceptions = ConcurrentHashMap.newKeySet();</span>
 
     // Perform the copy operations.
-<span class="fc" id="L903">    BatchHelper batchHelper =</span>
-<span class="fc" id="L904">        batchFactory.newBatchHelper(</span>
+<span class="fc" id="L905">    BatchHelper batchHelper =</span>
+<span class="fc" id="L906">        batchFactory.newBatchHelper(</span>
             httpRequestInitializer,
             gcs,
-<span class="fc" id="L907">            storageOptions.getCopyMaxRequestsPerBatch(),</span>
-<span class="fc" id="L908">            srcObjectNames.size(),</span>
-<span class="fc" id="L909">            storageOptions.getCopyBatchThreads());</span>
+<span class="fc" id="L909">            storageOptions.getCopyMaxRequestsPerBatch(),</span>
+<span class="fc" id="L910">            srcObjectNames.size(),</span>
+<span class="fc" id="L911">            storageOptions.getCopyBatchThreads());</span>
 
-<span class="fc bfc" id="L911" title="All 2 branches covered.">    for (int i = 0; i &lt; srcObjectNames.size(); i++) {</span>
-<span class="fc bfc" id="L912" title="All 2 branches covered.">      if (storageOptions.isCopyWithRewriteEnabled()) {</span>
+<span class="fc bfc" id="L913" title="All 2 branches covered.">    for (int i = 0; i &lt; srcObjectNames.size(); i++) {</span>
+<span class="fc bfc" id="L914" title="All 2 branches covered.">      if (storageOptions.isCopyWithRewriteEnabled()) {</span>
         // Rewrite request has the same effect as Copy, but it can handle moving
         // large objects that may potentially timeout a Copy request.
-<span class="fc" id="L915">        rewriteInternal(</span>
+<span class="fc" id="L917">        rewriteInternal(</span>
             batchHelper,
             innerExceptions,
-<span class="fc" id="L918">            srcBucketName, srcObjectNames.get(i),</span>
-<span class="fc" id="L919">            dstBucketName, dstObjectNames.get(i));</span>
+<span class="fc" id="L920">            srcBucketName, srcObjectNames.get(i),</span>
+<span class="fc" id="L921">            dstBucketName, dstObjectNames.get(i));</span>
       } else {
-<span class="fc" id="L921">        copyInternal(</span>
+<span class="fc" id="L923">        copyInternal(</span>
             batchHelper,
             innerExceptions,
-<span class="fc" id="L924">            srcBucketName, srcObjectNames.get(i),</span>
-<span class="fc" id="L925">            dstBucketName, dstObjectNames.get(i));</span>
+<span class="fc" id="L926">            srcBucketName, srcObjectNames.get(i),</span>
+<span class="fc" id="L927">            dstBucketName, dstObjectNames.get(i));</span>
       }
     }
 
     // Execute any remaining requests not divisible by the max batch size.
-<span class="fc" id="L930">    batchHelper.flush();</span>
+<span class="fc" id="L932">    batchHelper.flush();</span>
 
-<span class="fc bfc" id="L932" title="All 2 branches covered.">    if (!innerExceptions.isEmpty()) {</span>
-<span class="fc" id="L933">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
+<span class="fc bfc" id="L934" title="All 2 branches covered.">    if (!innerExceptions.isEmpty()) {</span>
+<span class="fc" id="L935">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
     }
-<span class="fc" id="L935">  }</span>
+<span class="fc" id="L937">  }</span>
 
   /**
    * Performs copy operation using GCS Rewrite requests
@@ -945,55 +947,55 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       final String srcBucketName, final String srcObjectName,
       final String dstBucketName, final String dstObjectName)
       throws IOException {
-<span class="fc" id="L948">    Storage.Objects.Rewrite rewriteObject =</span>
-<span class="fc" id="L949">        configureRequest(</span>
-<span class="fc" id="L950">            gcs.objects().rewrite(srcBucketName, srcObjectName, dstBucketName, dstObjectName, null),</span>
+<span class="fc" id="L950">    Storage.Objects.Rewrite rewriteObject =</span>
+<span class="fc" id="L951">        configureRequest(</span>
+<span class="fc" id="L952">            gcs.objects().rewrite(srcBucketName, srcObjectName, dstBucketName, dstObjectName, null),</span>
             srcBucketName);
-<span class="fc bfc" id="L952" title="All 2 branches covered.">    if (storageOptions.getMaxBytesRewrittenPerCall() &gt; 0) {</span>
-<span class="fc" id="L953">      rewriteObject.setMaxBytesRewrittenPerCall(storageOptions.getMaxBytesRewrittenPerCall());</span>
+<span class="fc bfc" id="L954" title="All 2 branches covered.">    if (storageOptions.getMaxBytesRewrittenPerCall() &gt; 0) {</span>
+<span class="fc" id="L955">      rewriteObject.setMaxBytesRewrittenPerCall(storageOptions.getMaxBytesRewrittenPerCall());</span>
     }
 
     // TODO(b/79750454) do not batch rewrite requests because they time out in batches.
-<span class="fc" id="L957">    batchHelper.queue(</span>
+<span class="fc" id="L959">    batchHelper.queue(</span>
         rewriteObject,
-<span class="fc" id="L959">        new JsonBatchCallback&lt;RewriteResponse&gt;() {</span>
+<span class="fc" id="L961">        new JsonBatchCallback&lt;RewriteResponse&gt;() {</span>
           @Override
           public void onSuccess(RewriteResponse rewriteResponse, HttpHeaders responseHeaders) {
-<span class="fc" id="L962">            String srcString = StorageResourceId.createReadableString(srcBucketName, srcObjectName);</span>
-<span class="fc" id="L963">            String dstString = StorageResourceId.createReadableString(dstBucketName, dstObjectName);</span>
+<span class="fc" id="L964">            String srcString = StorageResourceId.createReadableString(srcBucketName, srcObjectName);</span>
+<span class="fc" id="L965">            String dstString = StorageResourceId.createReadableString(dstBucketName, dstObjectName);</span>
 
-<span class="fc bfc" id="L965" title="All 2 branches covered.">            if (rewriteResponse.getDone()) {</span>
-<span class="fc" id="L966">              logger.atFine().log(&quot;Successfully copied %s to %s&quot;, srcString, dstString);</span>
+<span class="fc bfc" id="L967" title="All 2 branches covered.">            if (rewriteResponse.getDone()) {</span>
+<span class="fc" id="L968">              logger.atFine().log(&quot;Successfully copied %s to %s&quot;, srcString, dstString);</span>
             } else {
               // If an object is very large, we need to continue making successive calls to
               // rewrite until the operation completes.
-<span class="fc" id="L970">              logger.atFine().log(</span>
+<span class="fc" id="L972">              logger.atFine().log(</span>
                   &quot;Copy (%s to %s) did not complete. Resuming...&quot;, srcString, dstString);
               try {
-<span class="fc" id="L973">                Storage.Objects.Rewrite rewriteObjectWithToken =</span>
-<span class="fc" id="L974">                    configureRequest(</span>
-<span class="fc" id="L975">                        gcs.objects()</span>
-<span class="fc" id="L976">                            .rewrite(</span>
+<span class="fc" id="L975">                Storage.Objects.Rewrite rewriteObjectWithToken =</span>
+<span class="fc" id="L976">                    configureRequest(</span>
+<span class="fc" id="L977">                        gcs.objects()</span>
+<span class="fc" id="L978">                            .rewrite(</span>
                                 srcBucketName, srcObjectName, dstBucketName, dstObjectName, null),
                         srcBucketName);
-<span class="pc bpc" id="L979" title="1 of 2 branches missed.">                if (storageOptions.getMaxBytesRewrittenPerCall() &gt; 0) {</span>
-<span class="fc" id="L980">                  rewriteObjectWithToken.setMaxBytesRewrittenPerCall(</span>
-<span class="fc" id="L981">                      storageOptions.getMaxBytesRewrittenPerCall());</span>
+<span class="pc bpc" id="L981" title="1 of 2 branches missed.">                if (storageOptions.getMaxBytesRewrittenPerCall() &gt; 0) {</span>
+<span class="fc" id="L982">                  rewriteObjectWithToken.setMaxBytesRewrittenPerCall(</span>
+<span class="fc" id="L983">                      storageOptions.getMaxBytesRewrittenPerCall());</span>
                 }
-<span class="fc" id="L983">                rewriteObjectWithToken.setRewriteToken(rewriteResponse.getRewriteToken());</span>
-<span class="fc" id="L984">                batchHelper.queue(rewriteObjectWithToken, this);</span>
-<span class="nc" id="L985">              } catch (IOException e) {</span>
-<span class="nc" id="L986">                innerExceptions.add(e);</span>
-<span class="fc" id="L987">              }</span>
+<span class="fc" id="L985">                rewriteObjectWithToken.setRewriteToken(rewriteResponse.getRewriteToken());</span>
+<span class="fc" id="L986">                batchHelper.queue(rewriteObjectWithToken, this);</span>
+<span class="nc" id="L987">              } catch (IOException e) {</span>
+<span class="nc" id="L988">                innerExceptions.add(e);</span>
+<span class="fc" id="L989">              }</span>
             }
-<span class="fc" id="L989">          }</span>
+<span class="fc" id="L991">          }</span>
 
           @Override
           public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) {
-<span class="nc" id="L993">            onCopyFailure(innerExceptions, e, srcBucketName, srcObjectName);</span>
-<span class="nc" id="L994">          }</span>
+<span class="nc" id="L995">            onCopyFailure(innerExceptions, e, srcBucketName, srcObjectName);</span>
+<span class="nc" id="L996">          }</span>
         });
-<span class="fc" id="L996">  }</span>
+<span class="fc" id="L998">  }</span>
 
   /**
    * Performs copy operation using GCS Copy requests
@@ -1006,42 +1008,42 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       final String srcBucketName, final String srcObjectName,
       final String dstBucketName, final String dstObjectName)
       throws IOException {
-<span class="fc" id="L1009">    Storage.Objects.Copy copyObject =</span>
-<span class="fc" id="L1010">        configureRequest(</span>
-<span class="fc" id="L1011">            gcs.objects().copy(srcBucketName, srcObjectName, dstBucketName, dstObjectName, null),</span>
+<span class="fc" id="L1011">    Storage.Objects.Copy copyObject =</span>
+<span class="fc" id="L1012">        configureRequest(</span>
+<span class="fc" id="L1013">            gcs.objects().copy(srcBucketName, srcObjectName, dstBucketName, dstObjectName, null),</span>
             srcBucketName);
 
-<span class="fc" id="L1014">    batchHelper.queue(</span>
+<span class="fc" id="L1016">    batchHelper.queue(</span>
         copyObject,
-<span class="fc" id="L1016">        new JsonBatchCallback&lt;StorageObject&gt;() {</span>
+<span class="fc" id="L1018">        new JsonBatchCallback&lt;StorageObject&gt;() {</span>
           @Override
           public void onSuccess(StorageObject copyResponse, HttpHeaders responseHeaders) {
-<span class="fc" id="L1019">            String srcString = StorageResourceId.createReadableString(srcBucketName, srcObjectName);</span>
-<span class="fc" id="L1020">            String dstString = StorageResourceId.createReadableString(dstBucketName, dstObjectName);</span>
-<span class="fc" id="L1021">            logger.atFine().log(&quot;Successfully copied %s to %s&quot;, srcString, dstString);</span>
-<span class="fc" id="L1022">          }</span>
+<span class="fc" id="L1021">            String srcString = StorageResourceId.createReadableString(srcBucketName, srcObjectName);</span>
+<span class="fc" id="L1022">            String dstString = StorageResourceId.createReadableString(dstBucketName, dstObjectName);</span>
+<span class="fc" id="L1023">            logger.atFine().log(&quot;Successfully copied %s to %s&quot;, srcString, dstString);</span>
+<span class="fc" id="L1024">          }</span>
 
           @Override
           public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) {
-<span class="fc" id="L1026">            onCopyFailure(innerExceptions, e, srcBucketName, srcObjectName);</span>
-<span class="fc" id="L1027">          }</span>
+<span class="fc" id="L1028">            onCopyFailure(innerExceptions, e, srcBucketName, srcObjectName);</span>
+<span class="fc" id="L1029">          }</span>
         });
-<span class="fc" id="L1029">  }</span>
+<span class="fc" id="L1031">  }</span>
 
   /** Processes failed copy requests */
   private void onCopyFailure(
       KeySetView&lt;IOException, Boolean&gt; innerExceptions,
       GoogleJsonError e,
       String srcBucketName, String srcObjectName) {
-<span class="fc bfc" id="L1036" title="All 2 branches covered.">    if (errorExtractor.itemNotFound(e)) {</span>
-<span class="fc" id="L1037">      FileNotFoundException fnfe =</span>
-<span class="fc" id="L1038">          GoogleCloudStorageExceptions.getFileNotFoundException(srcBucketName, srcObjectName);</span>
-<span class="fc" id="L1039">      innerExceptions.add((FileNotFoundException) fnfe.initCause(new IOException(e.toString())));</span>
-<span class="fc" id="L1040">    } else {</span>
-<span class="fc" id="L1041">      String srcString = StorageResourceId.createReadableString(srcBucketName, srcObjectName);</span>
-<span class="fc" id="L1042">      innerExceptions.add(new IOException(String.format(&quot;Error copying %s:%n%s&quot;, srcString, e)));</span>
+<span class="fc bfc" id="L1038" title="All 2 branches covered.">    if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc" id="L1039">      FileNotFoundException fnfe =</span>
+<span class="fc" id="L1040">          GoogleCloudStorageExceptions.getFileNotFoundException(srcBucketName, srcObjectName);</span>
+<span class="fc" id="L1041">      innerExceptions.add((FileNotFoundException) fnfe.initCause(new IOException(e.toString())));</span>
+<span class="fc" id="L1042">    } else {</span>
+<span class="fc" id="L1043">      String srcString = StorageResourceId.createReadableString(srcBucketName, srcObjectName);</span>
+<span class="fc" id="L1044">      innerExceptions.add(new IOException(String.format(&quot;Error copying %s:%n%s&quot;, srcString, e)));</span>
     }
-<span class="fc" id="L1044">  }</span>
+<span class="fc" id="L1046">  }</span>
 
   /**
    * Shared helper for actually dispatching buckets().list() API calls and accumulating paginated
@@ -1049,36 +1051,36 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    * GoogleCloudStorageItemInfos.
    */
   private List&lt;Bucket&gt; listBucketsInternal() throws IOException {
-<span class="fc" id="L1052">    logger.atFine().log(&quot;listBucketsInternal()&quot;);</span>
-<span class="fc" id="L1053">    checkNotNull(storageOptions.getProjectId(), &quot;projectId must not be null&quot;);</span>
-<span class="fc" id="L1054">    List&lt;Bucket&gt; allBuckets = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L1055">    Storage.Buckets.List listBucket =</span>
-<span class="fc" id="L1056">        configureRequest(gcs.buckets().list(storageOptions.getProjectId()), null);</span>
+<span class="fc" id="L1054">    logger.atFine().log(&quot;listBucketsInternal()&quot;);</span>
+<span class="fc" id="L1055">    checkNotNull(storageOptions.getProjectId(), &quot;projectId must not be null&quot;);</span>
+<span class="fc" id="L1056">    List&lt;Bucket&gt; allBuckets = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1057">    Storage.Buckets.List listBucket =</span>
+<span class="fc" id="L1058">        configureRequest(gcs.buckets().list(storageOptions.getProjectId()), null);</span>
 
     // Set number of items to retrieve per call.
-<span class="fc" id="L1059">    listBucket.setMaxResults(storageOptions.getMaxListItemsPerCall());</span>
+<span class="fc" id="L1061">    listBucket.setMaxResults(storageOptions.getMaxListItemsPerCall());</span>
 
     // Loop till we fetch all items.
-<span class="fc" id="L1062">    String pageToken = null;</span>
+<span class="fc" id="L1064">    String pageToken = null;</span>
     do {
-<span class="fc bfc" id="L1064" title="All 2 branches covered.">      if (pageToken != null) {</span>
-<span class="fc" id="L1065">        logger.atFine().log(&quot;listBucketsInternal: next page %s&quot;, pageToken);</span>
-<span class="fc" id="L1066">        listBucket.setPageToken(pageToken);</span>
+<span class="fc bfc" id="L1066" title="All 2 branches covered.">      if (pageToken != null) {</span>
+<span class="fc" id="L1067">        logger.atFine().log(&quot;listBucketsInternal: next page %s&quot;, pageToken);</span>
+<span class="fc" id="L1068">        listBucket.setPageToken(pageToken);</span>
       }
 
-<span class="fc" id="L1069">      Buckets items = listBucket.execute();</span>
+<span class="fc" id="L1071">      Buckets items = listBucket.execute();</span>
 
       // Accumulate buckets (if any).
-<span class="fc" id="L1072">      List&lt;Bucket&gt; buckets = items.getItems();</span>
-<span class="pc bpc" id="L1073" title="1 of 2 branches missed.">      if (buckets != null) {</span>
-<span class="fc" id="L1074">        logger.atFine().log(&quot;listed %s items&quot;, buckets.size());</span>
-<span class="fc" id="L1075">        allBuckets.addAll(buckets);</span>
+<span class="fc" id="L1074">      List&lt;Bucket&gt; buckets = items.getItems();</span>
+<span class="pc bpc" id="L1075" title="1 of 2 branches missed.">      if (buckets != null) {</span>
+<span class="fc" id="L1076">        logger.atFine().log(&quot;listed %s items&quot;, buckets.size());</span>
+<span class="fc" id="L1077">        allBuckets.addAll(buckets);</span>
       }
 
-<span class="fc" id="L1078">      pageToken = items.getNextPageToken();</span>
-<span class="fc bfc" id="L1079" title="All 2 branches covered.">    } while (pageToken != null);</span>
+<span class="fc" id="L1080">      pageToken = items.getNextPageToken();</span>
+<span class="fc bfc" id="L1081" title="All 2 branches covered.">    } while (pageToken != null);</span>
 
-<span class="fc" id="L1081">    return allBuckets;</span>
+<span class="fc" id="L1083">    return allBuckets;</span>
   }
 
   /**
@@ -1087,13 +1089,13 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   @Override
   public List&lt;String&gt; listBucketNames()
       throws IOException {
-<span class="fc" id="L1090">    logger.atFine().log(&quot;listBucketNames()&quot;);</span>
-<span class="fc" id="L1091">    List&lt;Bucket&gt; allBuckets = listBucketsInternal();</span>
-<span class="fc" id="L1092">    List&lt;String&gt; bucketNames = new ArrayList&lt;&gt;(allBuckets.size());</span>
-<span class="fc bfc" id="L1093" title="All 2 branches covered.">    for (Bucket bucket : allBuckets) {</span>
-<span class="fc" id="L1094">      bucketNames.add(bucket.getName());</span>
-<span class="fc" id="L1095">    }</span>
-<span class="fc" id="L1096">    return bucketNames;</span>
+<span class="fc" id="L1092">    logger.atFine().log(&quot;listBucketNames()&quot;);</span>
+<span class="fc" id="L1093">    List&lt;Bucket&gt; allBuckets = listBucketsInternal();</span>
+<span class="fc" id="L1094">    List&lt;String&gt; bucketNames = new ArrayList&lt;&gt;(allBuckets.size());</span>
+<span class="fc bfc" id="L1095" title="All 2 branches covered.">    for (Bucket bucket : allBuckets) {</span>
+<span class="fc" id="L1096">      bucketNames.add(bucket.getName());</span>
+<span class="fc" id="L1097">    }</span>
+<span class="fc" id="L1098">    return bucketNames;</span>
   }
 
   /**
@@ -1102,15 +1104,15 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   @Override
   public List&lt;GoogleCloudStorageItemInfo&gt; listBucketInfo()
       throws IOException {
-<span class="fc" id="L1105">    logger.atFine().log(&quot;listBucketInfo()&quot;);</span>
-<span class="fc" id="L1106">    List&lt;Bucket&gt; allBuckets = listBucketsInternal();</span>
-<span class="fc" id="L1107">    List&lt;GoogleCloudStorageItemInfo&gt; bucketInfos = new ArrayList&lt;&gt;(allBuckets.size());</span>
-<span class="fc bfc" id="L1108" title="All 2 branches covered.">    for (Bucket bucket : allBuckets) {</span>
-<span class="fc" id="L1109">      bucketInfos.add(new GoogleCloudStorageItemInfo(</span>
-<span class="fc" id="L1110">          new StorageResourceId(bucket.getName()), bucket.getTimeCreated().getValue(), 0,</span>
-<span class="fc" id="L1111">          bucket.getLocation(), bucket.getStorageClass()));</span>
-<span class="fc" id="L1112">    }</span>
-<span class="fc" id="L1113">    return bucketInfos;</span>
+<span class="fc" id="L1107">    logger.atFine().log(&quot;listBucketInfo()&quot;);</span>
+<span class="fc" id="L1108">    List&lt;Bucket&gt; allBuckets = listBucketsInternal();</span>
+<span class="fc" id="L1109">    List&lt;GoogleCloudStorageItemInfo&gt; bucketInfos = new ArrayList&lt;&gt;(allBuckets.size());</span>
+<span class="fc bfc" id="L1110" title="All 2 branches covered.">    for (Bucket bucket : allBuckets) {</span>
+<span class="fc" id="L1111">      bucketInfos.add(new GoogleCloudStorageItemInfo(</span>
+<span class="fc" id="L1112">          new StorageResourceId(bucket.getName()), bucket.getTimeCreated().getValue(), 0,</span>
+<span class="fc" id="L1113">          bucket.getLocation(), bucket.getStorageClass()));</span>
+<span class="fc" id="L1114">    }</span>
+<span class="fc" id="L1115">    return bucketInfos;</span>
   }
 
   /**
@@ -1120,28 +1122,30 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   private Storage.Objects.Insert prepareEmptyInsert(
       StorageResourceId resourceId, CreateObjectOptions createObjectOptions) throws IOException {
-<span class="fc" id="L1123">    StorageObject object = new StorageObject();</span>
-<span class="fc" id="L1124">    object.setName(resourceId.getObjectName());</span>
 <span class="fc" id="L1125">    Map&lt;String, String&gt; rewrittenMetadata = encodeMetadata(createObjectOptions.getMetadata());</span>
-<span class="fc" id="L1126">    object.setMetadata(rewrittenMetadata);</span>
+<span class="fc" id="L1126">    StorageObject object =</span>
+        new StorageObject()
+<span class="fc" id="L1128">            .setName(resourceId.getObjectName())</span>
+<span class="fc" id="L1129">            .setMetadata(rewrittenMetadata)</span>
+<span class="fc" id="L1130">            .setContentEncoding(createObjectOptions.getContentEncoding());</span>
 
     // Ideally we'd use EmptyContent, but Storage requires an AbstractInputStreamContent and not
     // just an HttpContent, so we'll just use the next easiest thing.
-<span class="fc" id="L1130">    ByteArrayContent emptyContent =</span>
-<span class="fc" id="L1131">        new ByteArrayContent(createObjectOptions.getContentType(), new byte[0]);</span>
-<span class="fc" id="L1132">    Storage.Objects.Insert insertObject =</span>
-<span class="fc" id="L1133">        configureRequest(</span>
-<span class="fc" id="L1134">            gcs.objects().insert(resourceId.getBucketName(), object, emptyContent),</span>
-<span class="fc" id="L1135">            resourceId.getBucketName());</span>
-<span class="fc" id="L1136">    insertObject.setDisableGZipContent(true);</span>
-<span class="fc" id="L1137">    clientRequestHelper.setDirectUploadEnabled(insertObject, true);</span>
+<span class="fc" id="L1134">    ByteArrayContent emptyContent =</span>
+<span class="fc" id="L1135">        new ByteArrayContent(createObjectOptions.getContentType(), new byte[0]);</span>
+<span class="fc" id="L1136">    Storage.Objects.Insert insertObject =</span>
+<span class="fc" id="L1137">        configureRequest(</span>
+<span class="fc" id="L1138">            gcs.objects().insert(resourceId.getBucketName(), object, emptyContent),</span>
+<span class="fc" id="L1139">            resourceId.getBucketName());</span>
+<span class="fc" id="L1140">    insertObject.setDisableGZipContent(true);</span>
+<span class="fc" id="L1141">    clientRequestHelper.setDirectUploadEnabled(insertObject, true);</span>
 
-<span class="pc bpc" id="L1139" title="1 of 2 branches missed.">    if (resourceId.hasGenerationId()) {</span>
-<span class="nc" id="L1140">      insertObject.setIfGenerationMatch(resourceId.getGenerationId());</span>
-<span class="fc bfc" id="L1141" title="All 2 branches covered.">    } else if (!createObjectOptions.overwriteExisting()) {</span>
-<span class="fc" id="L1142">      insertObject.setIfGenerationMatch(0L);</span>
+<span class="pc bpc" id="L1143" title="1 of 2 branches missed.">    if (resourceId.hasGenerationId()) {</span>
+<span class="nc" id="L1144">      insertObject.setIfGenerationMatch(resourceId.getGenerationId());</span>
+<span class="fc bfc" id="L1145" title="All 2 branches covered.">    } else if (!createObjectOptions.overwriteExisting()) {</span>
+<span class="fc" id="L1146">      insertObject.setIfGenerationMatch(0L);</span>
     }
-<span class="fc" id="L1144">    return insertObject;</span>
+<span class="fc" id="L1148">    return insertObject;</span>
   }
 
   /**
@@ -1168,32 +1172,32 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       List&lt;StorageObject&gt; listedObjects,
       List&lt;String&gt; listedPrefixes)
       throws IOException {
-<span class="fc" id="L1171">    logger.atFine().log(</span>
+<span class="fc" id="L1175">    logger.atFine().log(</span>
         &quot;listStorageObjectsAndPrefixes(%s, %s, %s, %s, %d)&quot;,
-<span class="fc" id="L1173">        bucketName, objectNamePrefix, delimiter, includeTrailingDelimiter, maxResults);</span>
+<span class="fc" id="L1177">        bucketName, objectNamePrefix, delimiter, includeTrailingDelimiter, maxResults);</span>
 
-<span class="pc bpc" id="L1175" title="1 of 2 branches missed.">    checkArgument(</span>
-<span class="pc bpc" id="L1176" title="1 of 2 branches missed.">        listedObjects != null &amp;&amp; listedObjects.isEmpty(),</span>
+<span class="pc bpc" id="L1179" title="1 of 2 branches missed.">    checkArgument(</span>
+<span class="pc bpc" id="L1180" title="1 of 2 branches missed.">        listedObjects != null &amp;&amp; listedObjects.isEmpty(),</span>
         &quot;Must provide a non-null empty container for listedObjects.&quot;);
-<span class="pc bpc" id="L1178" title="1 of 2 branches missed.">    checkArgument(</span>
-<span class="pc bpc" id="L1179" title="1 of 2 branches missed.">        listedPrefixes != null &amp;&amp; listedPrefixes.isEmpty(),</span>
+<span class="pc bpc" id="L1182" title="1 of 2 branches missed.">    checkArgument(</span>
+<span class="pc bpc" id="L1183" title="1 of 2 branches missed.">        listedPrefixes != null &amp;&amp; listedPrefixes.isEmpty(),</span>
         &quot;Must provide a non-null empty container for listedPrefixes.&quot;);
 
-<span class="fc" id="L1182">    Storage.Objects.List listObject =</span>
-<span class="fc" id="L1183">        createListRequest(</span>
+<span class="fc" id="L1186">    Storage.Objects.List listObject =</span>
+<span class="fc" id="L1187">        createListRequest(</span>
             bucketName, objectNamePrefix, delimiter, includeTrailingDelimiter, maxResults);
 
-<span class="fc" id="L1186">    String pageToken = null;</span>
+<span class="fc" id="L1190">    String pageToken = null;</span>
     do {
-<span class="fc bfc" id="L1188" title="All 2 branches covered.">      if (pageToken != null) {</span>
-<span class="fc" id="L1189">        logger.atFine().log(&quot;listStorageObjectsAndPrefixes: next page %s&quot;, pageToken);</span>
-<span class="fc" id="L1190">        listObject.setPageToken(pageToken);</span>
+<span class="fc bfc" id="L1192" title="All 2 branches covered.">      if (pageToken != null) {</span>
+<span class="fc" id="L1193">        logger.atFine().log(&quot;listStorageObjectsAndPrefixes: next page %s&quot;, pageToken);</span>
+<span class="fc" id="L1194">        listObject.setPageToken(pageToken);</span>
       }
-<span class="fc" id="L1192">      pageToken =</span>
-<span class="fc" id="L1193">          listStorageObjectsAndPrefixesPage(listObject, maxResults, listedObjects, listedPrefixes);</span>
-<span class="fc bfc" id="L1194" title="All 2 branches covered.">    } while (pageToken != null</span>
-<span class="fc bfc" id="L1195" title="All 2 branches covered.">        &amp;&amp; getMaxRemainingResults(maxResults, listedPrefixes, listedObjects) &gt; 0);</span>
-<span class="fc" id="L1196">  }</span>
+<span class="fc" id="L1196">      pageToken =</span>
+<span class="fc" id="L1197">          listStorageObjectsAndPrefixesPage(listObject, maxResults, listedObjects, listedPrefixes);</span>
+<span class="fc bfc" id="L1198" title="All 2 branches covered.">    } while (pageToken != null</span>
+<span class="fc bfc" id="L1199" title="All 2 branches covered.">        &amp;&amp; getMaxRemainingResults(maxResults, listedPrefixes, listedObjects) &gt; 0);</span>
+<span class="fc" id="L1200">  }</span>
 
   private String listStorageObjectsAndPrefixesPage(
       Storage.Objects.List listObject,
@@ -1201,43 +1205,43 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       List&lt;StorageObject&gt; listedObjects,
       List&lt;String&gt; listedPrefixes)
       throws IOException {
-<span class="fc" id="L1204">    logger.atFine().log(&quot;listStorageObjectsAndPrefixesPage(%s, %d)&quot;, listObject, maxResults);</span>
+<span class="fc" id="L1208">    logger.atFine().log(&quot;listStorageObjectsAndPrefixesPage(%s, %d)&quot;, listObject, maxResults);</span>
 
-<span class="fc" id="L1206">    checkNotNull(listedObjects, &quot;Must provide a non-null container for listedObjects.&quot;);</span>
-<span class="fc" id="L1207">    checkNotNull(listedPrefixes, &quot;Must provide a non-null container for listedPrefixes.&quot;);</span>
+<span class="fc" id="L1210">    checkNotNull(listedObjects, &quot;Must provide a non-null container for listedObjects.&quot;);</span>
+<span class="fc" id="L1211">    checkNotNull(listedPrefixes, &quot;Must provide a non-null container for listedPrefixes.&quot;);</span>
 
     // Deduplicate prefixes and items, because if 'includeTrailingDelimiter' set to true
     // then returned items will contain &quot;prefix objects&quot; too.
-<span class="fc" id="L1211">    Set&lt;String&gt; prefixes = new LinkedHashSet&lt;&gt;(listedPrefixes);</span>
+<span class="fc" id="L1215">    Set&lt;String&gt; prefixes = new LinkedHashSet&lt;&gt;(listedPrefixes);</span>
 
     Objects items;
     try {
-<span class="fc" id="L1215">      items = listObject.execute();</span>
-<span class="fc" id="L1216">    } catch (IOException e) {</span>
-<span class="fc" id="L1217">      String resource =</span>
-<span class="fc" id="L1218">          StorageResourceId.createReadableString(listObject.getBucket(), listObject.getPrefix());</span>
-<span class="fc bfc" id="L1219" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(e)) {</span>
-<span class="fc" id="L1220">        logger.atFine().withCause(e).log(</span>
+<span class="fc" id="L1219">      items = listObject.execute();</span>
+<span class="fc" id="L1220">    } catch (IOException e) {</span>
+<span class="fc" id="L1221">      String resource =</span>
+<span class="fc" id="L1222">          StorageResourceId.createReadableString(listObject.getBucket(), listObject.getPrefix());</span>
+<span class="fc bfc" id="L1223" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc" id="L1224">        logger.atFine().withCause(e).log(</span>
             &quot;listStorageObjectsAndPrefixesPage(%s, %d): item not found&quot;, resource, maxResults);
-<span class="fc" id="L1222">        return null;</span>
+<span class="fc" id="L1226">        return null;</span>
       }
-<span class="fc" id="L1224">      throw new IOException(&quot;Error listing &quot; + resource, e);</span>
-<span class="fc" id="L1225">    }</span>
+<span class="fc" id="L1228">      throw new IOException(&quot;Error listing &quot; + resource, e);</span>
+<span class="fc" id="L1229">    }</span>
 
     // Add prefixes (if any).
-<span class="fc" id="L1228">    List&lt;String&gt; pagePrefixes = items.getPrefixes();</span>
-<span class="fc bfc" id="L1229" title="All 2 branches covered.">    if (pagePrefixes != null) {</span>
-<span class="fc" id="L1230">      logger.atFine().log(&quot;listed %s prefixes&quot;, pagePrefixes.size());</span>
-<span class="fc" id="L1231">      long maxRemainingResults = getMaxRemainingResults(maxResults, prefixes, listedObjects);</span>
+<span class="fc" id="L1232">    List&lt;String&gt; pagePrefixes = items.getPrefixes();</span>
+<span class="fc bfc" id="L1233" title="All 2 branches covered.">    if (pagePrefixes != null) {</span>
+<span class="fc" id="L1234">      logger.atFine().log(&quot;listed %s prefixes&quot;, pagePrefixes.size());</span>
+<span class="fc" id="L1235">      long maxRemainingResults = getMaxRemainingResults(maxResults, prefixes, listedObjects);</span>
       // Do not cast 'maxRemainingResults' to int here, it could overflow
-<span class="fc" id="L1233">      long maxPrefixes = Math.min(maxRemainingResults, (long) pagePrefixes.size());</span>
-<span class="fc" id="L1234">      prefixes.addAll(pagePrefixes.subList(0, (int) maxPrefixes));</span>
+<span class="fc" id="L1237">      long maxPrefixes = Math.min(maxRemainingResults, (long) pagePrefixes.size());</span>
+<span class="fc" id="L1238">      prefixes.addAll(pagePrefixes.subList(0, (int) maxPrefixes));</span>
     }
 
     // Add object names (if any).
-<span class="fc" id="L1238">    List&lt;StorageObject&gt; objects = items.getItems();</span>
-<span class="fc bfc" id="L1239" title="All 2 branches covered.">    if (objects != null) {</span>
-<span class="fc" id="L1240">      logger.atFine().log(&quot;listed %s objects&quot;, objects.size());</span>
+<span class="fc" id="L1242">    List&lt;StorageObject&gt; objects = items.getItems();</span>
+<span class="fc bfc" id="L1243" title="All 2 branches covered.">    if (objects != null) {</span>
+<span class="fc" id="L1244">      logger.atFine().log(&quot;listed %s objects&quot;, objects.size());</span>
 
       // Although GCS does not implement a file system, it treats objects that end
       // in delimiter as different from other objects when listing objects.
@@ -1251,30 +1255,30 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       // Therefore, we filter out such entry.
 
       // Determine if the caller sent a directory name as a prefix.
-<span class="fc" id="L1254">      String objectNamePrefix = listObject.getPrefix();</span>
-<span class="fc" id="L1255">      boolean objectPrefixEndsWithDelimiter =</span>
-<span class="fc bfc" id="L1256" title="All 4 branches covered.">          !Strings.isNullOrEmpty(objectNamePrefix) &amp;&amp; objectNamePrefix.endsWith(PATH_DELIMITER);</span>
+<span class="fc" id="L1258">      String objectNamePrefix = listObject.getPrefix();</span>
+<span class="fc" id="L1259">      boolean objectPrefixEndsWithDelimiter =</span>
+<span class="fc bfc" id="L1260" title="All 4 branches covered.">          !Strings.isNullOrEmpty(objectNamePrefix) &amp;&amp; objectNamePrefix.endsWith(PATH_DELIMITER);</span>
 
-<span class="fc" id="L1258">      long maxRemainingResults = getMaxRemainingResults(maxResults, prefixes, listedObjects);</span>
-<span class="fc bfc" id="L1259" title="All 2 branches covered.">      for (StorageObject object : objects) {</span>
-<span class="fc" id="L1260">        String objectName = object.getName();</span>
-<span class="fc bfc" id="L1261" title="All 4 branches covered.">        if (!objectPrefixEndsWithDelimiter || !objectName.equals(objectNamePrefix)) {</span>
-<span class="fc bfc" id="L1262" title="All 2 branches covered.">          if (prefixes.remove(objectName)) {</span>
-<span class="fc" id="L1263">            listedObjects.add(object);</span>
-<span class="fc bfc" id="L1264" title="All 2 branches covered.">          } else if (maxRemainingResults &gt; 0) {</span>
-<span class="fc" id="L1265">            listedObjects.add(object);</span>
-<span class="fc" id="L1266">            maxRemainingResults--;</span>
+<span class="fc" id="L1262">      long maxRemainingResults = getMaxRemainingResults(maxResults, prefixes, listedObjects);</span>
+<span class="fc bfc" id="L1263" title="All 2 branches covered.">      for (StorageObject object : objects) {</span>
+<span class="fc" id="L1264">        String objectName = object.getName();</span>
+<span class="fc bfc" id="L1265" title="All 4 branches covered.">        if (!objectPrefixEndsWithDelimiter || !objectName.equals(objectNamePrefix)) {</span>
+<span class="fc bfc" id="L1266" title="All 2 branches covered.">          if (prefixes.remove(objectName)) {</span>
+<span class="fc" id="L1267">            listedObjects.add(object);</span>
+<span class="fc bfc" id="L1268" title="All 2 branches covered.">          } else if (maxRemainingResults &gt; 0) {</span>
+<span class="fc" id="L1269">            listedObjects.add(object);</span>
+<span class="fc" id="L1270">            maxRemainingResults--;</span>
           }
           // Do not break here, because we want to be sure
           // that we replaced all prefixes with prefix objects
         }
-<span class="fc" id="L1271">      }</span>
+<span class="fc" id="L1275">      }</span>
     }
 
-<span class="fc" id="L1274">    listedPrefixes.clear();</span>
-<span class="fc" id="L1275">    listedPrefixes.addAll(prefixes);</span>
+<span class="fc" id="L1278">    listedPrefixes.clear();</span>
+<span class="fc" id="L1279">    listedPrefixes.addAll(prefixes);</span>
 
-<span class="fc" id="L1277">    return items.getNextPageToken();</span>
+<span class="fc" id="L1281">    return items.getNextPageToken();</span>
   }
 
   private Storage.Objects.List createListRequest(
@@ -1284,42 +1288,42 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       boolean includeTrailingDelimiter,
       long maxResults)
       throws IOException {
-<span class="fc" id="L1287">    logger.atFine().log(</span>
+<span class="fc" id="L1291">    logger.atFine().log(</span>
         &quot;createListRequest(%s, %s, %s, %s, %d)&quot;,
-<span class="fc" id="L1289">        bucketName, objectNamePrefix, delimiter, includeTrailingDelimiter, maxResults);</span>
-<span class="pc bpc" id="L1290" title="1 of 2 branches missed.">    checkArgument(!Strings.isNullOrEmpty(bucketName), &quot;bucketName must not be null or empty&quot;);</span>
+<span class="fc" id="L1293">        bucketName, objectNamePrefix, delimiter, includeTrailingDelimiter, maxResults);</span>
+<span class="pc bpc" id="L1294" title="1 of 2 branches missed.">    checkArgument(!Strings.isNullOrEmpty(bucketName), &quot;bucketName must not be null or empty&quot;);</span>
 
-<span class="fc" id="L1292">    Storage.Objects.List listObject = configureRequest(gcs.objects().list(bucketName), bucketName);</span>
+<span class="fc" id="L1296">    Storage.Objects.List listObject = configureRequest(gcs.objects().list(bucketName), bucketName);</span>
 
     // Set delimiter if supplied.
-<span class="fc bfc" id="L1295" title="All 2 branches covered.">    if (delimiter != null) {</span>
-<span class="fc" id="L1296">      listObject.setDelimiter(delimiter);</span>
-<span class="fc" id="L1297">      listObject.setIncludeTrailingDelimiter(includeTrailingDelimiter);</span>
+<span class="fc bfc" id="L1299" title="All 2 branches covered.">    if (delimiter != null) {</span>
+<span class="fc" id="L1300">      listObject.setDelimiter(delimiter);</span>
+<span class="fc" id="L1301">      listObject.setIncludeTrailingDelimiter(includeTrailingDelimiter);</span>
     }
 
     // Set number of items to retrieve per call.
-<span class="fc bfc" id="L1301" title="All 4 branches covered.">    if (maxResults &lt;= 0 || maxResults + 1 &gt;= storageOptions.getMaxListItemsPerCall()) {</span>
-<span class="fc" id="L1302">      listObject.setMaxResults(storageOptions.getMaxListItemsPerCall());</span>
+<span class="fc bfc" id="L1305" title="All 4 branches covered.">    if (maxResults &lt;= 0 || maxResults + 1 &gt;= storageOptions.getMaxListItemsPerCall()) {</span>
+<span class="fc" id="L1306">      listObject.setMaxResults(storageOptions.getMaxListItemsPerCall());</span>
     } else {
       // We add one in case we filter out objectNamePrefix.
-<span class="fc" id="L1305">      listObject.setMaxResults(maxResults + 1);</span>
+<span class="fc" id="L1309">      listObject.setMaxResults(maxResults + 1);</span>
     }
 
     // Set prefix if supplied.
-<span class="fc bfc" id="L1309" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(objectNamePrefix)) {</span>
-<span class="fc" id="L1310">      listObject.setPrefix(objectNamePrefix);</span>
+<span class="fc bfc" id="L1313" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(objectNamePrefix)) {</span>
+<span class="fc" id="L1314">      listObject.setPrefix(objectNamePrefix);</span>
     }
 
-<span class="fc" id="L1313">    return listObject;</span>
+<span class="fc" id="L1317">    return listObject;</span>
   }
 
   private static long getMaxRemainingResults(
       long maxResults, Collection&lt;String&gt; prefixes, List&lt;StorageObject&gt; objects) {
-<span class="fc bfc" id="L1318" title="All 2 branches covered.">    if (maxResults &lt;= 0) {</span>
-<span class="fc" id="L1319">      return Long.MAX_VALUE;</span>
+<span class="fc bfc" id="L1322" title="All 2 branches covered.">    if (maxResults &lt;= 0) {</span>
+<span class="fc" id="L1323">      return Long.MAX_VALUE;</span>
     }
-<span class="fc" id="L1321">    long numResults = (long) prefixes.size() + objects.size();</span>
-<span class="fc" id="L1322">    return maxResults - numResults;</span>
+<span class="fc" id="L1325">    long numResults = (long) prefixes.size() + objects.size();</span>
+<span class="fc" id="L1326">    return maxResults - numResults;</span>
   }
 
   /**
@@ -1330,7 +1334,7 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   public List&lt;String&gt; listObjectNames(
       String bucketName, String objectNamePrefix, String delimiter)
       throws IOException {
-<span class="fc" id="L1333">    return listObjectNames(</span>
+<span class="fc" id="L1337">    return listObjectNames(</span>
         bucketName, objectNamePrefix, delimiter, GoogleCloudStorage.MAX_RESULTS_UNLIMITED);
   }
 
@@ -1342,13 +1346,13 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   public List&lt;String&gt; listObjectNames(
       String bucketName, String objectNamePrefix, String delimiter, long maxResults)
       throws IOException {
-<span class="fc" id="L1345">    logger.atFine().log(</span>
-<span class="fc" id="L1346">        &quot;listObjectNames(%s, %s, %s, %s)&quot;, bucketName, objectNamePrefix, delimiter, maxResults);</span>
+<span class="fc" id="L1349">    logger.atFine().log(</span>
+<span class="fc" id="L1350">        &quot;listObjectNames(%s, %s, %s, %s)&quot;, bucketName, objectNamePrefix, delimiter, maxResults);</span>
 
     // Helper will handle going through pages of list results and accumulating them.
-<span class="fc" id="L1349">    List&lt;StorageObject&gt; listedObjects = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L1350">    List&lt;String&gt; listedPrefixes = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L1351">    listStorageObjectsAndPrefixes(</span>
+<span class="fc" id="L1353">    List&lt;StorageObject&gt; listedObjects = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1354">    List&lt;String&gt; listedPrefixes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1355">    listStorageObjectsAndPrefixes(</span>
         bucketName,
         objectNamePrefix,
         delimiter,
@@ -1360,11 +1364,11 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
     // Just use the prefix list as a starting point, and extract all the names from the
     // StorageObjects, adding them to the list.
     // TODO(user): Maybe de-dupe if it's possible for GCS to return duplicates.
-<span class="fc" id="L1363">    List&lt;String&gt; objectNames = listedPrefixes;</span>
-<span class="fc bfc" id="L1364" title="All 2 branches covered.">    for (StorageObject obj : listedObjects) {</span>
-<span class="fc" id="L1365">      objectNames.add(obj.getName());</span>
-<span class="fc" id="L1366">    }</span>
-<span class="fc" id="L1367">    return objectNames;</span>
+<span class="fc" id="L1367">    List&lt;String&gt; objectNames = listedPrefixes;</span>
+<span class="fc bfc" id="L1368" title="All 2 branches covered.">    for (StorageObject obj : listedObjects) {</span>
+<span class="fc" id="L1369">      objectNames.add(obj.getName());</span>
+<span class="fc" id="L1370">    }</span>
+<span class="fc" id="L1371">    return objectNames;</span>
   }
 
   /**
@@ -1374,7 +1378,7 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   @Override
   public List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(
       String bucketName, String objectNamePrefix, String delimiter) throws IOException {
-<span class="fc" id="L1377">    return listObjectInfo(bucketName, objectNamePrefix, delimiter, MAX_RESULTS_UNLIMITED);</span>
+<span class="fc" id="L1381">    return listObjectInfo(bucketName, objectNamePrefix, delimiter, MAX_RESULTS_UNLIMITED);</span>
   }
 
   /**
@@ -1385,13 +1389,13 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   public List&lt;GoogleCloudStorageItemInfo&gt; listObjectInfo(
       String bucketName, String objectNamePrefix, String delimiter, long maxResults)
       throws IOException {
-<span class="fc" id="L1388">    logger.atFine().log(</span>
-<span class="fc" id="L1389">        &quot;listObjectInfo(%s, %s, %s, %s)&quot;, bucketName, objectNamePrefix, delimiter, maxResults);</span>
+<span class="fc" id="L1392">    logger.atFine().log(</span>
+<span class="fc" id="L1393">        &quot;listObjectInfo(%s, %s, %s, %s)&quot;, bucketName, objectNamePrefix, delimiter, maxResults);</span>
 
     // Helper will handle going through pages of list results and accumulating them.
-<span class="fc" id="L1392">    List&lt;StorageObject&gt; listedObjects = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L1393">    List&lt;String&gt; listedPrefixes = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L1394">    listStorageObjectsAndPrefixes(</span>
+<span class="fc" id="L1396">    List&lt;StorageObject&gt; listedObjects = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1397">    List&lt;String&gt; listedPrefixes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1398">    listStorageObjectsAndPrefixes(</span>
         bucketName,
         objectNamePrefix,
         delimiter,
@@ -1402,93 +1406,93 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
 
     // For the listedObjects, we simply parse each item into a GoogleCloudStorageItemInfo without
     // further work.
-<span class="fc" id="L1405">    List&lt;GoogleCloudStorageItemInfo&gt; objectInfos = new ArrayList&lt;&gt;(listedObjects.size());</span>
-<span class="fc bfc" id="L1406" title="All 2 branches covered.">    for (StorageObject obj : listedObjects) {</span>
-<span class="fc" id="L1407">      objectInfos.add(</span>
-<span class="fc" id="L1408">          createItemInfoForStorageObject(new StorageResourceId(bucketName, obj.getName()), obj));</span>
-<span class="fc" id="L1409">    }</span>
+<span class="fc" id="L1409">    List&lt;GoogleCloudStorageItemInfo&gt; objectInfos = new ArrayList&lt;&gt;(listedObjects.size());</span>
+<span class="fc bfc" id="L1410" title="All 2 branches covered.">    for (StorageObject obj : listedObjects) {</span>
+<span class="fc" id="L1411">      objectInfos.add(</span>
+<span class="fc" id="L1412">          createItemInfoForStorageObject(new StorageResourceId(bucketName, obj.getName()), obj));</span>
+<span class="fc" id="L1413">    }</span>
 
-<span class="fc bfc" id="L1411" title="All 2 branches covered.">    if (listedPrefixes.isEmpty()) {</span>
-<span class="fc" id="L1412">      return objectInfos;</span>
+<span class="fc bfc" id="L1415" title="All 2 branches covered.">    if (listedPrefixes.isEmpty()) {</span>
+<span class="fc" id="L1416">      return objectInfos;</span>
     }
 
-<span class="fc" id="L1415">    handlePrefixes(bucketName, listedPrefixes, objectInfos);</span>
+<span class="fc" id="L1419">    handlePrefixes(bucketName, listedPrefixes, objectInfos);</span>
 
-<span class="fc" id="L1417">    return objectInfos;</span>
+<span class="fc" id="L1421">    return objectInfos;</span>
   }
 
   @Override
   public ListPage&lt;GoogleCloudStorageItemInfo&gt; listObjectInfoPage(
       String bucketName, String objectNamePrefix, String delimiter, String pageToken)
       throws IOException {
-<span class="fc" id="L1424">    logger.atFine().log(</span>
+<span class="fc" id="L1428">    logger.atFine().log(</span>
         &quot;listObjectInfoPage(%s, %s, %s, %s)&quot;, bucketName, objectNamePrefix, delimiter, pageToken);
 
-<span class="fc" id="L1427">    Storage.Objects.List listObject =</span>
-<span class="fc" id="L1428">        createListRequest(</span>
+<span class="fc" id="L1431">    Storage.Objects.List listObject =</span>
+<span class="fc" id="L1432">        createListRequest(</span>
             bucketName,
             objectNamePrefix,
             delimiter,
             /* includeTrailingDelimiter= */ true,
             MAX_RESULTS_UNLIMITED);
-<span class="fc bfc" id="L1434" title="All 2 branches covered.">    if (pageToken != null) {</span>
-<span class="fc" id="L1435">      logger.atFine().log(&quot;listObjectInfoPage: next page %s&quot;, pageToken);</span>
-<span class="fc" id="L1436">      listObject.setPageToken(pageToken);</span>
+<span class="fc bfc" id="L1438" title="All 2 branches covered.">    if (pageToken != null) {</span>
+<span class="fc" id="L1439">      logger.atFine().log(&quot;listObjectInfoPage: next page %s&quot;, pageToken);</span>
+<span class="fc" id="L1440">      listObject.setPageToken(pageToken);</span>
     }
 
     // Helper will handle going through pages of list results and accumulating them.
-<span class="fc" id="L1440">    List&lt;StorageObject&gt; listedObjects = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L1441">    List&lt;String&gt; listedPrefixes = new ArrayList&lt;&gt;();</span>
-<span class="fc" id="L1442">    String nextPageToken =</span>
-<span class="fc" id="L1443">        listStorageObjectsAndPrefixesPage(</span>
+<span class="fc" id="L1444">    List&lt;StorageObject&gt; listedObjects = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1445">    List&lt;String&gt; listedPrefixes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1446">    String nextPageToken =</span>
+<span class="fc" id="L1447">        listStorageObjectsAndPrefixesPage(</span>
             listObject, MAX_RESULTS_UNLIMITED, listedObjects, listedPrefixes);
 
     // For the listedObjects, we simply parse each item into a GoogleCloudStorageItemInfo without
     // further work.
-<span class="fc" id="L1448">    List&lt;GoogleCloudStorageItemInfo&gt; objectInfos = new ArrayList&lt;&gt;(listedObjects.size());</span>
-<span class="fc bfc" id="L1449" title="All 2 branches covered.">    for (StorageObject obj : listedObjects) {</span>
-<span class="fc" id="L1450">      objectInfos.add(</span>
-<span class="fc" id="L1451">          createItemInfoForStorageObject(new StorageResourceId(bucketName, obj.getName()), obj));</span>
-<span class="fc" id="L1452">    }</span>
+<span class="fc" id="L1452">    List&lt;GoogleCloudStorageItemInfo&gt; objectInfos = new ArrayList&lt;&gt;(listedObjects.size());</span>
+<span class="fc bfc" id="L1453" title="All 2 branches covered.">    for (StorageObject obj : listedObjects) {</span>
+<span class="fc" id="L1454">      objectInfos.add(</span>
+<span class="fc" id="L1455">          createItemInfoForStorageObject(new StorageResourceId(bucketName, obj.getName()), obj));</span>
+<span class="fc" id="L1456">    }</span>
 
-<span class="pc bpc" id="L1454" title="1 of 2 branches missed.">    if (!listedPrefixes.isEmpty()) {</span>
-<span class="nc" id="L1455">      handlePrefixes(bucketName, listedPrefixes, objectInfos);</span>
+<span class="pc bpc" id="L1458" title="1 of 2 branches missed.">    if (!listedPrefixes.isEmpty()) {</span>
+<span class="nc" id="L1459">      handlePrefixes(bucketName, listedPrefixes, objectInfos);</span>
     }
 
-<span class="fc" id="L1458">    return new ListPage&lt;&gt;(objectInfos, nextPageToken);</span>
+<span class="fc" id="L1462">    return new ListPage&lt;&gt;(objectInfos, nextPageToken);</span>
   }
 
   /** Handle prefixes without prefix objects. */
   private void handlePrefixes(
       String bucketName, List&lt;String&gt; prefixes, List&lt;GoogleCloudStorageItemInfo&gt; objectInfos) {
-<span class="fc bfc" id="L1464" title="All 2 branches covered.">    if (storageOptions.isInferImplicitDirectoriesEnabled()) {</span>
-<span class="fc bfc" id="L1465" title="All 2 branches covered.">      for (String prefix : prefixes) {</span>
-<span class="fc" id="L1466">        objectInfos.add(</span>
-<span class="fc" id="L1467">            GoogleCloudStorageItemInfo.createInferredDirectory(</span>
+<span class="fc bfc" id="L1468" title="All 2 branches covered.">    if (storageOptions.isInferImplicitDirectoriesEnabled()) {</span>
+<span class="fc bfc" id="L1469" title="All 2 branches covered.">      for (String prefix : prefixes) {</span>
+<span class="fc" id="L1470">        objectInfos.add(</span>
+<span class="fc" id="L1471">            GoogleCloudStorageItemInfo.createInferredDirectory(</span>
                 new StorageResourceId(bucketName, prefix)));
-<span class="fc" id="L1469">      }</span>
+<span class="fc" id="L1473">      }</span>
     } else {
-<span class="fc" id="L1471">      logger.atInfo().log(</span>
+<span class="fc" id="L1475">      logger.atInfo().log(</span>
           &quot;Inferred directories are disabled, giving up on retrieving missing directories: %s&quot;,
           prefixes);
     }
-<span class="fc" id="L1475">  }</span>
+<span class="fc" id="L1479">  }</span>
 
   /** Helper for converting a StorageResourceId + Bucket into a GoogleCloudStorageItemInfo. */
   public static GoogleCloudStorageItemInfo createItemInfoForBucket(
       StorageResourceId resourceId, Bucket bucket) {
-<span class="pc bpc" id="L1480" title="1 of 2 branches missed.">    Preconditions.checkArgument(resourceId != null, &quot;resourceId must not be null&quot;);</span>
-<span class="pc bpc" id="L1481" title="1 of 2 branches missed.">    Preconditions.checkArgument(bucket != null, &quot;bucket must not be null&quot;);</span>
-<span class="fc" id="L1482">    Preconditions.checkArgument(</span>
-<span class="fc" id="L1483">        resourceId.isBucket(), &quot;resourceId must be a Bucket. resourceId: %s&quot;, resourceId);</span>
-<span class="fc" id="L1484">    Preconditions.checkArgument(</span>
-<span class="fc" id="L1485">        resourceId.getBucketName().equals(bucket.getName()),</span>
+<span class="pc bpc" id="L1484" title="1 of 2 branches missed.">    Preconditions.checkArgument(resourceId != null, &quot;resourceId must not be null&quot;);</span>
+<span class="pc bpc" id="L1485" title="1 of 2 branches missed.">    Preconditions.checkArgument(bucket != null, &quot;bucket must not be null&quot;);</span>
+<span class="fc" id="L1486">    Preconditions.checkArgument(</span>
+<span class="fc" id="L1487">        resourceId.isBucket(), &quot;resourceId must be a Bucket. resourceId: %s&quot;, resourceId);</span>
+<span class="fc" id="L1488">    Preconditions.checkArgument(</span>
+<span class="fc" id="L1489">        resourceId.getBucketName().equals(bucket.getName()),</span>
         &quot;resourceId.getBucketName() must equal bucket.getName(): '%s' vs '%s'&quot;,
-<span class="fc" id="L1487">        resourceId.getBucketName(), bucket.getName());</span>
+<span class="fc" id="L1491">        resourceId.getBucketName(), bucket.getName());</span>
 
     // For buckets, size is 0.
-<span class="fc" id="L1490">    return new GoogleCloudStorageItemInfo(resourceId, bucket.getTimeCreated().getValue(),</span>
-<span class="fc" id="L1491">        0, bucket.getLocation(), bucket.getStorageClass());</span>
+<span class="fc" id="L1494">    return new GoogleCloudStorageItemInfo(resourceId, bucket.getTimeCreated().getValue(),</span>
+<span class="fc" id="L1495">        0, bucket.getLocation(), bucket.getStorageClass());</span>
   }
 
   /**
@@ -1496,48 +1500,48 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   public static GoogleCloudStorageItemInfo createItemInfoForStorageObject(
       StorageResourceId resourceId, StorageObject object) {
-<span class="pc bpc" id="L1499" title="1 of 2 branches missed.">    Preconditions.checkArgument(resourceId != null, &quot;resourceId must not be null&quot;);</span>
-<span class="pc bpc" id="L1500" title="1 of 2 branches missed.">    Preconditions.checkArgument(object != null, &quot;object must not be null&quot;);</span>
-<span class="fc" id="L1501">    Preconditions.checkArgument(</span>
-<span class="fc" id="L1502">        resourceId.isStorageObject(),</span>
+<span class="pc bpc" id="L1503" title="1 of 2 branches missed.">    Preconditions.checkArgument(resourceId != null, &quot;resourceId must not be null&quot;);</span>
+<span class="pc bpc" id="L1504" title="1 of 2 branches missed.">    Preconditions.checkArgument(object != null, &quot;object must not be null&quot;);</span>
+<span class="fc" id="L1505">    Preconditions.checkArgument(</span>
+<span class="fc" id="L1506">        resourceId.isStorageObject(),</span>
         &quot;resourceId must be a StorageObject. resourceId: %s&quot;, resourceId);
-<span class="fc" id="L1504">    Preconditions.checkArgument(</span>
-<span class="fc" id="L1505">        resourceId.getBucketName().equals(object.getBucket()),</span>
-        &quot;resourceId.getBucketName() must equal object.getBucket(): '%s' vs '%s'&quot;,
-<span class="fc" id="L1507">        resourceId.getBucketName(), object.getBucket());</span>
 <span class="fc" id="L1508">    Preconditions.checkArgument(</span>
-<span class="fc" id="L1509">        resourceId.getObjectName().equals(object.getName()),</span>
+<span class="fc" id="L1509">        resourceId.getBucketName().equals(object.getBucket()),</span>
+        &quot;resourceId.getBucketName() must equal object.getBucket(): '%s' vs '%s'&quot;,
+<span class="fc" id="L1511">        resourceId.getBucketName(), object.getBucket());</span>
+<span class="fc" id="L1512">    Preconditions.checkArgument(</span>
+<span class="fc" id="L1513">        resourceId.getObjectName().equals(object.getName()),</span>
         &quot;resourceId.getObjectName() must equal object.getName(): '%s' vs '%s'&quot;,
-<span class="fc" id="L1511">        resourceId.getObjectName(), object.getName());</span>
+<span class="fc" id="L1515">        resourceId.getObjectName(), object.getName());</span>
 
-<span class="fc" id="L1513">    Map&lt;String, byte[]&gt; decodedMetadata =</span>
-<span class="fc bfc" id="L1514" title="All 2 branches covered.">        object.getMetadata() == null ? null : decodeMetadata(object.getMetadata());</span>
+<span class="fc" id="L1517">    Map&lt;String, byte[]&gt; decodedMetadata =</span>
+<span class="fc bfc" id="L1518" title="All 2 branches covered.">        object.getMetadata() == null ? null : decodeMetadata(object.getMetadata());</span>
 
-<span class="fc" id="L1516">    byte[] md5Hash = null;</span>
-<span class="fc" id="L1517">    byte[] crc32c = null;</span>
+<span class="fc" id="L1520">    byte[] md5Hash = null;</span>
+<span class="fc" id="L1521">    byte[] crc32c = null;</span>
 
-<span class="fc bfc" id="L1519" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(object.getCrc32c())) {</span>
-<span class="fc" id="L1520">      crc32c = BaseEncoding.base64().decode(object.getCrc32c());</span>
+<span class="fc bfc" id="L1523" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(object.getCrc32c())) {</span>
+<span class="fc" id="L1524">      crc32c = BaseEncoding.base64().decode(object.getCrc32c());</span>
     }
 
-<span class="fc bfc" id="L1523" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(object.getMd5Hash())) {</span>
-<span class="fc" id="L1524">      md5Hash = BaseEncoding.base64().decode(object.getMd5Hash());</span>
+<span class="fc bfc" id="L1527" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(object.getMd5Hash())) {</span>
+<span class="fc" id="L1528">      md5Hash = BaseEncoding.base64().decode(object.getMd5Hash());</span>
     }
 
     // GCS API does not make available location and storage class at object level at present
     // (it is same for all objects in a bucket). Further, we do not use the values for objects.
     // The GoogleCloudStorageItemInfo thus has 'null' for location and storage class.
-<span class="fc" id="L1530">    return new GoogleCloudStorageItemInfo(</span>
+<span class="fc" id="L1534">    return new GoogleCloudStorageItemInfo(</span>
         resourceId,
-<span class="fc" id="L1532">        object.getUpdated().getValue(),</span>
-<span class="fc" id="L1533">        object.getSize().longValue(),</span>
+<span class="fc" id="L1536">        object.getUpdated().getValue(),</span>
+<span class="fc" id="L1537">        object.getSize().longValue(),</span>
         /* location= */ null,
         /* storageClass= */ null,
-<span class="fc" id="L1536">        object.getContentType(),</span>
-<span class="fc" id="L1537">        object.getContentEncoding(),</span>
+<span class="fc" id="L1540">        object.getContentType(),</span>
+<span class="fc" id="L1541">        object.getContentEncoding(),</span>
         decodedMetadata,
-<span class="fc" id="L1539">        object.getGeneration(),</span>
-<span class="fc" id="L1540">        object.getMetageneration(),</span>
+<span class="fc" id="L1543">        object.getGeneration(),</span>
+<span class="fc" id="L1544">        object.getMetageneration(),</span>
         new VerificationAttributes(md5Hash, crc32c));
   }
 
@@ -1548,7 +1552,7 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   @VisibleForTesting
   static Map&lt;String, String&gt; encodeMetadata(Map&lt;String, byte[]&gt; metadata) {
-<span class="fc" id="L1551">    return Maps.transformValues(metadata, GoogleCloudStorageImpl::encodeMetadataValues);</span>
+<span class="fc" id="L1555">    return Maps.transformValues(metadata, GoogleCloudStorageImpl::encodeMetadataValues);</span>
   }
 
   /**
@@ -1556,202 +1560,202 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   @VisibleForTesting
   static Map&lt;String, byte[]&gt; decodeMetadata(Map&lt;String, String&gt; metadata) {
-<span class="fc" id="L1559">    return Maps.transformValues(metadata, GoogleCloudStorageImpl::decodeMetadataValues);</span>
+<span class="fc" id="L1563">    return Maps.transformValues(metadata, GoogleCloudStorageImpl::decodeMetadataValues);</span>
   }
 
   /** See {@link GoogleCloudStorage#getItemInfos(List)} for details about expected behavior. */
   @Override
   public List&lt;GoogleCloudStorageItemInfo&gt; getItemInfos(List&lt;StorageResourceId&gt; resourceIds)
       throws IOException {
-<span class="fc" id="L1566">    logger.atFine().log(&quot;getItemInfos(%s)&quot;, resourceIds);</span>
+<span class="fc" id="L1570">    logger.atFine().log(&quot;getItemInfos(%s)&quot;, resourceIds);</span>
 
-<span class="pc bpc" id="L1568" title="1 of 2 branches missed.">    if (resourceIds.isEmpty()) {</span>
-<span class="nc" id="L1569">      return new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L1572" title="1 of 2 branches missed.">    if (resourceIds.isEmpty()) {</span>
+<span class="nc" id="L1573">      return new ArrayList&lt;&gt;();</span>
     }
 
-<span class="fc" id="L1572">    final Map&lt;StorageResourceId, GoogleCloudStorageItemInfo&gt; itemInfos = new ConcurrentHashMap&lt;&gt;();</span>
-<span class="fc" id="L1573">    final Set&lt;IOException&gt; innerExceptions = newConcurrentHashSet();</span>
-<span class="fc" id="L1574">    BatchHelper batchHelper =</span>
-<span class="fc" id="L1575">        batchFactory.newBatchHelper(</span>
+<span class="fc" id="L1576">    final Map&lt;StorageResourceId, GoogleCloudStorageItemInfo&gt; itemInfos = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L1577">    final Set&lt;IOException&gt; innerExceptions = newConcurrentHashSet();</span>
+<span class="fc" id="L1578">    BatchHelper batchHelper =</span>
+<span class="fc" id="L1579">        batchFactory.newBatchHelper(</span>
             httpRequestInitializer,
             gcs,
-<span class="fc" id="L1578">            storageOptions.getMaxRequestsPerBatch(),</span>
-<span class="fc" id="L1579">            resourceIds.size(),</span>
-<span class="fc" id="L1580">            storageOptions.getBatchThreads());</span>
+<span class="fc" id="L1582">            storageOptions.getMaxRequestsPerBatch(),</span>
+<span class="fc" id="L1583">            resourceIds.size(),</span>
+<span class="fc" id="L1584">            storageOptions.getBatchThreads());</span>
 
     // For each resourceId, we'll either directly add ROOT_INFO, enqueue a Bucket fetch request, or
     // enqueue a StorageObject fetch request.
-<span class="fc bfc" id="L1584" title="All 2 branches covered.">    for (final StorageResourceId resourceId : resourceIds) {</span>
-<span class="fc bfc" id="L1585" title="All 2 branches covered.">      if (resourceId.isRoot()) {</span>
-<span class="fc" id="L1586">        itemInfos.put(resourceId, GoogleCloudStorageItemInfo.ROOT_INFO);</span>
-<span class="fc bfc" id="L1587" title="All 2 branches covered.">      } else if (resourceId.isBucket()) {</span>
-<span class="fc" id="L1588">        batchHelper.queue(</span>
-<span class="fc" id="L1589">            configureRequest(</span>
-<span class="fc" id="L1590">                gcs.buckets().get(resourceId.getBucketName()), resourceId.getBucketName()),</span>
-<span class="fc" id="L1591">            new JsonBatchCallback&lt;Bucket&gt;() {</span>
+<span class="fc bfc" id="L1588" title="All 2 branches covered.">    for (final StorageResourceId resourceId : resourceIds) {</span>
+<span class="fc bfc" id="L1589" title="All 2 branches covered.">      if (resourceId.isRoot()) {</span>
+<span class="fc" id="L1590">        itemInfos.put(resourceId, GoogleCloudStorageItemInfo.ROOT_INFO);</span>
+<span class="fc bfc" id="L1591" title="All 2 branches covered.">      } else if (resourceId.isBucket()) {</span>
+<span class="fc" id="L1592">        batchHelper.queue(</span>
+<span class="fc" id="L1593">            configureRequest(</span>
+<span class="fc" id="L1594">                gcs.buckets().get(resourceId.getBucketName()), resourceId.getBucketName()),</span>
+<span class="fc" id="L1595">            new JsonBatchCallback&lt;Bucket&gt;() {</span>
               @Override
               public void onSuccess(Bucket bucket, HttpHeaders responseHeaders) {
-<span class="fc" id="L1594">                logger.atFine().log(</span>
+<span class="fc" id="L1598">                logger.atFine().log(</span>
                     &quot;getItemInfos: Successfully fetched bucket: %s for resourceId: %s&quot;,
                     bucket, resourceId);
-<span class="fc" id="L1597">                itemInfos.put(resourceId, createItemInfoForBucket(resourceId, bucket));</span>
-<span class="fc" id="L1598">              }</span>
+<span class="fc" id="L1601">                itemInfos.put(resourceId, createItemInfoForBucket(resourceId, bucket));</span>
+<span class="fc" id="L1602">              }</span>
 
               @Override
               public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) {
-<span class="fc bfc" id="L1602" title="All 2 branches covered.">                if (errorExtractor.itemNotFound(e)) {</span>
-<span class="fc" id="L1603">                  logger.atFine().log(</span>
-<span class="fc" id="L1604">                      &quot;getItemInfos: bucket not found %s:%n%s&quot;, resourceId.getBucketName(), e);</span>
-<span class="fc" id="L1605">                  itemInfos.put(resourceId, GoogleCloudStorageItemInfo.createNotFound(resourceId));</span>
+<span class="fc bfc" id="L1606" title="All 2 branches covered.">                if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc" id="L1607">                  logger.atFine().log(</span>
+<span class="fc" id="L1608">                      &quot;getItemInfos: bucket not found %s:%n%s&quot;, resourceId.getBucketName(), e);</span>
+<span class="fc" id="L1609">                  itemInfos.put(resourceId, GoogleCloudStorageItemInfo.createNotFound(resourceId));</span>
                 } else {
-<span class="fc" id="L1607">                  innerExceptions.add(</span>
+<span class="fc" id="L1611">                  innerExceptions.add(</span>
                       new IOException(
-<span class="fc" id="L1609">                          String.format(</span>
-<span class="fc" id="L1610">                              &quot;Error getting Bucket %s:%n%s&quot;, resourceId.getBucketName(), e)));</span>
+<span class="fc" id="L1613">                          String.format(</span>
+<span class="fc" id="L1614">                              &quot;Error getting Bucket %s:%n%s&quot;, resourceId.getBucketName(), e)));</span>
                 }
-<span class="fc" id="L1612">              }</span>
+<span class="fc" id="L1616">              }</span>
             });
       } else {
-<span class="fc" id="L1615">        final String bucketName = resourceId.getBucketName();</span>
-<span class="fc" id="L1616">        final String objectName = resourceId.getObjectName();</span>
-<span class="fc" id="L1617">        batchHelper.queue(</span>
-<span class="fc" id="L1618">            configureRequest(gcs.objects().get(bucketName, objectName), bucketName),</span>
-<span class="fc" id="L1619">            new JsonBatchCallback&lt;StorageObject&gt;() {</span>
+<span class="fc" id="L1619">        final String bucketName = resourceId.getBucketName();</span>
+<span class="fc" id="L1620">        final String objectName = resourceId.getObjectName();</span>
+<span class="fc" id="L1621">        batchHelper.queue(</span>
+<span class="fc" id="L1622">            configureRequest(gcs.objects().get(bucketName, objectName), bucketName),</span>
+<span class="fc" id="L1623">            new JsonBatchCallback&lt;StorageObject&gt;() {</span>
               @Override
               public void onSuccess(StorageObject obj, HttpHeaders responseHeaders) {
-<span class="fc" id="L1622">                logger.atFine().log(</span>
+<span class="fc" id="L1626">                logger.atFine().log(</span>
                     &quot;getItemInfos: Successfully fetched object '%s' for resourceId '%s'&quot;,
                     obj, resourceId);
-<span class="fc" id="L1625">                itemInfos.put(resourceId, createItemInfoForStorageObject(resourceId, obj));</span>
-<span class="fc" id="L1626">              }</span>
+<span class="fc" id="L1629">                itemInfos.put(resourceId, createItemInfoForStorageObject(resourceId, obj));</span>
+<span class="fc" id="L1630">              }</span>
 
               @Override
               public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) {
-<span class="fc bfc" id="L1630" title="All 2 branches covered.">                if (errorExtractor.itemNotFound(e)) {</span>
-<span class="fc" id="L1631">                  logger.atFine().log(&quot;getItemInfos: object not found %s:%n%s&quot;, resourceId, e);</span>
-<span class="fc" id="L1632">                  itemInfos.put(resourceId, GoogleCloudStorageItemInfo.createNotFound(resourceId));</span>
+<span class="fc bfc" id="L1634" title="All 2 branches covered.">                if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc" id="L1635">                  logger.atFine().log(&quot;getItemInfos: object not found %s:%n%s&quot;, resourceId, e);</span>
+<span class="fc" id="L1636">                  itemInfos.put(resourceId, GoogleCloudStorageItemInfo.createNotFound(resourceId));</span>
                 } else {
-<span class="fc" id="L1634">                  innerExceptions.add(</span>
+<span class="fc" id="L1638">                  innerExceptions.add(</span>
                       new IOException(
-<span class="fc" id="L1636">                          String.format(&quot;Error getting StorageObject %s:%n%s&quot;, resourceId, e)));</span>
+<span class="fc" id="L1640">                          String.format(&quot;Error getting StorageObject %s:%n%s&quot;, resourceId, e)));</span>
                 }
-<span class="fc" id="L1638">              }</span>
+<span class="fc" id="L1642">              }</span>
             });
       }
-<span class="fc" id="L1641">    }</span>
+<span class="fc" id="L1645">    }</span>
 
-<span class="fc" id="L1643">    batchHelper.flush();</span>
+<span class="fc" id="L1647">    batchHelper.flush();</span>
 
-<span class="fc bfc" id="L1645" title="All 2 branches covered.">    if (innerExceptions.size() &gt; 0) {</span>
-<span class="fc" id="L1646">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
+<span class="fc bfc" id="L1649" title="All 2 branches covered.">    if (innerExceptions.size() &gt; 0) {</span>
+<span class="fc" id="L1650">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
     }
 
     // Assemble the return list in the same order as the input arguments.
-<span class="fc" id="L1650">    List&lt;GoogleCloudStorageItemInfo&gt; sortedItemInfos = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L1651" title="All 2 branches covered.">    for (StorageResourceId resourceId : resourceIds) {</span>
-<span class="fc" id="L1652">      Preconditions.checkState(</span>
-<span class="fc" id="L1653">          itemInfos.containsKey(resourceId),</span>
+<span class="fc" id="L1654">    List&lt;GoogleCloudStorageItemInfo&gt; sortedItemInfos = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L1655" title="All 2 branches covered.">    for (StorageResourceId resourceId : resourceIds) {</span>
+<span class="fc" id="L1656">      Preconditions.checkState(</span>
+<span class="fc" id="L1657">          itemInfos.containsKey(resourceId),</span>
           &quot;Somehow missing resourceId '%s' from map: %s&quot;,
           resourceId, itemInfos);
-<span class="fc" id="L1656">      sortedItemInfos.add(itemInfos.get(resourceId));</span>
-<span class="fc" id="L1657">    }</span>
+<span class="fc" id="L1660">      sortedItemInfos.add(itemInfos.get(resourceId));</span>
+<span class="fc" id="L1661">    }</span>
 
     // We expect the return list to be the same size, even if some entries were &quot;not found&quot;.
-<span class="fc" id="L1660">    Preconditions.checkState(</span>
-<span class="pc bpc" id="L1661" title="1 of 2 branches missed.">        sortedItemInfos.size() == resourceIds.size(),</span>
+<span class="fc" id="L1664">    Preconditions.checkState(</span>
+<span class="pc bpc" id="L1665" title="1 of 2 branches missed.">        sortedItemInfos.size() == resourceIds.size(),</span>
         &quot;sortedItemInfos.size() (%s) != resourceIds.size() (%s). infos: %s, ids: %s&quot;,
-<span class="fc" id="L1663">        sortedItemInfos.size(), resourceIds.size(), sortedItemInfos, resourceIds);</span>
-<span class="fc" id="L1664">    return sortedItemInfos;</span>
+<span class="fc" id="L1667">        sortedItemInfos.size(), resourceIds.size(), sortedItemInfos, resourceIds);</span>
+<span class="fc" id="L1668">    return sortedItemInfos;</span>
   }
 
   @Override
   public List&lt;GoogleCloudStorageItemInfo&gt; updateItems(List&lt;UpdatableItemInfo&gt; itemInfoList)
       throws IOException {
-<span class="fc" id="L1670">    logger.atFine().log(&quot;updateItems(%s)&quot;, itemInfoList);</span>
+<span class="fc" id="L1674">    logger.atFine().log(&quot;updateItems(%s)&quot;, itemInfoList);</span>
 
-<span class="pc bpc" id="L1672" title="1 of 2 branches missed.">    if (itemInfoList.isEmpty()) {</span>
-<span class="nc" id="L1673">      return new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L1676" title="1 of 2 branches missed.">    if (itemInfoList.isEmpty()) {</span>
+<span class="nc" id="L1677">      return new ArrayList&lt;&gt;();</span>
     }
 
-<span class="fc" id="L1676">    final Map&lt;StorageResourceId, GoogleCloudStorageItemInfo&gt; resultItemInfos =</span>
+<span class="fc" id="L1680">    final Map&lt;StorageResourceId, GoogleCloudStorageItemInfo&gt; resultItemInfos =</span>
         new ConcurrentHashMap&lt;&gt;();
-<span class="fc" id="L1678">    final Set&lt;IOException&gt; innerExceptions = newConcurrentHashSet();</span>
-<span class="fc" id="L1679">    BatchHelper batchHelper =</span>
-<span class="fc" id="L1680">        batchFactory.newBatchHelper(</span>
+<span class="fc" id="L1682">    final Set&lt;IOException&gt; innerExceptions = newConcurrentHashSet();</span>
+<span class="fc" id="L1683">    BatchHelper batchHelper =</span>
+<span class="fc" id="L1684">        batchFactory.newBatchHelper(</span>
             httpRequestInitializer,
             gcs,
-<span class="fc" id="L1683">            storageOptions.getMaxRequestsPerBatch(),</span>
-<span class="fc" id="L1684">            itemInfoList.size(),</span>
-<span class="fc" id="L1685">            storageOptions.getBatchThreads());</span>
+<span class="fc" id="L1687">            storageOptions.getMaxRequestsPerBatch(),</span>
+<span class="fc" id="L1688">            itemInfoList.size(),</span>
+<span class="fc" id="L1689">            storageOptions.getBatchThreads());</span>
 
-<span class="fc bfc" id="L1687" title="All 2 branches covered.">    for (UpdatableItemInfo itemInfo : itemInfoList) {</span>
-<span class="fc" id="L1688">      Preconditions.checkArgument(</span>
-<span class="pc bpc" id="L1689" title="2 of 4 branches missed.">          !itemInfo.getStorageResourceId().isBucket() &amp;&amp; !itemInfo.getStorageResourceId().isRoot(),</span>
+<span class="fc bfc" id="L1691" title="All 2 branches covered.">    for (UpdatableItemInfo itemInfo : itemInfoList) {</span>
+<span class="fc" id="L1692">      Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L1693" title="2 of 4 branches missed.">          !itemInfo.getStorageResourceId().isBucket() &amp;&amp; !itemInfo.getStorageResourceId().isRoot(),</span>
           &quot;Buckets and GCS Root resources are not supported for updateItems&quot;);
-<span class="fc" id="L1691">    }</span>
+<span class="fc" id="L1695">    }</span>
 
-<span class="fc bfc" id="L1693" title="All 2 branches covered.">    for (final UpdatableItemInfo itemInfo : itemInfoList) {</span>
-<span class="fc" id="L1694">      final StorageResourceId resourceId = itemInfo.getStorageResourceId();</span>
-<span class="fc" id="L1695">      final String bucketName = resourceId.getBucketName();</span>
-<span class="fc" id="L1696">      final String objectName = resourceId.getObjectName();</span>
+<span class="fc bfc" id="L1697" title="All 2 branches covered.">    for (final UpdatableItemInfo itemInfo : itemInfoList) {</span>
+<span class="fc" id="L1698">      final StorageResourceId resourceId = itemInfo.getStorageResourceId();</span>
+<span class="fc" id="L1699">      final String bucketName = resourceId.getBucketName();</span>
+<span class="fc" id="L1700">      final String objectName = resourceId.getObjectName();</span>
 
-<span class="fc" id="L1698">      Map&lt;String, byte[]&gt; originalMetadata = itemInfo.getMetadata();</span>
-<span class="fc" id="L1699">      Map&lt;String, String&gt; rewrittenMetadata = encodeMetadata(originalMetadata);</span>
+<span class="fc" id="L1702">      Map&lt;String, byte[]&gt; originalMetadata = itemInfo.getMetadata();</span>
+<span class="fc" id="L1703">      Map&lt;String, String&gt; rewrittenMetadata = encodeMetadata(originalMetadata);</span>
 
-<span class="fc" id="L1701">      Storage.Objects.Patch patch =</span>
-<span class="fc" id="L1702">          configureRequest(</span>
-<span class="fc" id="L1703">              gcs.objects()</span>
-<span class="fc" id="L1704">                  .patch(</span>
-<span class="fc" id="L1705">                      bucketName, objectName, new StorageObject().setMetadata(rewrittenMetadata)),</span>
+<span class="fc" id="L1705">      Storage.Objects.Patch patch =</span>
+<span class="fc" id="L1706">          configureRequest(</span>
+<span class="fc" id="L1707">              gcs.objects()</span>
+<span class="fc" id="L1708">                  .patch(</span>
+<span class="fc" id="L1709">                      bucketName, objectName, new StorageObject().setMetadata(rewrittenMetadata)),</span>
               bucketName);
 
-<span class="fc" id="L1708">      batchHelper.queue(</span>
+<span class="fc" id="L1712">      batchHelper.queue(</span>
           patch,
-<span class="fc" id="L1710">          new JsonBatchCallback&lt;StorageObject&gt;() {</span>
+<span class="fc" id="L1714">          new JsonBatchCallback&lt;StorageObject&gt;() {</span>
             @Override
             public void onSuccess(StorageObject obj, HttpHeaders responseHeaders) {
-<span class="fc" id="L1713">              logger.atFine().log(</span>
+<span class="fc" id="L1717">              logger.atFine().log(</span>
                   &quot;updateItems: Successfully updated object '%s' for resourceId '%s'&quot;,
                   obj, resourceId);
-<span class="fc" id="L1716">              resultItemInfos.put(resourceId, createItemInfoForStorageObject(resourceId, obj));</span>
-<span class="fc" id="L1717">            }</span>
+<span class="fc" id="L1720">              resultItemInfos.put(resourceId, createItemInfoForStorageObject(resourceId, obj));</span>
+<span class="fc" id="L1721">            }</span>
 
             @Override
             public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) {
-<span class="pc bpc" id="L1721" title="1 of 2 branches missed.">              if (errorExtractor.itemNotFound(e)) {</span>
-<span class="fc" id="L1722">                logger.atFine().log(&quot;updateItems: object not found %s:%n%s&quot;, resourceId, e);</span>
-<span class="fc" id="L1723">                resultItemInfos.put(</span>
-<span class="fc" id="L1724">                    resourceId, GoogleCloudStorageItemInfo.createNotFound(resourceId));</span>
+<span class="pc bpc" id="L1725" title="1 of 2 branches missed.">              if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc" id="L1726">                logger.atFine().log(&quot;updateItems: object not found %s:%n%s&quot;, resourceId, e);</span>
+<span class="fc" id="L1727">                resultItemInfos.put(</span>
+<span class="fc" id="L1728">                    resourceId, GoogleCloudStorageItemInfo.createNotFound(resourceId));</span>
               } else {
-<span class="nc" id="L1726">                innerExceptions.add(</span>
+<span class="nc" id="L1730">                innerExceptions.add(</span>
                     new IOException(
-<span class="nc" id="L1728">                        String.format(&quot;Error getting StorageObject %s:%n%s&quot;, resourceId, e)));</span>
+<span class="nc" id="L1732">                        String.format(&quot;Error getting StorageObject %s:%n%s&quot;, resourceId, e)));</span>
               }
-<span class="fc" id="L1730">            }</span>
+<span class="fc" id="L1734">            }</span>
           });
-<span class="fc" id="L1732">    }</span>
-<span class="fc" id="L1733">    batchHelper.flush();</span>
+<span class="fc" id="L1736">    }</span>
+<span class="fc" id="L1737">    batchHelper.flush();</span>
 
-<span class="pc bpc" id="L1735" title="1 of 2 branches missed.">    if (innerExceptions.size() &gt; 0) {</span>
-<span class="nc" id="L1736">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
+<span class="pc bpc" id="L1739" title="1 of 2 branches missed.">    if (innerExceptions.size() &gt; 0) {</span>
+<span class="nc" id="L1740">      throw GoogleCloudStorageExceptions.createCompositeException(innerExceptions);</span>
     }
 
     // Assemble the return list in the same order as the input arguments.
-<span class="fc" id="L1740">    List&lt;GoogleCloudStorageItemInfo&gt; sortedItemInfos = new ArrayList&lt;&gt;();</span>
-<span class="fc bfc" id="L1741" title="All 2 branches covered.">    for (UpdatableItemInfo itemInfo : itemInfoList) {</span>
-<span class="fc" id="L1742">      Preconditions.checkState(</span>
-<span class="fc" id="L1743">          resultItemInfos.containsKey(itemInfo.getStorageResourceId()),</span>
+<span class="fc" id="L1744">    List&lt;GoogleCloudStorageItemInfo&gt; sortedItemInfos = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L1745" title="All 2 branches covered.">    for (UpdatableItemInfo itemInfo : itemInfoList) {</span>
+<span class="fc" id="L1746">      Preconditions.checkState(</span>
+<span class="fc" id="L1747">          resultItemInfos.containsKey(itemInfo.getStorageResourceId()),</span>
           &quot;Missing resourceId '%s' from map: %s&quot;,
-<span class="fc" id="L1745">          itemInfo.getStorageResourceId(), resultItemInfos);</span>
-<span class="fc" id="L1746">      sortedItemInfos.add(resultItemInfos.get(itemInfo.getStorageResourceId()));</span>
-<span class="fc" id="L1747">    }</span>
+<span class="fc" id="L1749">          itemInfo.getStorageResourceId(), resultItemInfos);</span>
+<span class="fc" id="L1750">      sortedItemInfos.add(resultItemInfos.get(itemInfo.getStorageResourceId()));</span>
+<span class="fc" id="L1751">    }</span>
 
     // We expect the return list to be the same size, even if some entries were &quot;not found&quot;.
-<span class="fc" id="L1750">    Preconditions.checkState(</span>
-<span class="pc bpc" id="L1751" title="1 of 2 branches missed.">        sortedItemInfos.size() == itemInfoList.size(),</span>
+<span class="fc" id="L1754">    Preconditions.checkState(</span>
+<span class="pc bpc" id="L1755" title="1 of 2 branches missed.">        sortedItemInfos.size() == itemInfoList.size(),</span>
         &quot;sortedItemInfos.size() (%s) != resourceIds.size() (%s). infos: %s, updateItemInfos: %s&quot;,
-<span class="fc" id="L1753">        sortedItemInfos.size(), itemInfoList.size(), sortedItemInfos, itemInfoList);</span>
-<span class="fc" id="L1754">    return sortedItemInfos;</span>
+<span class="fc" id="L1757">        sortedItemInfos.size(), itemInfoList.size(), sortedItemInfos, itemInfoList);</span>
+<span class="fc" id="L1758">    return sortedItemInfos;</span>
   }
 
   /**
@@ -1761,37 +1765,37 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   @Override
   public GoogleCloudStorageItemInfo getItemInfo(StorageResourceId resourceId)
       throws IOException {
-<span class="fc" id="L1764">    logger.atFine().log(&quot;getItemInfo(%s)&quot;, resourceId);</span>
+<span class="fc" id="L1768">    logger.atFine().log(&quot;getItemInfo(%s)&quot;, resourceId);</span>
 
     // Handle ROOT case first.
-<span class="fc bfc" id="L1767" title="All 2 branches covered.">    if (resourceId.isRoot()) {</span>
-<span class="fc" id="L1768">      return GoogleCloudStorageItemInfo.ROOT_INFO;</span>
+<span class="fc bfc" id="L1771" title="All 2 branches covered.">    if (resourceId.isRoot()) {</span>
+<span class="fc" id="L1772">      return GoogleCloudStorageItemInfo.ROOT_INFO;</span>
     }
 
-<span class="fc" id="L1771">    GoogleCloudStorageItemInfo itemInfo = null;</span>
+<span class="fc" id="L1775">    GoogleCloudStorageItemInfo itemInfo = null;</span>
 
     // Determine object size.
     //
     // For buckets, size is 0.
     // For objects not found, size is -1.
     // For objects that exist, size is in number of bytes.
-<span class="fc bfc" id="L1778" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
-<span class="fc" id="L1779">      Bucket bucket = getBucket(resourceId.getBucketName());</span>
-<span class="fc bfc" id="L1780" title="All 2 branches covered.">      if (bucket != null) {</span>
-<span class="fc" id="L1781">        itemInfo = createItemInfoForBucket(resourceId, bucket);</span>
+<span class="fc bfc" id="L1782" title="All 2 branches covered.">    if (resourceId.isBucket()) {</span>
+<span class="fc" id="L1783">      Bucket bucket = getBucket(resourceId.getBucketName());</span>
+<span class="fc bfc" id="L1784" title="All 2 branches covered.">      if (bucket != null) {</span>
+<span class="fc" id="L1785">        itemInfo = createItemInfoForBucket(resourceId, bucket);</span>
       }
-<span class="fc" id="L1783">    } else {</span>
-<span class="fc" id="L1784">      StorageObject object = getObject(resourceId);</span>
-<span class="fc bfc" id="L1785" title="All 2 branches covered.">      if (object != null) {</span>
-<span class="fc" id="L1786">        itemInfo = createItemInfoForStorageObject(resourceId, object);</span>
+<span class="fc" id="L1787">    } else {</span>
+<span class="fc" id="L1788">      StorageObject object = getObject(resourceId);</span>
+<span class="fc bfc" id="L1789" title="All 2 branches covered.">      if (object != null) {</span>
+<span class="fc" id="L1790">        itemInfo = createItemInfoForStorageObject(resourceId, object);</span>
       }
     }
 
-<span class="fc bfc" id="L1790" title="All 2 branches covered.">    if (itemInfo == null) {</span>
-<span class="fc" id="L1791">      itemInfo = GoogleCloudStorageItemInfo.createNotFound(resourceId);</span>
+<span class="fc bfc" id="L1794" title="All 2 branches covered.">    if (itemInfo == null) {</span>
+<span class="fc" id="L1795">      itemInfo = GoogleCloudStorageItemInfo.createNotFound(resourceId);</span>
     }
-<span class="fc" id="L1793">    logger.atFine().log(&quot;getItemInfo: %s&quot;, itemInfo);</span>
-<span class="fc" id="L1794">    return itemInfo;</span>
+<span class="fc" id="L1797">    logger.atFine().log(&quot;getItemInfo: %s&quot;, itemInfo);</span>
+<span class="fc" id="L1798">    return itemInfo;</span>
   }
 
   /**
@@ -1801,10 +1805,10 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   public void close() {
     // Calling shutdown() is a no-op if it was already called earlier,
     // therefore no need to guard against that by setting threadPool to null.
-<span class="fc" id="L1804">    logger.atFine().log(&quot;close()&quot;);</span>
-<span class="fc" id="L1805">    threadPool.shutdown();</span>
-<span class="fc" id="L1806">    manualBatchingThreadPool.shutdown();</span>
-<span class="fc" id="L1807">  }</span>
+<span class="fc" id="L1808">    logger.atFine().log(&quot;close()&quot;);</span>
+<span class="fc" id="L1809">    threadPool.shutdown();</span>
+<span class="fc" id="L1810">    manualBatchingThreadPool.shutdown();</span>
+<span class="fc" id="L1811">  }</span>
 
   /**
    * Gets the bucket with the given name.
@@ -1815,17 +1819,17 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   private Bucket getBucket(String bucketName)
       throws IOException {
-<span class="fc" id="L1818">    logger.atFine().log(&quot;getBucket(%s)&quot;, bucketName);</span>
-<span class="pc bpc" id="L1819" title="1 of 2 branches missed.">    checkArgument(!Strings.isNullOrEmpty(bucketName), &quot;bucketName must not be null or empty&quot;);</span>
-<span class="fc" id="L1820">    Storage.Buckets.Get getBucket = configureRequest(gcs.buckets().get(bucketName), bucketName);</span>
+<span class="fc" id="L1822">    logger.atFine().log(&quot;getBucket(%s)&quot;, bucketName);</span>
+<span class="pc bpc" id="L1823" title="1 of 2 branches missed.">    checkArgument(!Strings.isNullOrEmpty(bucketName), &quot;bucketName must not be null or empty&quot;);</span>
+<span class="fc" id="L1824">    Storage.Buckets.Get getBucket = configureRequest(gcs.buckets().get(bucketName), bucketName);</span>
     try {
-<span class="fc" id="L1822">      return getBucket.execute();</span>
-<span class="fc" id="L1823">    } catch (IOException e) {</span>
-<span class="fc bfc" id="L1824" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(e)) {</span>
-<span class="fc" id="L1825">        logger.atFine().withCause(e).log(&quot;getBucket(%s): not found&quot;, bucketName);</span>
-<span class="fc" id="L1826">        return null;</span>
+<span class="fc" id="L1826">      return getBucket.execute();</span>
+<span class="fc" id="L1827">    } catch (IOException e) {</span>
+<span class="fc bfc" id="L1828" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc" id="L1829">        logger.atFine().withCause(e).log(&quot;getBucket(%s): not found&quot;, bucketName);</span>
+<span class="fc" id="L1830">        return null;</span>
       }
-<span class="fc" id="L1828">      throw new IOException(&quot;Error accessing Bucket &quot; + bucketName, e);</span>
+<span class="fc" id="L1832">      throw new IOException(&quot;Error accessing Bucket &quot; + bucketName, e);</span>
     }
   }
 
@@ -1838,17 +1842,17 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   private long getWriteGeneration(StorageResourceId resourceId, boolean overwritable)
       throws IOException {
-<span class="fc" id="L1841">    logger.atFine().log(&quot;getWriteGeneration(%s, %s)&quot;, resourceId, overwritable);</span>
-<span class="fc" id="L1842">    GoogleCloudStorageItemInfo info = getItemInfo(resourceId);</span>
-<span class="fc bfc" id="L1843" title="All 2 branches covered.">    if (!info.exists()) {</span>
-<span class="fc" id="L1844">      return 0L;</span>
+<span class="fc" id="L1845">    logger.atFine().log(&quot;getWriteGeneration(%s, %s)&quot;, resourceId, overwritable);</span>
+<span class="fc" id="L1846">    GoogleCloudStorageItemInfo info = getItemInfo(resourceId);</span>
+<span class="fc bfc" id="L1847" title="All 2 branches covered.">    if (!info.exists()) {</span>
+<span class="fc" id="L1848">      return 0L;</span>
     }
-<span class="pc bpc" id="L1846" title="1 of 4 branches missed.">    if (info.exists() &amp;&amp; overwritable) {</span>
-<span class="fc" id="L1847">      long generation = info.getContentGeneration();</span>
-<span class="pc bpc" id="L1848" title="1 of 2 branches missed.">      Preconditions.checkState(generation != 0, &quot;Generation should not be 0 for an existing item&quot;);</span>
-<span class="fc" id="L1849">      return generation;</span>
+<span class="pc bpc" id="L1850" title="1 of 4 branches missed.">    if (info.exists() &amp;&amp; overwritable) {</span>
+<span class="fc" id="L1851">      long generation = info.getContentGeneration();</span>
+<span class="pc bpc" id="L1852" title="1 of 2 branches missed.">      Preconditions.checkState(generation != 0, &quot;Generation should not be 0 for an existing item&quot;);</span>
+<span class="fc" id="L1853">      return generation;</span>
     }
-<span class="fc" id="L1851">    throw new FileAlreadyExistsException(String.format(&quot;Object %s already exists.&quot;, resourceId));</span>
+<span class="fc" id="L1855">    throw new FileAlreadyExistsException(String.format(&quot;Object %s already exists.&quot;, resourceId));</span>
   }
 
   /**
@@ -1860,21 +1864,21 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   private StorageObject getObject(StorageResourceId resourceId)
       throws IOException {
-<span class="fc" id="L1863">    logger.atFine().log(&quot;getObject(%s)&quot;, resourceId);</span>
-<span class="fc" id="L1864">    Preconditions.checkArgument(</span>
-<span class="fc" id="L1865">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
-<span class="fc" id="L1866">    String bucketName = resourceId.getBucketName();</span>
-<span class="fc" id="L1867">    String objectName = resourceId.getObjectName();</span>
-<span class="fc" id="L1868">    Storage.Objects.Get getObject =</span>
-<span class="fc" id="L1869">        configureRequest(gcs.objects().get(bucketName, objectName), bucketName);</span>
+<span class="fc" id="L1867">    logger.atFine().log(&quot;getObject(%s)&quot;, resourceId);</span>
+<span class="fc" id="L1868">    Preconditions.checkArgument(</span>
+<span class="fc" id="L1869">        resourceId.isStorageObject(), &quot;Expected full StorageObject id, got %s&quot;, resourceId);</span>
+<span class="fc" id="L1870">    String bucketName = resourceId.getBucketName();</span>
+<span class="fc" id="L1871">    String objectName = resourceId.getObjectName();</span>
+<span class="fc" id="L1872">    Storage.Objects.Get getObject =</span>
+<span class="fc" id="L1873">        configureRequest(gcs.objects().get(bucketName, objectName), bucketName);</span>
     try {
-<span class="fc" id="L1871">      return getObject.execute();</span>
-<span class="fc" id="L1872">    } catch (IOException e) {</span>
-<span class="fc bfc" id="L1873" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(e)) {</span>
-<span class="fc" id="L1874">        logger.atFine().withCause(e).log(&quot;getObject(%s): not found&quot;, resourceId);</span>
-<span class="fc" id="L1875">        return null;</span>
+<span class="fc" id="L1875">      return getObject.execute();</span>
+<span class="fc" id="L1876">    } catch (IOException e) {</span>
+<span class="fc bfc" id="L1877" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(e)) {</span>
+<span class="fc" id="L1878">        logger.atFine().withCause(e).log(&quot;getObject(%s): not found&quot;, resourceId);</span>
+<span class="fc" id="L1879">        return null;</span>
       }
-<span class="fc" id="L1877">      throw new IOException(&quot;Error accessing &quot; + resourceId, e);</span>
+<span class="fc" id="L1881">      throw new IOException(&quot;Error accessing &quot; + resourceId, e);</span>
     }
   }
 
@@ -1888,8 +1892,8 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       throws IOException {
     // TODO(user): Maybe also add 409 and even 412 errors if they pop up in this use case.
     // 500 ISE and 503 Service Unavailable tend to be raised when spamming GCS with create requests:
-<span class="fc bfc" id="L1891" title="All 2 branches covered.">    if (errorExtractor.rateLimited(exceptionOnCreate)</span>
-<span class="pc bpc" id="L1892" title="1 of 2 branches missed.">        || errorExtractor.isInternalServerError(exceptionOnCreate)) {</span>
+<span class="fc bfc" id="L1895" title="All 2 branches covered.">    if (errorExtractor.rateLimited(exceptionOnCreate)</span>
+<span class="pc bpc" id="L1896" title="1 of 2 branches missed.">        || errorExtractor.isInternalServerError(exceptionOnCreate)) {</span>
       // We know that this is an error that is most often associated with trying to create an empty
       // object from multiple workers at the same time. We perform the following assuming that we
       // will eventually succeed and find an existing object. This will add up to a user-defined
@@ -1897,46 +1901,46 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       // assumption and this being a scenario other than the multiple workers racing situation.
       GoogleCloudStorageItemInfo existingInfo;
       BackOff backOff;
-<span class="fc" id="L1900">      int maxWaitMillis = storageOptions.getMaxWaitMillisForEmptyObjectCreation();</span>
-<span class="pc bpc" id="L1901" title="1 of 2 branches missed.">      if (maxWaitMillis &gt; 0) {</span>
-<span class="fc" id="L1902">        backOff = new ExponentialBackOff.Builder()</span>
-<span class="fc" id="L1903">            .setMaxElapsedTimeMillis(maxWaitMillis)</span>
-<span class="fc" id="L1904">            .setMaxIntervalMillis(500)</span>
-<span class="fc" id="L1905">            .setInitialIntervalMillis(100)</span>
-<span class="fc" id="L1906">            .setMultiplier(1.5)</span>
-<span class="fc" id="L1907">            .setRandomizationFactor(0.15)</span>
-<span class="fc" id="L1908">            .build();</span>
+<span class="fc" id="L1904">      int maxWaitMillis = storageOptions.getMaxWaitMillisForEmptyObjectCreation();</span>
+<span class="pc bpc" id="L1905" title="1 of 2 branches missed.">      if (maxWaitMillis &gt; 0) {</span>
+<span class="fc" id="L1906">        backOff = new ExponentialBackOff.Builder()</span>
+<span class="fc" id="L1907">            .setMaxElapsedTimeMillis(maxWaitMillis)</span>
+<span class="fc" id="L1908">            .setMaxIntervalMillis(500)</span>
+<span class="fc" id="L1909">            .setInitialIntervalMillis(100)</span>
+<span class="fc" id="L1910">            .setMultiplier(1.5)</span>
+<span class="fc" id="L1911">            .setRandomizationFactor(0.15)</span>
+<span class="fc" id="L1912">            .build();</span>
       } else {
-<span class="nc" id="L1910">        backOff = BackOff.STOP_BACKOFF;</span>
+<span class="nc" id="L1914">        backOff = BackOff.STOP_BACKOFF;</span>
       }
-<span class="fc" id="L1912">      long nextSleep = 0L;</span>
+<span class="fc" id="L1916">      long nextSleep = 0L;</span>
       do {
-<span class="fc bfc" id="L1914" title="All 2 branches covered.">        if (nextSleep &gt; 0) {</span>
+<span class="fc bfc" id="L1918" title="All 2 branches covered.">        if (nextSleep &gt; 0) {</span>
           try {
-<span class="fc" id="L1916">            sleeper.sleep(nextSleep);</span>
-<span class="nc" id="L1917">          } catch (InterruptedException e) {</span>
+<span class="fc" id="L1920">            sleeper.sleep(nextSleep);</span>
+<span class="nc" id="L1921">          } catch (InterruptedException e) {</span>
             // We caught an InterruptedException, we should set the interrupted bit on this thread.
-<span class="nc" id="L1919">            Thread.currentThread().interrupt();</span>
-<span class="nc" id="L1920">            nextSleep = BackOff.STOP;</span>
-<span class="fc" id="L1921">          }</span>
+<span class="nc" id="L1923">            Thread.currentThread().interrupt();</span>
+<span class="nc" id="L1924">            nextSleep = BackOff.STOP;</span>
+<span class="fc" id="L1925">          }</span>
         }
-<span class="fc" id="L1923">        existingInfo = getItemInfo(resourceId);</span>
-<span class="pc bpc" id="L1924" title="1 of 2 branches missed.">        nextSleep = nextSleep == BackOff.STOP ? BackOff.STOP : backOff.nextBackOffMillis();</span>
-<span class="pc bpc" id="L1925" title="1 of 4 branches missed.">      } while (!existingInfo.exists() &amp;&amp; nextSleep != BackOff.STOP);</span>
+<span class="fc" id="L1927">        existingInfo = getItemInfo(resourceId);</span>
+<span class="pc bpc" id="L1928" title="1 of 2 branches missed.">        nextSleep = nextSleep == BackOff.STOP ? BackOff.STOP : backOff.nextBackOffMillis();</span>
+<span class="pc bpc" id="L1929" title="1 of 4 branches missed.">      } while (!existingInfo.exists() &amp;&amp; nextSleep != BackOff.STOP);</span>
 
       // Compare existence, size, and metadata; for 429 errors creating an empty object,
       // we don't care about metaGeneration/contentGeneration as long as the metadata
       // matches, since we don't know for sure whether our low-level request succeeded
       // first or some other client succeeded first.
-<span class="pc bpc" id="L1931" title="2 of 4 branches missed.">      if (existingInfo.exists() &amp;&amp; existingInfo.getSize() == 0) {</span>
-<span class="fc bfc" id="L1932" title="All 2 branches covered.">        if (!options.getRequireMetadataMatchForEmptyObjects()) {</span>
-<span class="fc" id="L1933">          return true;</span>
-<span class="fc bfc" id="L1934" title="All 2 branches covered.">        } else if (existingInfo.metadataEquals(options.getMetadata())) {</span>
-<span class="fc" id="L1935">          return true;</span>
+<span class="pc bpc" id="L1935" title="2 of 4 branches missed.">      if (existingInfo.exists() &amp;&amp; existingInfo.getSize() == 0) {</span>
+<span class="fc bfc" id="L1936" title="All 2 branches covered.">        if (!options.getRequireMetadataMatchForEmptyObjects()) {</span>
+<span class="fc" id="L1937">          return true;</span>
+<span class="fc bfc" id="L1938" title="All 2 branches covered.">        } else if (existingInfo.metadataEquals(options.getMetadata())) {</span>
+<span class="fc" id="L1939">          return true;</span>
         }
       }
     }
-<span class="fc" id="L1939">    return false;</span>
+<span class="fc" id="L1943">    return false;</span>
   }
 
   /**
@@ -1945,36 +1949,36 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
   @Override
   public void waitForBucketEmpty(String bucketName)
       throws IOException {
-<span class="fc bfc" id="L1948" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(bucketName),</span>
+<span class="fc bfc" id="L1952" title="All 2 branches covered.">    Preconditions.checkArgument(!Strings.isNullOrEmpty(bucketName),</span>
         &quot;bucketName must not be null or empty&quot;);
 
-<span class="fc bfc" id="L1951" title="All 2 branches covered.">    for (int i = 0; i &lt; BUCKET_EMPTY_MAX_RETRIES; i++) {</span>
+<span class="fc bfc" id="L1955" title="All 2 branches covered.">    for (int i = 0; i &lt; BUCKET_EMPTY_MAX_RETRIES; i++) {</span>
       // We only need one item to see the bucket is not yet empty.
-<span class="fc" id="L1953">      List&lt;String&gt; objectNames = listObjectNames(bucketName, null, PATH_DELIMITER, 1);</span>
-<span class="fc bfc" id="L1954" title="All 2 branches covered.">      if (objectNames.isEmpty()) {</span>
-<span class="fc" id="L1955">        return;</span>
+<span class="fc" id="L1957">      List&lt;String&gt; objectNames = listObjectNames(bucketName, null, PATH_DELIMITER, 1);</span>
+<span class="fc bfc" id="L1958" title="All 2 branches covered.">      if (objectNames.isEmpty()) {</span>
+<span class="fc" id="L1959">        return;</span>
       }
       try {
-<span class="fc" id="L1958">        sleeper.sleep(BUCKET_EMPTY_WAIT_TIME_MS);</span>
-<span class="nc" id="L1959">      } catch (InterruptedException ignored) {</span>
+<span class="fc" id="L1962">        sleeper.sleep(BUCKET_EMPTY_WAIT_TIME_MS);</span>
+<span class="nc" id="L1963">      } catch (InterruptedException ignored) {</span>
         // Ignore the exception and loop.
-<span class="fc" id="L1961">      }</span>
+<span class="fc" id="L1965">      }</span>
     }
-<span class="fc" id="L1963">    throw new IOException(&quot;Internal error: bucket not empty: &quot; + bucketName);</span>
+<span class="fc" id="L1967">    throw new IOException(&quot;Internal error: bucket not empty: &quot; + bucketName);</span>
   }
 
   @Override
   public void compose(
       final String bucketName, List&lt;String&gt; sources, String destination, String contentType)
       throws IOException {
-<span class="fc" id="L1970">    logger.atFine().log(&quot;compose(%s, %s, %s, %s)&quot;, bucketName, sources, destination, contentType);</span>
-<span class="fc" id="L1971">    List&lt;StorageResourceId&gt; sourceIds =</span>
-<span class="fc" id="L1972">        Lists.transform(sources, objectName -&gt; new StorageResourceId(bucketName, objectName));</span>
-<span class="fc" id="L1973">    StorageResourceId destinationId = new StorageResourceId(bucketName, destination);</span>
-<span class="fc" id="L1974">    CreateObjectOptions options = new CreateObjectOptions(</span>
+<span class="fc" id="L1974">    logger.atFine().log(&quot;compose(%s, %s, %s, %s)&quot;, bucketName, sources, destination, contentType);</span>
+<span class="fc" id="L1975">    List&lt;StorageResourceId&gt; sourceIds =</span>
+<span class="fc" id="L1976">        Lists.transform(sources, objectName -&gt; new StorageResourceId(bucketName, objectName));</span>
+<span class="fc" id="L1977">    StorageResourceId destinationId = new StorageResourceId(bucketName, destination);</span>
+<span class="fc" id="L1978">    CreateObjectOptions options = new CreateObjectOptions(</span>
         true, contentType, CreateObjectOptions.EMPTY_METADATA);
-<span class="fc" id="L1976">    composeObjects(sourceIds, destinationId, options);</span>
-<span class="fc" id="L1977">  }</span>
+<span class="fc" id="L1980">    composeObjects(sourceIds, destinationId, options);</span>
+<span class="fc" id="L1981">  }</span>
 
   @Override
   public GoogleCloudStorageItemInfo composeObjects(
@@ -1982,71 +1986,72 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
       final StorageResourceId destination,
       CreateObjectOptions options)
       throws IOException {
-<span class="fc" id="L1985">    logger.atFine().log(&quot;composeObjects(%s, %s, %s)&quot;, sources, destination, options);</span>
-<span class="fc bfc" id="L1986" title="All 2 branches covered.">    for (StorageResourceId inputId : sources) {</span>
-<span class="pc bpc" id="L1987" title="1 of 2 branches missed.">      if (!destination.getBucketName().equals(inputId.getBucketName())) {</span>
-<span class="nc" id="L1988">        throw new IOException(String.format(</span>
+<span class="fc" id="L1989">    logger.atFine().log(&quot;composeObjects(%s, %s, %s)&quot;, sources, destination, options);</span>
+<span class="fc bfc" id="L1990" title="All 2 branches covered.">    for (StorageResourceId inputId : sources) {</span>
+<span class="pc bpc" id="L1991" title="1 of 2 branches missed.">      if (!destination.getBucketName().equals(inputId.getBucketName())) {</span>
+<span class="nc" id="L1992">        throw new IOException(String.format(</span>
             &quot;Bucket doesn't match for source '%s' and destination '%s'!&quot;, inputId, destination));
       }
-<span class="fc" id="L1991">    }</span>
-<span class="fc" id="L1992">    List&lt;ComposeRequest.SourceObjects&gt; sourceObjects =</span>
-<span class="fc" id="L1993">        Lists.transform(</span>
+<span class="fc" id="L1995">    }</span>
+<span class="fc" id="L1996">    List&lt;ComposeRequest.SourceObjects&gt; sourceObjects =</span>
+<span class="fc" id="L1997">        Lists.transform(</span>
             // TODO(user): Maybe set generationIds for source objects as well here.
-<span class="fc" id="L1995">            sources, input -&gt; new ComposeRequest.SourceObjects().setName(input.getObjectName()));</span>
-<span class="fc" id="L1996">    Storage.Objects.Compose compose =</span>
-<span class="fc" id="L1997">        configureRequest(</span>
-<span class="fc" id="L1998">            gcs.objects()</span>
-<span class="fc" id="L1999">                .compose(</span>
-<span class="fc" id="L2000">                    destination.getBucketName(),</span>
-<span class="fc" id="L2001">                    destination.getObjectName(),</span>
+<span class="fc" id="L1999">            sources, input -&gt; new ComposeRequest.SourceObjects().setName(input.getObjectName()));</span>
+<span class="fc" id="L2000">    Storage.Objects.Compose compose =</span>
+<span class="fc" id="L2001">        configureRequest(</span>
+<span class="fc" id="L2002">            gcs.objects()</span>
+<span class="fc" id="L2003">                .compose(</span>
+<span class="fc" id="L2004">                    destination.getBucketName(),</span>
+<span class="fc" id="L2005">                    destination.getObjectName(),</span>
                     new ComposeRequest()
-<span class="fc" id="L2003">                        .setSourceObjects(sourceObjects)</span>
-<span class="fc" id="L2004">                        .setDestination(</span>
+<span class="fc" id="L2007">                        .setSourceObjects(sourceObjects)</span>
+<span class="fc" id="L2008">                        .setDestination(</span>
                             new StorageObject()
-<span class="fc" id="L2006">                                .setContentType(options.getContentType())</span>
-<span class="fc" id="L2007">                                .setMetadata(encodeMetadata(options.getMetadata())))),</span>
-<span class="fc" id="L2008">            destination.getBucketName());</span>
+<span class="fc" id="L2010">                                .setContentType(options.getContentType())</span>
+<span class="fc" id="L2011">                                .setContentEncoding(options.getContentEncoding())</span>
+<span class="fc" id="L2012">                                .setMetadata(encodeMetadata(options.getMetadata())))),</span>
+<span class="fc" id="L2013">            destination.getBucketName());</span>
 
-<span class="fc" id="L2010">    compose.setIfGenerationMatch(</span>
-<span class="fc bfc" id="L2011" title="All 2 branches covered.">        destination.hasGenerationId()</span>
-<span class="fc" id="L2012">            ? destination.getGenerationId()</span>
-<span class="fc" id="L2013">            : getWriteGeneration(destination, true));</span>
+<span class="fc" id="L2015">    compose.setIfGenerationMatch(</span>
+<span class="fc bfc" id="L2016" title="All 2 branches covered.">        destination.hasGenerationId()</span>
+<span class="fc" id="L2017">            ? destination.getGenerationId()</span>
+<span class="fc" id="L2018">            : getWriteGeneration(destination, true));</span>
 
-<span class="fc" id="L2015">    logger.atFine().log(&quot;composeObjects.execute()&quot;);</span>
-<span class="fc" id="L2016">    GoogleCloudStorageItemInfo compositeInfo =</span>
-<span class="fc" id="L2017">        createItemInfoForStorageObject(destination, compose.execute());</span>
-<span class="fc" id="L2018">    logger.atFine().log(&quot;composeObjects() done, returning: %s&quot;, compositeInfo);</span>
-<span class="fc" id="L2019">    return compositeInfo;</span>
+<span class="fc" id="L2020">    logger.atFine().log(&quot;composeObjects.execute()&quot;);</span>
+<span class="fc" id="L2021">    GoogleCloudStorageItemInfo compositeInfo =</span>
+<span class="fc" id="L2022">        createItemInfoForStorageObject(destination, compose.execute());</span>
+<span class="fc" id="L2023">    logger.atFine().log(&quot;composeObjects() done, returning: %s&quot;, compositeInfo);</span>
+<span class="fc" id="L2024">    return compositeInfo;</span>
   }
 
   &lt;RequestT extends StorageRequest&lt;?&gt;&gt; RequestT configureRequest(
       RequestT request, String bucketName) {
-<span class="fc" id="L2024">    setRequesterPaysProject(request, bucketName);</span>
-<span class="fc" id="L2025">    return request;</span>
+<span class="fc" id="L2029">    setRequesterPaysProject(request, bucketName);</span>
+<span class="fc" id="L2030">    return request;</span>
   }
 
   private &lt;RequestT extends StorageRequest&lt;?&gt;&gt; void setRequesterPaysProject(
       RequestT request, String bucketName) {
-<span class="fc" id="L2030">    RequesterPaysOptions requesterPaysOptions = storageOptions.getRequesterPaysOptions();</span>
-<span class="pc bpc" id="L2031" title="1 of 4 branches missed.">    if (bucketName == null || requesterPaysOptions.getMode() == RequesterPaysMode.DISABLED) {</span>
-<span class="fc" id="L2032">      return;</span>
+<span class="fc" id="L2035">    RequesterPaysOptions requesterPaysOptions = storageOptions.getRequesterPaysOptions();</span>
+<span class="pc bpc" id="L2036" title="1 of 4 branches missed.">    if (bucketName == null || requesterPaysOptions.getMode() == RequesterPaysMode.DISABLED) {</span>
+<span class="fc" id="L2037">      return;</span>
     }
 
-<span class="nc bnc" id="L2035" title="All 2 branches missed.">    if (requesterPaysOptions.getMode() == RequesterPaysMode.ENABLED</span>
-<span class="nc bnc" id="L2036" title="All 2 branches missed.">        || (requesterPaysOptions.getMode() == RequesterPaysMode.CUSTOM</span>
-<span class="nc bnc" id="L2037" title="All 2 branches missed.">            &amp;&amp; requesterPaysOptions.getBuckets().contains(bucketName))</span>
-<span class="nc bnc" id="L2038" title="All 2 branches missed.">        || (requesterPaysOptions.getMode() == RequesterPaysMode.AUTO</span>
-<span class="nc bnc" id="L2039" title="All 2 branches missed.">            &amp;&amp; autoBuckets.getUnchecked(bucketName))) {</span>
-<span class="nc" id="L2040">      setUserProject(request, requesterPaysOptions.getProjectId());</span>
+<span class="nc bnc" id="L2040" title="All 2 branches missed.">    if (requesterPaysOptions.getMode() == RequesterPaysMode.ENABLED</span>
+<span class="nc bnc" id="L2041" title="All 2 branches missed.">        || (requesterPaysOptions.getMode() == RequesterPaysMode.CUSTOM</span>
+<span class="nc bnc" id="L2042" title="All 2 branches missed.">            &amp;&amp; requesterPaysOptions.getBuckets().contains(bucketName))</span>
+<span class="nc bnc" id="L2043" title="All 2 branches missed.">        || (requesterPaysOptions.getMode() == RequesterPaysMode.AUTO</span>
+<span class="nc bnc" id="L2044" title="All 2 branches missed.">            &amp;&amp; autoBuckets.getUnchecked(bucketName))) {</span>
+<span class="nc" id="L2045">      setUserProject(request, requesterPaysOptions.getProjectId());</span>
     }
-<span class="nc" id="L2042">  }</span>
+<span class="nc" id="L2047">  }</span>
 
   private static &lt;RequestT extends StorageRequest&lt;?&gt;&gt; void setUserProject(
       RequestT request, String projectId) {
-<span class="nc" id="L2046">    Field userProjectField = request.getClassInfo().getField(USER_PROJECT_FIELD_NAME);</span>
-<span class="nc bnc" id="L2047" title="All 2 branches missed.">    if (userProjectField != null) {</span>
-<span class="nc" id="L2048">      request.set(USER_PROJECT_FIELD_NAME, projectId);</span>
+<span class="nc" id="L2051">    Field userProjectField = request.getClassInfo().getField(USER_PROJECT_FIELD_NAME);</span>
+<span class="nc bnc" id="L2052" title="All 2 branches missed.">    if (userProjectField != null) {</span>
+<span class="nc" id="L2053">      request.set(USER_PROJECT_FIELD_NAME, projectId);</span>
     }
-<span class="nc" id="L2050">  }</span>
+<span class="nc" id="L2055">  }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>
