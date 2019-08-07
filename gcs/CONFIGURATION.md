@@ -164,7 +164,7 @@ provider.
 *   `fs.gs.auth.service.account.enable` (default: `true`)
 
     Whether to use a service account for GCS authorization. If an email and
-    keyfile are provided (see fs.gs.auth.service.account.email and
+    keyfile are provided (see `fs.gs.auth.service.account.email` and
     `fs.gs.auth.service.account.keyfile`), then that service account will be
     used. Otherwise the connector will look to see if it is running on a GCE VM
     with some level of GCS access in it's service account scope, and use that
@@ -177,9 +177,9 @@ these credentials, which are mutually exclusive.
 *   `fs.gs.auth.service.account.email` (not set by default)
 
     The email address is associated with the service account used for GCS access
-    when fs.gs.auth.service.account.enable is true. Required when authentication
-    key specified in the Configuration file (Method 1) or a PKCS12 certificate
-    (Method 3) is being used.
+    when `fs.gs.auth.service.account.enable` is `true`. Required when
+    authentication key specified in the Configuration file (Method 1) or a
+    PKCS12 certificate (Method 3) is being used.
 
 #### Method 1
 
@@ -217,8 +217,8 @@ exist at the same path on all nodes
     The PKCS12 (p12) certificate file of the service account used for GCS access
     when `fs.gs.auth.service.account.enable` is `true`.
 
-    The following properties are required when fs.gs.auth.service.account.enable
-    is false.
+    The following properties are required when
+    `fs.gs.auth.service.account.enable` is `false`.
 
 *   `fs.gs.auth.client.id` (not set by default)
 
@@ -252,6 +252,15 @@ exist at the same path on all nodes
     call. If the client code can handle late failures on not-found errors, or
     has independently already ensured that a file exists before calling open(),
     then set this property to false for more efficient reads.
+
+*   `fs.gs.inputstream.support.gzip.encoding.enable` (default: `false`)
+
+    If set to `false` then reading files with GZIP content encoding (HTTP header
+    `Content-Encoding: gzip`) will result in failure (`IOException` is thrown).
+
+    This feature is disabled by default because processing of
+    [GZIP encoded](https://cloud.google.com/storage/docs/transcoding#decompressive_transcoding)
+    files is inefficient and error-prone in Hadoop and Spark.
 
 *   `fs.gs.generation.read.consistency` (default: `LATEST`)
 

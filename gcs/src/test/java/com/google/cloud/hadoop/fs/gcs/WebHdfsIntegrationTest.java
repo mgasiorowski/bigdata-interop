@@ -18,7 +18,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assert.assertThrows;
 
-import com.google.cloud.hadoop.gcsio.GoogleCloudStorageFileSystemIntegrationTest;
 import com.google.cloud.hadoop.gcsio.MethodOutcome;
 import java.io.IOException;
 import java.net.URI;
@@ -140,23 +139,6 @@ public class WebHdfsIntegrationTest extends HadoopFileSystemTestBase {
   }
 
   // -----------------------------------------------------------------
-
-  /**
-   * Validates append().
-   */
-  @Test @Override
-  public void testAppend()
-      throws IOException {
-    URI path = GoogleCloudStorageFileSystemIntegrationTest.getTempFilePath();
-    Path hadoopPath = ghfsHelper.castAsHadoopPath(path);
-    // For now, verify that append does not throw. We are not interested in
-    // verifying that append() actually appends correctly. We will do that
-    // once GHFS also starts supporting appends.
-    ghfs.append(
-        hadoopPath,
-        GoogleHadoopFileSystemConfiguration.GCS_OUTPUT_STREAM_BUFFER_SIZE.getDefault(),
-        null);
-  }
 
   /**
    * Validates getDefaultReplication().

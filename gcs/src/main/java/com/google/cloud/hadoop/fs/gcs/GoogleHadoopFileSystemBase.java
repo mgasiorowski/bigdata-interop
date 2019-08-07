@@ -29,6 +29,7 @@ import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration
 import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.GCS_WORKING_DIRECTORY;
 import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.PATH_CODEC;
 import static com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystemConfiguration.PERMISSIONS_TO_REPORT;
+import static com.google.cloud.hadoop.gcsio.CreateFileOptions.DEFAULT_NO_OVERWRITE;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
@@ -488,13 +489,13 @@ public abstract class GoogleHadoopFileSystemBase extends FileSystem
   /**
    * Gets Hadoop path corresponding to the given GCS path.
    *
-   * @param gcsPath Fully-qualified GCS path, of the form gs://<bucket>/<object>.
+   * @param gcsPath Fully-qualified GCS path, of the form gs://bucket/object-path.
    */
   public abstract Path getHadoopPath(URI gcsPath);
 
   /**
    * Gets GCS path corresponding to the given Hadoop path, which can be relative or absolute, and
-   * can have either gs://<path> or gs:/<path> forms.
+   * can have either {@code gs://<path>} or {@code gs:/<path>} forms.
    *
    * @param hadoopPath Hadoop path.
    */
@@ -825,16 +826,22 @@ public abstract class GoogleHadoopFileSystemBase extends FileSystem
   @Override
   public FSDataOutputStream append(Path hadoopPath, int bufferSize, Progressable progress)
       throws IOException {
-
     long startTime = System.nanoTime();
     Preconditions.checkArgument(hadoopPath != null, "hadoopPath must not be null");
 
     logger.atFine().log("GHFS.append: %s, bufferSize: %d (ignored)", hadoopPath, bufferSize);
 
+    URI filePath = getGcsPath(hadoopPath);
+    FSDataOutputStream appendStream =
+        new FSDataOutputStream(
+            new GoogleHadoopSyncableOutputStream(
+                this, filePath, statistics, DEFAULT_NO_OVERWRITE, /* appendMode= */ true),
+            statistics);
+
     long duration = System.nanoTime() - startTime;
     increment(Counter.APPEND);
     increment(Counter.APPEND_TIME, duration);
-    throw new IOException("The append operation is not supported.");
+    return appendStream;
   }
 
   /**

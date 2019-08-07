@@ -102,7 +102,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
@@ -1196,11 +1195,11 @@ public class GoogleCloudStorageTest {
   }
 
   /**
-   * If we disable the supportContentEncoding option when opening a channel, and disable
-   * failing fast on nonexistent objects we should expect no extraneous metadata-GET calls at all.
+   * If we disable the supportGzipEncoding option when opening a channel, and disable failing fast
+   * on nonexistent objects we should expect no extraneous metadata-GET calls at all.
    */
   @Test
-  public void testOpenNoSupportContentEncodingAndNoFailFastOnNotFound() throws Exception {
+  public void testOpenNoSupportGzipEncodingAndNoFailFastOnNotFound() throws Exception {
     byte[] testData = { 0x01, 0x02, 0x03, 0x05, 0x08 };
 
     setUpBasicMockBehaviorForOpeningReadChannel(testData.length);
@@ -1596,19 +1595,19 @@ public class GoogleCloudStorageTest {
     when(mockErrorExtractor.rangeNotSatisfiable(eq(unexpectedException)))
         .thenReturn(false);
 
+    StorageResourceId objectId = new StorageResourceId(BUCKET_NAME, OBJECT_NAME);
+
     // First time is the notFoundException.
-    assertThrows(
-        FileNotFoundException.class,
-        () -> gcs.open(new StorageResourceId(BUCKET_NAME, OBJECT_NAME)));
+    assertThrows(FileNotFoundException.class, () -> gcs.open(objectId));
 
     // Second time is the rangeNotSatisfiableException.
-    SeekableByteChannel readChannel2 = gcs.open(new StorageResourceId(BUCKET_NAME, OBJECT_NAME));
+    SeekableByteChannel readChannel2 = gcs.open(objectId);
     EOFException thrown2 =
         assertThrows(EOFException.class, () -> readChannel2.read(ByteBuffer.allocate(1)));
     assertThat(thrown2).hasCauseThat().isEqualTo(rangeNotSatisfiableException);
 
     // Third time is the unexpectedException.
-    SeekableByteChannel readChannel3 = gcs.open(new StorageResourceId(BUCKET_NAME, OBJECT_NAME));
+    SeekableByteChannel readChannel3 = gcs.open(objectId);
     IOException thrown3 =
         assertThrows(IOException.class, () -> readChannel3.read(ByteBuffer.allocate(1)));
     assertThat(thrown3).hasCauseThat().isEqualTo(unexpectedException);
@@ -3710,12 +3709,13 @@ public class GoogleCloudStorageTest {
   }
 
   private static StorageObject newStorageObject(String bucketName, String objectName) {
+    Random r = new Random();
     return new StorageObject()
         .setBucket(bucketName)
         .setName(objectName)
-        .setSize(new BigInteger(String.valueOf(Math.abs(ThreadLocalRandom.current().nextLong()))))
-        .setGeneration(Math.abs(ThreadLocalRandom.current().nextLong()))
-        .setMetageneration(Math.abs(ThreadLocalRandom.current().nextLong()))
+        .setSize(BigInteger.valueOf(r.nextInt(Integer.MAX_VALUE)))
+        .setGeneration((long) r.nextInt(Integer.MAX_VALUE))
+        .setMetageneration((long) r.nextInt(Integer.MAX_VALUE))
         .setUpdated(new DateTime(new Date()));
   }
 }

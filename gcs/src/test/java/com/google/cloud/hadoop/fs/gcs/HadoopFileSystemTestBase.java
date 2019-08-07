@@ -214,10 +214,11 @@ public abstract class HadoopFileSystemTestBase extends GoogleCloudStorageFileSys
     // Get list of actual paths.
     URI path = ghfsHelper.getPath(bucketName, objectNamePrefix, true);
     Path hadoopPath = ghfsHelper.castAsHadoopPath(path);
-    FileStatus[] fileStatus = null;
+    FileStatus[] fileStatus;
     try {
       fileStatus = ghfsHelper.listStatus(hadoopPath);
     } catch (FileNotFoundException fnfe) {
+      fileStatus = null;
       assertWithMessage("Hadoop path %s expected to exist", hadoopPath)
           .that(pathExpectedToExist)
           .isFalse();
@@ -231,7 +232,7 @@ public abstract class HadoopFileSystemTestBase extends GoogleCloudStorageFileSys
       // LocalFileSystem -> ChecksumFileSystem will return an empty array instead of null for
       // nonexistent paths.
       if (!pathExpectedToExist && fileStatus != null) {
-        assertThat(fileStatus.length).isEqualTo(0);
+        assertThat(fileStatus).isEmpty();
       }
     }
 
@@ -373,21 +374,19 @@ public abstract class HadoopFileSystemTestBase extends GoogleCloudStorageFileSys
         IOException.class, () -> ghfsHelper.writeFile(hadoopPath, text, 1, /* overwrite= */ false));
   }
 
-  /**
-   * Validates append().
-   */
+  /** Validates append(). */
   @Test
-  public void testAppend()
-      throws IOException {
+  public void testAppend() throws IOException {
     URI path = GoogleCloudStorageFileSystemIntegrationTest.getTempFilePath();
     Path hadoopPath = ghfsHelper.castAsHadoopPath(path);
-    assertThrows(
-        IOException.class,
-        () ->
-            ghfs.append(
-                hadoopPath,
-                GoogleHadoopFileSystemConfiguration.GCS_OUTPUT_STREAM_BUFFER_SIZE.getDefault(),
-                null));
+
+    ghfsHelper.writeTextFile(path.getAuthority(), path.getPath(), "content");
+
+    try (FSDataOutputStream fsos = ghfs.append(hadoopPath)) {
+      fsos.write("_appended".getBytes(UTF_8));
+    }
+
+    assertThat(ghfsHelper.readTextFile(hadoopPath)).isEqualTo("content_appended");
   }
 
   /**

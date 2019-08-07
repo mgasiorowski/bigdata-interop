@@ -22,7 +22,7 @@
 
 1.  Add a new `DirectBigQueryInputFormat` for processing data through
     [BigQuery Storage API](https://cloud.google.com/bigquery/docs/reference/storage/).
-   
+
     This input format is configurable via properties:
 
         mapred.bq.input.sql.filter
@@ -30,6 +30,11 @@
         mapred.bq.input.skew.limit
 
 1.  Update all dependencies to latest versions.
+
+1.  Add a property to control max number of attempts when polling for next file.
+    By default max number of attempts is unlimited (`-1` value):
+
+        mapred.bq.dynamic.file.list.record.reader.poll.max.attempts (default: -1)
 
 ### 0.13.14 - 2019-02-13
 

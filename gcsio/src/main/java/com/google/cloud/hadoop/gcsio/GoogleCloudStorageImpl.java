@@ -70,6 +70,7 @@ import java.lang.reflect.Field;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -142,10 +143,11 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
 
   private final LoadingCache<String, Boolean> autoBuckets =
       CacheBuilder.newBuilder()
-          .expireAfterWrite(1, TimeUnit.HOURS)
+          .expireAfterWrite(Duration.ofHours(1))
           .build(
               new CacheLoader<String, Boolean>() {
                 final List<String> iamPermissions = ImmutableList.of("storage.buckets.get");
+
                 @Override
                 public Boolean load(String bucketName) throws Exception {
                   try {
@@ -374,10 +376,12 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
             clientRequestHelper,
             resourceId.getBucketName(),
             resourceId.getObjectName(),
+            options.getContentType(),
+            options.getContentEncoding(),
+            /* kmsKeyName= */ null,
             storageOptions.getWriteChannelOptions(),
             writeConditions,
-            rewrittenMetadata,
-            options.getContentType()) {
+            rewrittenMetadata) {
 
           @Override
           public Storage.Objects.Insert createRequest(InputStreamContent inputStream)
@@ -1118,10 +1122,12 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
    */
   private Storage.Objects.Insert prepareEmptyInsert(
       StorageResourceId resourceId, CreateObjectOptions createObjectOptions) throws IOException {
-    StorageObject object = new StorageObject();
-    object.setName(resourceId.getObjectName());
     Map<String, String> rewrittenMetadata = encodeMetadata(createObjectOptions.getMetadata());
-    object.setMetadata(rewrittenMetadata);
+    StorageObject object =
+        new StorageObject()
+            .setName(resourceId.getObjectName())
+            .setMetadata(rewrittenMetadata)
+            .setContentEncoding(createObjectOptions.getContentEncoding());
 
     // Ideally we'd use EmptyContent, but Storage requires an AbstractInputStreamContent and not
     // just an HttpContent, so we'll just use the next easiest thing.
@@ -2002,6 +2008,7 @@ public class GoogleCloudStorageImpl implements GoogleCloudStorage {
                         .setDestination(
                             new StorageObject()
                                 .setContentType(options.getContentType())
+                                .setContentEncoding(options.getContentEncoding())
                                 .setMetadata(encodeMetadata(options.getMetadata())))),
             destination.getBucketName());
 
