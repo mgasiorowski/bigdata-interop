@@ -460,6 +460,20 @@ import org.apache.hadoop.util.ReflectionUtils;
   }
 
   /**
+   * Gets the create disposition of the output table. This specifies if the job should create a
+   * table for loading data.
+   *
+   * @param conf the configuration to reference the keys from.
+   * @return the create disposition of the output table.
+   */
+  public static String getCreateDisposition(Configuration conf) {
+<span class="fc" id="L470">    return conf.get(</span>
+        BigQueryConfiguration.OUTPUT_TABLE_CREATE_DISPOSITION_KEY,
+        BigQueryConfiguration.OUTPUT_TABLE_CREATE_DISPOSITION_DEFAULT);
+  }
+
+
+  /**
    * Gets the write disposition of the output table. This specifies the action that occurs if the
    * destination table already exists. By default, if the table already exists, BigQuery appends
    * data to the output table.
@@ -468,7 +482,7 @@ import org.apache.hadoop.util.ReflectionUtils;
    * @return the write disposition of the output table.
    */
   public static String getWriteDisposition(Configuration conf) {
-<span class="fc" id="L471">    return conf.get(</span>
+<span class="fc" id="L485">    return conf.get(</span>
         BigQueryConfiguration.OUTPUT_TABLE_WRITE_DISPOSITION_KEY,
         BigQueryConfiguration.OUTPUT_TABLE_WRITE_DISPOSITION_DEFAULT);
   }
@@ -483,9 +497,9 @@ import org.apache.hadoop.util.ReflectionUtils;
   @VisibleForTesting
   static void setFileOutputFormatOutputPath(Configuration conf, String outputPath)
       throws IOException {
-<span class="fc" id="L486">    Job tempJob = new JobConfigurationAdapter(conf);</span>
-<span class="fc" id="L487">    FileOutputFormat.setOutputPath(tempJob, new Path(outputPath));</span>
-<span class="fc" id="L488">  }</span>
+<span class="fc" id="L500">    Job tempJob = new JobConfigurationAdapter(conf);</span>
+<span class="fc" id="L501">    FileOutputFormat.setOutputPath(tempJob, new Path(outputPath));</span>
+<span class="fc" id="L502">  }</span>
 
   /**
    * This class provides a workaround for setting FileOutputFormat's output path. Creating a job
@@ -499,13 +513,13 @@ import org.apache.hadoop.util.ReflectionUtils;
     private final Configuration config;
 
     public JobConfigurationAdapter(Configuration config) throws IOException {
-<span class="fc" id="L502">      super();</span>
-<span class="fc" id="L503">      this.config = config;</span>
-<span class="fc" id="L504">    }</span>
+<span class="fc" id="L516">      super();</span>
+<span class="fc" id="L517">      this.config = config;</span>
+<span class="fc" id="L518">    }</span>
 
     @Override
     public Configuration getConfiguration() {
-<span class="fc" id="L508">      return config;</span>
+<span class="fc" id="L522">      return config;</span>
     }
   }
 }

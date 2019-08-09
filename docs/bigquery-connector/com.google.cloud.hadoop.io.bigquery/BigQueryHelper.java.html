@@ -120,6 +120,7 @@ public class BigQueryHelper {
    * @param timePartitioning time partitioning to populate the destination table.
    * @param kmsKeyName the Cloud KMS encryption key used to protect the output table.
    * @param sourceFormat the file format of the source data.
+   * @param createDisposition the create disposition of the output table.
    * @param writeDisposition the write disposition of the output table.
    * @param gcsPaths the location of the source data in GCS.
    * @param awaitCompletion if true, block and poll until job completes, otherwise return as soon as
@@ -134,60 +135,62 @@ public class BigQueryHelper {
       @Nullable TimePartitioning timePartitioning,
       @Nullable String kmsKeyName,
       BigQueryFileFormat sourceFormat,
+      String createDisposition,
       String writeDisposition,
       List&lt;String&gt; gcsPaths,
       boolean awaitCompletion)
       throws IOException, InterruptedException {
-<span class="fc" id="L141">    logger.atInfo().log(</span>
+<span class="fc" id="L143">    logger.atInfo().log(</span>
         &quot;Importing into table '%s' from %s paths; path[0] is '%s'; awaitCompletion: %s;&quot;
             + &quot; timePartitioning: %s&quot;,
-<span class="fc" id="L144">        lazy(() -&gt; BigQueryStrings.toString(tableRef)),</span>
-<span class="fc" id="L145">        gcsPaths.size(),</span>
-<span class="pc bpc" id="L146" title="1 of 2 branches missed.">        gcsPaths.isEmpty() ? &quot;(empty)&quot; : gcsPaths.get(0),</span>
-<span class="fc" id="L147">        awaitCompletion,</span>
+<span class="fc" id="L146">        lazy(() -&gt; BigQueryStrings.toString(tableRef)),</span>
+<span class="fc" id="L147">        gcsPaths.size(),</span>
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        gcsPaths.isEmpty() ? &quot;(empty)&quot; : gcsPaths.get(0),</span>
+<span class="fc" id="L149">        awaitCompletion,</span>
         timePartitioning);
 
     // Create load conf with minimal requirements.
-<span class="fc" id="L151">    JobConfigurationLoad loadConfig = new JobConfigurationLoad();</span>
-<span class="fc" id="L152">    loadConfig.setSchema(schema);</span>
-<span class="fc" id="L153">    loadConfig.setSourceFormat(sourceFormat.getFormatIdentifier());</span>
-<span class="fc" id="L154">    loadConfig.setSourceUris(gcsPaths);</span>
-<span class="fc" id="L155">    loadConfig.setDestinationTable(tableRef);</span>
-<span class="fc" id="L156">    loadConfig.setTimePartitioning(timePartitioning);</span>
-<span class="fc" id="L157">    loadConfig.setWriteDisposition(writeDisposition);</span>
-<span class="pc bpc" id="L158" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(kmsKeyName)) {</span>
-<span class="fc" id="L159">      loadConfig.setDestinationEncryptionConfiguration(</span>
-<span class="fc" id="L160">          new EncryptionConfiguration().setKmsKeyName(kmsKeyName));</span>
+<span class="fc" id="L153">    JobConfigurationLoad loadConfig = new JobConfigurationLoad();</span>
+<span class="fc" id="L154">    loadConfig.setSchema(schema);</span>
+<span class="fc" id="L155">    loadConfig.setSourceFormat(sourceFormat.getFormatIdentifier());</span>
+<span class="fc" id="L156">    loadConfig.setSourceUris(gcsPaths);</span>
+<span class="fc" id="L157">    loadConfig.setDestinationTable(tableRef);</span>
+<span class="fc" id="L158">    loadConfig.setTimePartitioning(timePartitioning);</span>
+<span class="fc" id="L159">    loadConfig.setCreateDisposition(createDisposition);</span>
+<span class="fc" id="L160">    loadConfig.setWriteDisposition(writeDisposition);</span>
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">    if (!Strings.isNullOrEmpty(kmsKeyName)) {</span>
+<span class="fc" id="L162">      loadConfig.setDestinationEncryptionConfiguration(</span>
+<span class="fc" id="L163">          new EncryptionConfiguration().setKmsKeyName(kmsKeyName));</span>
     }
     // Auto detect the schema if we're not given one, otherwise use the passed schema.
-<span class="pc bpc" id="L163" title="1 of 2 branches missed.">    if (schema == null) {</span>
-<span class="nc" id="L164">      logger.atInfo().log(&quot;No import schema provided, auto detecting schema.&quot;);</span>
-<span class="nc" id="L165">      loadConfig.setAutodetect(true);</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">    if (schema == null) {</span>
+<span class="nc" id="L167">      logger.atInfo().log(&quot;No import schema provided, auto detecting schema.&quot;);</span>
+<span class="nc" id="L168">      loadConfig.setAutodetect(true);</span>
     } else {
-<span class="fc" id="L167">      logger.atInfo().log(&quot;Using provided import schema '%s'.&quot;, schema.toString());</span>
+<span class="fc" id="L170">      logger.atInfo().log(&quot;Using provided import schema '%s'.&quot;, schema.toString());</span>
     }
 
-<span class="fc" id="L170">    JobConfiguration config = new JobConfiguration();</span>
-<span class="fc" id="L171">    config.setLoad(loadConfig);</span>
+<span class="fc" id="L173">    JobConfiguration config = new JobConfiguration();</span>
+<span class="fc" id="L174">    config.setLoad(loadConfig);</span>
 
     // Get the dataset to determine the location
-<span class="fc" id="L174">    Dataset dataset =</span>
-<span class="fc" id="L175">        service.datasets().get(tableRef.getProjectId(), tableRef.getDatasetId()).execute();</span>
+<span class="fc" id="L177">    Dataset dataset =</span>
+<span class="fc" id="L178">        service.datasets().get(tableRef.getProjectId(), tableRef.getDatasetId()).execute();</span>
 
-<span class="fc" id="L177">    JobReference jobReference =</span>
-<span class="fc" id="L178">        createJobReference(projectId, &quot;direct-bigqueryhelper-import&quot;, dataset.getLocation());</span>
-<span class="fc" id="L179">    Job job = new Job();</span>
-<span class="fc" id="L180">    job.setConfiguration(config);</span>
-<span class="fc" id="L181">    job.setJobReference(jobReference);</span>
+<span class="fc" id="L180">    JobReference jobReference =</span>
+<span class="fc" id="L181">        createJobReference(projectId, &quot;direct-bigqueryhelper-import&quot;, dataset.getLocation());</span>
+<span class="fc" id="L182">    Job job = new Job();</span>
+<span class="fc" id="L183">    job.setConfiguration(config);</span>
+<span class="fc" id="L184">    job.setJobReference(jobReference);</span>
 
     // Insert and run job.
-<span class="fc" id="L184">    insertJobOrFetchDuplicate(projectId, job);</span>
+<span class="fc" id="L187">    insertJobOrFetchDuplicate(projectId, job);</span>
 
-<span class="pc bpc" id="L186" title="1 of 2 branches missed.">    if (awaitCompletion) {</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">    if (awaitCompletion) {</span>
       // Poll until job is complete.
-<span class="pc" id="L188">      BigQueryUtils.waitForJobCompletion(getRawBigquery(), projectId, jobReference, () -&gt; {});</span>
+<span class="pc" id="L191">      BigQueryUtils.waitForJobCompletion(getRawBigquery(), projectId, jobReference, () -&gt; {});</span>
     }
-<span class="fc" id="L190">  }</span>
+<span class="fc" id="L193">  }</span>
 
   /**
    * Exports BigQuery results into GCS, polls for completion before returning.
@@ -203,64 +206,64 @@ public class BigQueryHelper {
    */
   public void exportBigQueryToGcs(String projectId, TableReference tableRef, List&lt;String&gt; gcsPaths,
       boolean awaitCompletion) throws IOException, InterruptedException {
-<span class="fc" id="L206">    logger.atFine().log(</span>
+<span class="fc" id="L209">    logger.atFine().log(</span>
         &quot;exportBigQueryToGcs(bigquery, '%s', '%s', '%s', '%s')&quot;,
-<span class="fc" id="L208">        projectId, BigQueryStrings.toString(tableRef), gcsPaths, awaitCompletion);</span>
-<span class="fc" id="L209">    logger.atInfo().log(</span>
+<span class="fc" id="L211">        projectId, BigQueryStrings.toString(tableRef), gcsPaths, awaitCompletion);</span>
+<span class="fc" id="L212">    logger.atInfo().log(</span>
         &quot;Exporting table '%s' to %s paths; path[0] is '%s'; awaitCompletion: %s&quot;,
-<span class="fc" id="L211">        BigQueryStrings.toString(tableRef),</span>
-<span class="fc" id="L212">        gcsPaths.size(),</span>
-<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        gcsPaths.isEmpty() ? &quot;(empty)&quot; : gcsPaths.get(0),</span>
-<span class="fc" id="L214">        awaitCompletion);</span>
+<span class="fc" id="L214">        BigQueryStrings.toString(tableRef),</span>
+<span class="fc" id="L215">        gcsPaths.size(),</span>
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">        gcsPaths.isEmpty() ? &quot;(empty)&quot; : gcsPaths.get(0),</span>
+<span class="fc" id="L217">        awaitCompletion);</span>
 
     // Create job and configuration.
-<span class="fc" id="L217">    JobConfigurationExtract extractConfig = new JobConfigurationExtract();</span>
+<span class="fc" id="L220">    JobConfigurationExtract extractConfig = new JobConfigurationExtract();</span>
 
     // Set source.
-<span class="fc" id="L220">    extractConfig.setSourceTable(tableRef);</span>
+<span class="fc" id="L223">    extractConfig.setSourceTable(tableRef);</span>
 
     // Set destination.
-<span class="fc" id="L223">    extractConfig.setDestinationUris(gcsPaths);</span>
-<span class="fc" id="L224">    extractConfig.set(&quot;destinationFormat&quot;, &quot;NEWLINE_DELIMITED_JSON&quot;);</span>
+<span class="fc" id="L226">    extractConfig.setDestinationUris(gcsPaths);</span>
+<span class="fc" id="L227">    extractConfig.set(&quot;destinationFormat&quot;, &quot;NEWLINE_DELIMITED_JSON&quot;);</span>
 
-<span class="fc" id="L226">    JobConfiguration config = new JobConfiguration();</span>
-<span class="fc" id="L227">    config.setExtract(extractConfig);</span>
+<span class="fc" id="L229">    JobConfiguration config = new JobConfiguration();</span>
+<span class="fc" id="L230">    config.setExtract(extractConfig);</span>
 
     // Get the table to determine the location
-<span class="fc" id="L230">    Table table = getTable(tableRef);</span>
+<span class="fc" id="L233">    Table table = getTable(tableRef);</span>
 
-<span class="fc" id="L232">    JobReference jobReference =</span>
-<span class="fc" id="L233">        createJobReference(projectId, &quot;direct-bigqueryhelper-export&quot;, table.getLocation());</span>
+<span class="fc" id="L235">    JobReference jobReference =</span>
+<span class="fc" id="L236">        createJobReference(projectId, &quot;direct-bigqueryhelper-export&quot;, table.getLocation());</span>
 
-<span class="fc" id="L235">    Job job = new Job();</span>
-<span class="fc" id="L236">    job.setConfiguration(config);</span>
-<span class="fc" id="L237">    job.setJobReference(jobReference);</span>
+<span class="fc" id="L238">    Job job = new Job();</span>
+<span class="fc" id="L239">    job.setConfiguration(config);</span>
+<span class="fc" id="L240">    job.setJobReference(jobReference);</span>
 
     // Insert and run job.
-<span class="fc" id="L240">    insertJobOrFetchDuplicate(projectId, job);</span>
+<span class="fc" id="L243">    insertJobOrFetchDuplicate(projectId, job);</span>
 
-<span class="pc bpc" id="L242" title="1 of 2 branches missed.">    if (awaitCompletion) {</span>
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">    if (awaitCompletion) {</span>
       // Poll until job is complete.
-<span class="pc" id="L244">      BigQueryUtils.waitForJobCompletion(service, projectId, jobReference, () -&gt; {});</span>
+<span class="pc" id="L247">      BigQueryUtils.waitForJobCompletion(service, projectId, jobReference, () -&gt; {});</span>
     }
-<span class="fc" id="L246">  }</span>
+<span class="fc" id="L249">  }</span>
 
   /**
    * Returns true if the table exists, or false if not.
    */
   public boolean tableExists(TableReference tableRef) throws IOException {
     try {
-<span class="fc" id="L253">      Table fetchedTable = service.tables().get(</span>
-<span class="fc" id="L254">          tableRef.getProjectId(), tableRef.getDatasetId(), tableRef.getTableId()).execute();</span>
-<span class="fc" id="L255">      logger.atFine().log(</span>
+<span class="fc" id="L256">      Table fetchedTable = service.tables().get(</span>
+<span class="fc" id="L257">          tableRef.getProjectId(), tableRef.getDatasetId(), tableRef.getTableId()).execute();</span>
+<span class="fc" id="L258">      logger.atFine().log(</span>
           &quot;Successfully fetched table '%s' for tableRef '%s'&quot;, fetchedTable, tableRef);
-<span class="fc" id="L257">      return true;</span>
-<span class="fc" id="L258">    } catch (IOException ioe) {</span>
-<span class="fc bfc" id="L259" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(ioe)) {</span>
-<span class="fc" id="L260">        return false;</span>
+<span class="fc" id="L260">      return true;</span>
+<span class="fc" id="L261">    } catch (IOException ioe) {</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">      if (errorExtractor.itemNotFound(ioe)) {</span>
+<span class="fc" id="L263">        return false;</span>
       } else {
         // Unhandled exceptions should just propagate up.
-<span class="fc" id="L263">        throw ioe;</span>
+<span class="fc" id="L266">        throw ioe;</span>
       }
     }
   }
@@ -275,9 +278,9 @@ public class BigQueryHelper {
    */
   public Table getTable(TableReference tableRef)
       throws IOException {
-<span class="fc" id="L278">    Bigquery.Tables.Get getTablesReply = service.tables().get(</span>
-<span class="fc" id="L279">        tableRef.getProjectId(), tableRef.getDatasetId(), tableRef.getTableId());</span>
-<span class="fc" id="L280">    return getTablesReply.execute();</span>
+<span class="fc" id="L281">    Bigquery.Tables.Get getTablesReply = service.tables().get(</span>
+<span class="fc" id="L282">        tableRef.getProjectId(), tableRef.getDatasetId(), tableRef.getTableId());</span>
+<span class="fc" id="L283">    return getTablesReply.execute();</span>
   }
 
   /**
@@ -286,16 +289,16 @@ public class BigQueryHelper {
    */
   public JobReference createJobReference(
       String projectId, String jobIdPrefix, @Nullable String location) {
-<span class="pc bpc" id="L289" title="1 of 2 branches missed.">    Preconditions.checkArgument(projectId != null, &quot;projectId must not be null.&quot;);</span>
-<span class="pc bpc" id="L290" title="1 of 2 branches missed.">    Preconditions.checkArgument(jobIdPrefix != null, &quot;jobIdPrefix must not be null.&quot;);</span>
-<span class="fc" id="L291">    Preconditions.checkArgument(jobIdPrefix.matches(BIGQUERY_JOB_ID_PATTERN),</span>
+<span class="pc bpc" id="L292" title="1 of 2 branches missed.">    Preconditions.checkArgument(projectId != null, &quot;projectId must not be null.&quot;);</span>
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">    Preconditions.checkArgument(jobIdPrefix != null, &quot;jobIdPrefix must not be null.&quot;);</span>
+<span class="fc" id="L294">    Preconditions.checkArgument(jobIdPrefix.matches(BIGQUERY_JOB_ID_PATTERN),</span>
         &quot;jobIdPrefix '%s' must match pattern '%s'&quot;, jobIdPrefix, BIGQUERY_JOB_ID_PATTERN);
 
-<span class="fc" id="L294">    String fullJobId = String.format(&quot;%s-%s&quot;, jobIdPrefix, UUID.randomUUID().toString());</span>
-<span class="pc bpc" id="L295" title="1 of 2 branches missed.">    Preconditions.checkArgument(fullJobId.length() &lt;= BIGQUERY_JOB_ID_MAX_LENGTH,</span>
+<span class="fc" id="L297">    String fullJobId = String.format(&quot;%s-%s&quot;, jobIdPrefix, UUID.randomUUID().toString());</span>
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">    Preconditions.checkArgument(fullJobId.length() &lt;= BIGQUERY_JOB_ID_MAX_LENGTH,</span>
         &quot;fullJobId '%s' has length '%s'; must be less than or equal to %s&quot;,
-<span class="fc" id="L297">        fullJobId, fullJobId.length(), BIGQUERY_JOB_ID_MAX_LENGTH);</span>
-<span class="fc" id="L298">    return new JobReference().setProjectId(projectId).setJobId(fullJobId).setLocation(location);</span>
+<span class="fc" id="L300">        fullJobId, fullJobId.length(), BIGQUERY_JOB_ID_MAX_LENGTH);</span>
+<span class="fc" id="L301">    return new JobReference().setProjectId(projectId).setJobId(fullJobId).setLocation(location);</span>
   }
 
   /**
@@ -303,14 +306,14 @@ public class BigQueryHelper {
    * between {@code expected} and {@code actual}, using Preconditions.checkState.
    */
   public void checkJobIdEquality(Job expected, Job actual) {
-<span class="pc bpc" id="L306" title="1 of 2 branches missed.">    Preconditions.checkState(actual.getJobReference() != null</span>
-<span class="pc bpc" id="L307" title="1 of 2 branches missed.">        &amp;&amp; actual.getJobReference().getJobId() != null</span>
-<span class="pc bpc" id="L308" title="1 of 2 branches missed.">        &amp;&amp; expected.getJobReference() != null</span>
-<span class="pc bpc" id="L309" title="1 of 2 branches missed.">        &amp;&amp; expected.getJobReference().getJobId() != null</span>
-<span class="pc bpc" id="L310" title="1 of 2 branches missed.">        &amp;&amp; actual.getJobReference().getJobId().equals(expected.getJobReference().getJobId()),</span>
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">    Preconditions.checkState(actual.getJobReference() != null</span>
+<span class="pc bpc" id="L310" title="1 of 2 branches missed.">        &amp;&amp; actual.getJobReference().getJobId() != null</span>
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">        &amp;&amp; expected.getJobReference() != null</span>
+<span class="pc bpc" id="L312" title="1 of 2 branches missed.">        &amp;&amp; expected.getJobReference().getJobId() != null</span>
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">        &amp;&amp; actual.getJobReference().getJobId().equals(expected.getJobReference().getJobId()),</span>
         &quot;jobIds must match in '[expected|actual].getJobReference()' (got '%s' vs '%s')&quot;,
-<span class="fc" id="L312">        expected.getJobReference(), actual.getJobReference());</span>
-<span class="fc" id="L313">  }</span>
+<span class="fc" id="L315">        expected.getJobReference(), actual.getJobReference());</span>
+<span class="fc" id="L316">  }</span>
 
   /**
    * Tries to run jobs().insert(...) with the provided {@code projectId} and {@code job}, which
@@ -320,33 +323,33 @@ public class BigQueryHelper {
    * Other exceptions propagate out as normal.
    */
   public Job insertJobOrFetchDuplicate(String projectId, Job job) throws IOException {
-<span class="fc" id="L323">    Preconditions.checkArgument(</span>
-<span class="pc bpc" id="L324" title="2 of 4 branches missed.">        job.getJobReference() != null &amp;&amp; job.getJobReference().getJobId() != null,</span>
+<span class="fc" id="L326">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L327" title="2 of 4 branches missed.">        job.getJobReference() != null &amp;&amp; job.getJobReference().getJobId() != null,</span>
         &quot;Require non-null JobReference and JobId inside; getJobReference() == '%s'&quot;,
-<span class="fc" id="L326">        job.getJobReference());</span>
-<span class="fc" id="L327">    Insert insert = service.jobs().insert(projectId, job);</span>
-<span class="fc" id="L328">    Job response = null;</span>
+<span class="fc" id="L329">        job.getJobReference());</span>
+<span class="fc" id="L330">    Insert insert = service.jobs().insert(projectId, job);</span>
+<span class="fc" id="L331">    Job response = null;</span>
     try {
-<span class="fc" id="L330">      response = insert.execute();</span>
-<span class="fc" id="L331">      logger.atFine().log(&quot;Successfully inserted job '%s'. Response: '%s'&quot;, job, response);</span>
-<span class="fc" id="L332">    } catch (IOException ioe) {</span>
-<span class="fc bfc" id="L333" title="All 2 branches covered.">      if (errorExtractor.itemAlreadyExists(ioe)) {</span>
-<span class="fc" id="L334">        logger.atInfo().withCause(ioe).log(</span>
+<span class="fc" id="L333">      response = insert.execute();</span>
+<span class="fc" id="L334">      logger.atFine().log(&quot;Successfully inserted job '%s'. Response: '%s'&quot;, job, response);</span>
+<span class="fc" id="L335">    } catch (IOException ioe) {</span>
+<span class="fc bfc" id="L336" title="All 2 branches covered.">      if (errorExtractor.itemAlreadyExists(ioe)) {</span>
+<span class="fc" id="L337">        logger.atInfo().withCause(ioe).log(</span>
             &quot;Fetching existing job after catching exception for duplicate jobId '%s'&quot;,
-<span class="fc" id="L336">            job.getJobReference().getJobId());</span>
-<span class="fc" id="L337">        response = service.jobs().get(projectId, job.getJobReference().getJobId()).execute();</span>
+<span class="fc" id="L339">            job.getJobReference().getJobId());</span>
+<span class="fc" id="L340">        response = service.jobs().get(projectId, job.getJobReference().getJobId()).execute();</span>
       } else {
-<span class="fc" id="L339">        throw new IOException(</span>
-<span class="fc" id="L340">            String.format(&quot;Unhandled exception trying to insert job '%s'&quot;, job), ioe);</span>
+<span class="fc" id="L342">        throw new IOException(</span>
+<span class="fc" id="L343">            String.format(&quot;Unhandled exception trying to insert job '%s'&quot;, job), ioe);</span>
       }
-<span class="fc" id="L342">    }</span>
-<span class="fc" id="L343">    checkJobIdEquality(job, response);</span>
-<span class="fc" id="L344">    return response;</span>
+<span class="fc" id="L345">    }</span>
+<span class="fc" id="L346">    checkJobIdEquality(job, response);</span>
+<span class="fc" id="L347">    return response;</span>
   }
 
   @VisibleForTesting
   void setErrorExtractor(ApiErrorExtractor errorExtractor) {
-<span class="fc" id="L349">    this.errorExtractor = errorExtractor;</span>
-<span class="fc" id="L350">  }</span>
+<span class="fc" id="L352">    this.errorExtractor = errorExtractor;</span>
+<span class="fc" id="L353">  }</span>
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

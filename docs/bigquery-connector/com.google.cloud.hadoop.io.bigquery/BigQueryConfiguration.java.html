@@ -136,6 +136,19 @@ import org.apache.hadoop.mapreduce.JobID;
   public static final String OUTPUT_TABLE_WRITE_DISPOSITION_DEFAULT = &quot;WRITE_APPEND&quot;;
 
   /**
+   * Configuration key for the create disposition of the output table. This specifies if job should
+   * create a table for loading data. This key is stored as a {@link String}.
+   */
+  public static final String OUTPUT_TABLE_CREATE_DISPOSITION_KEY =
+      &quot;mapred.bq.output.table.createdisposition&quot;;
+
+  /**
+   * The default create disposition for the output table. By default, if the table does not exist,
+   * BigQuery creates the table.
+   */
+  public static final String OUTPUT_TABLE_CREATE_DISPOSITION_DEFAULT = &quot;CREATE_IF_NEEDED&quot;;
+
+  /**
    * Configuration key for the file format of the files outputted by the wrapped FileOutputFormat.
    * This key is stored as a serialized {@link BigQueryFileFormat}.
    */
@@ -170,8 +183,8 @@ import org.apache.hadoop.mapreduce.JobID;
   public static final String DATA_LOCATION_DEFAULT = &quot;US&quot;;
 
   /** A list of all necessary Configuration keys. */
-<span class="fc" id="L173">  public static final ImmutableList&lt;String&gt; MANDATORY_CONFIG_PROPERTIES_OUTPUT =</span>
-<span class="fc" id="L174">      ImmutableList.of(</span>
+<span class="fc" id="L186">  public static final ImmutableList&lt;String&gt; MANDATORY_CONFIG_PROPERTIES_OUTPUT =</span>
+<span class="fc" id="L187">      ImmutableList.of(</span>
           PROJECT_ID_KEY,
           OUTPUT_PROJECT_ID_KEY,
           OUTPUT_DATASET_ID_KEY,
@@ -183,7 +196,7 @@ import org.apache.hadoop.mapreduce.JobID;
   public static final String SKEW_LIMIT_KEY = &quot;mapred.bq.input.skew.limit&quot;;
   public static final double SKEW_LIMIT_DEFAULT = 1.5;
 
-<span class="fc" id="L186">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
+<span class="fc" id="L199">  private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();</span>
 
   /**
    * Sets the Bigquery access related fields in the JobConf for input connector.
@@ -200,34 +213,34 @@ import org.apache.hadoop.mapreduce.JobID;
       String tableId)
       throws IOException {
     // Check preconditions.
-<span class="fc" id="L203">    Preconditions.checkArgument(</span>
-<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(datasetId), &quot;datasetId must not be null or empty.&quot;);</span>
-<span class="fc" id="L205">    Preconditions.checkArgument(</span>
-<span class="pc bpc" id="L206" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableId), &quot;tableId must not be null or empty.&quot;);</span>
+<span class="fc" id="L216">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(datasetId), &quot;datasetId must not be null or empty.&quot;);</span>
+<span class="fc" id="L218">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableId), &quot;tableId must not be null or empty.&quot;);</span>
 
     // Project is optional, if not set use default project.
-<span class="fc bfc" id="L209" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(projectId)) {</span>
-<span class="fc" id="L210">      logger.atInfo().log(&quot;Using specified project-id '%s' for input&quot;, projectId);</span>
-<span class="fc" id="L211">      config.set(INPUT_PROJECT_ID_KEY, projectId);</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(projectId)) {</span>
+<span class="fc" id="L223">      logger.atInfo().log(&quot;Using specified project-id '%s' for input&quot;, projectId);</span>
+<span class="fc" id="L224">      config.set(INPUT_PROJECT_ID_KEY, projectId);</span>
 
       // For user-friendliness, we'll helpfully backfill the input-specific projectId into the
       // &quot;global&quot; projectId for now.
       // TODO(user): Maybe don't try to be user-friendly here.
-<span class="fc bfc" id="L216" title="All 2 branches covered.">      if (Strings.isNullOrEmpty(config.get(PROJECT_ID_KEY))) {</span>
-<span class="fc" id="L217">        logger.atWarning().log(</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">      if (Strings.isNullOrEmpty(config.get(PROJECT_ID_KEY))) {</span>
+<span class="fc" id="L230">        logger.atWarning().log(</span>
             &quot;No job-level projectId specified in '%s', using '%s' for it.&quot;,
             PROJECT_ID_KEY, projectId);
-<span class="fc" id="L220">        config.set(PROJECT_ID_KEY, projectId);</span>
+<span class="fc" id="L233">        config.set(PROJECT_ID_KEY, projectId);</span>
       }
     } else {
-<span class="fc" id="L223">      String defaultProjectId = ConfigurationUtil.getMandatoryConfig(config, PROJECT_ID_KEY);</span>
-<span class="fc" id="L224">      logger.atInfo().log(</span>
+<span class="fc" id="L236">      String defaultProjectId = ConfigurationUtil.getMandatoryConfig(config, PROJECT_ID_KEY);</span>
+<span class="fc" id="L237">      logger.atInfo().log(</span>
           &quot;Using default project-id '%s' since none specified for input.&quot;, defaultProjectId);
-<span class="fc" id="L226">      config.set(INPUT_PROJECT_ID_KEY, defaultProjectId);</span>
+<span class="fc" id="L239">      config.set(INPUT_PROJECT_ID_KEY, defaultProjectId);</span>
     }
-<span class="fc" id="L228">    config.set(INPUT_DATASET_ID_KEY, datasetId);</span>
-<span class="fc" id="L229">    config.set(INPUT_TABLE_ID_KEY, tableId);</span>
-<span class="fc" id="L230">  }</span>
+<span class="fc" id="L241">    config.set(INPUT_DATASET_ID_KEY, datasetId);</span>
+<span class="fc" id="L242">    config.set(INPUT_TABLE_ID_KEY, tableId);</span>
+<span class="fc" id="L243">  }</span>
 
   /**
    * Sets the Bigquery access related fields in the JobConf for input connector.
@@ -239,10 +252,10 @@ import org.apache.hadoop.mapreduce.JobID;
   public static void configureBigQueryInput(
       Configuration config, String fullyQualifiedInputTableId)
       throws IOException {
-<span class="fc" id="L242">    TableReference parsedTable = BigQueryStrings.parseTableReference(fullyQualifiedInputTableId);</span>
-<span class="fc" id="L243">    configureBigQueryInput(</span>
-<span class="fc" id="L244">        config, parsedTable.getProjectId(), parsedTable.getDatasetId(), parsedTable.getTableId());</span>
-<span class="fc" id="L245">  }</span>
+<span class="fc" id="L255">    TableReference parsedTable = BigQueryStrings.parseTableReference(fullyQualifiedInputTableId);</span>
+<span class="fc" id="L256">    configureBigQueryInput(</span>
+<span class="fc" id="L257">        config, parsedTable.getProjectId(), parsedTable.getDatasetId(), parsedTable.getTableId());</span>
+<span class="fc" id="L258">  }</span>
 
   /**
    * Sets the Bigquery access related fields in the JobConf for output connector.
@@ -261,37 +274,37 @@ import org.apache.hadoop.mapreduce.JobID;
       String tableSchema)
       throws IOException {
     // Check preconditions.
-<span class="fc" id="L264">    Preconditions.checkArgument(</span>
-<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(datasetId), &quot;datasetId must not be null or empty.&quot;);</span>
-<span class="fc" id="L266">    Preconditions.checkArgument(</span>
-<span class="pc bpc" id="L267" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableId), &quot;tableId must not be null or empty.&quot;);</span>
-<span class="fc" id="L268">    Preconditions.checkArgument(</span>
-<span class="pc bpc" id="L269" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableSchema), &quot;tableSchema must not be null or empty.&quot;);</span>
+<span class="fc" id="L277">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(datasetId), &quot;datasetId must not be null or empty.&quot;);</span>
+<span class="fc" id="L279">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableId), &quot;tableId must not be null or empty.&quot;);</span>
+<span class="fc" id="L281">    Preconditions.checkArgument(</span>
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">        !Strings.isNullOrEmpty(tableSchema), &quot;tableSchema must not be null or empty.&quot;);</span>
 
     // Project is optional, if not set use default project.
-<span class="fc bfc" id="L272" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(projectId)) {</span>
-<span class="fc" id="L273">      logger.atInfo().log(&quot;Using specified project-id '%s' for output&quot;, projectId);</span>
-<span class="fc" id="L274">      config.set(OUTPUT_PROJECT_ID_KEY, projectId);</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">    if (!Strings.isNullOrEmpty(projectId)) {</span>
+<span class="fc" id="L286">      logger.atInfo().log(&quot;Using specified project-id '%s' for output&quot;, projectId);</span>
+<span class="fc" id="L287">      config.set(OUTPUT_PROJECT_ID_KEY, projectId);</span>
 
       // For user-friendliness, we'll helpfully backfill the input-specific projectId into the
       // &quot;global&quot; projectId for now.
       // TODO(user): Maybe don't try to be user-friendly here.
-<span class="fc bfc" id="L279" title="All 2 branches covered.">      if (Strings.isNullOrEmpty(config.get(PROJECT_ID_KEY))) {</span>
-<span class="fc" id="L280">        logger.atWarning().log(</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">      if (Strings.isNullOrEmpty(config.get(PROJECT_ID_KEY))) {</span>
+<span class="fc" id="L293">        logger.atWarning().log(</span>
             &quot;No job-level projectId specified in '%s', using '%s' for it.&quot;,
             PROJECT_ID_KEY, projectId);
-<span class="fc" id="L283">        config.set(PROJECT_ID_KEY, projectId);</span>
+<span class="fc" id="L296">        config.set(PROJECT_ID_KEY, projectId);</span>
       }
     } else {
-<span class="fc" id="L286">      String defaultProjectId = ConfigurationUtil.getMandatoryConfig(config, PROJECT_ID_KEY);</span>
-<span class="fc" id="L287">      logger.atInfo().log(</span>
+<span class="fc" id="L299">      String defaultProjectId = ConfigurationUtil.getMandatoryConfig(config, PROJECT_ID_KEY);</span>
+<span class="fc" id="L300">      logger.atInfo().log(</span>
           &quot;Using default project-id '%s' since none specified for output.&quot;, defaultProjectId);
-<span class="fc" id="L289">      config.set(OUTPUT_PROJECT_ID_KEY, defaultProjectId);</span>
+<span class="fc" id="L302">      config.set(OUTPUT_PROJECT_ID_KEY, defaultProjectId);</span>
     }
-<span class="fc" id="L291">    config.set(OUTPUT_DATASET_ID_KEY, datasetId);</span>
-<span class="fc" id="L292">    config.set(OUTPUT_TABLE_ID_KEY, tableId);</span>
-<span class="fc" id="L293">    config.set(OUTPUT_TABLE_SCHEMA_KEY, tableSchema);</span>
-<span class="fc" id="L294">  }</span>
+<span class="fc" id="L304">    config.set(OUTPUT_DATASET_ID_KEY, datasetId);</span>
+<span class="fc" id="L305">    config.set(OUTPUT_TABLE_ID_KEY, tableId);</span>
+<span class="fc" id="L306">    config.set(OUTPUT_TABLE_SCHEMA_KEY, tableSchema);</span>
+<span class="fc" id="L307">  }</span>
 
   /**
    * Sets the Bigquery access related fields in the JobConf for output connector.
@@ -304,11 +317,11 @@ import org.apache.hadoop.mapreduce.JobID;
   public static void configureBigQueryOutput(
       Configuration config, String fullyQualifiedOutputTableId, String tableSchema)
       throws IOException {
-<span class="fc" id="L307">    TableReference parsedTable = BigQueryStrings.parseTableReference(fullyQualifiedOutputTableId);</span>
-<span class="fc" id="L308">    configureBigQueryOutput(</span>
-<span class="fc" id="L309">        config, parsedTable.getProjectId(), parsedTable.getDatasetId(), parsedTable.getTableId(),</span>
+<span class="fc" id="L320">    TableReference parsedTable = BigQueryStrings.parseTableReference(fullyQualifiedOutputTableId);</span>
+<span class="fc" id="L321">    configureBigQueryOutput(</span>
+<span class="fc" id="L322">        config, parsedTable.getProjectId(), parsedTable.getDatasetId(), parsedTable.getTableId(),</span>
         tableSchema);
-<span class="fc" id="L311">  }</span>
+<span class="fc" id="L324">  }</span>
 
   /**
    * Resolves to provided {@link #TEMP_GCS_PATH_KEY} or fallbacks to a temporary path based on
@@ -323,27 +336,27 @@ import org.apache.hadoop.mapreduce.JobID;
   public static String getTemporaryPathRoot(Configuration conf, @Nullable JobID jobId)
       throws IOException {
     // Try using the temporary gcs path.
-<span class="fc" id="L326">    String pathRoot = conf.get(BigQueryConfiguration.TEMP_GCS_PATH_KEY);</span>
+<span class="fc" id="L339">    String pathRoot = conf.get(BigQueryConfiguration.TEMP_GCS_PATH_KEY);</span>
 
-<span class="fc bfc" id="L328" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(pathRoot)) {</span>
-<span class="fc" id="L329">      checkNotNull(jobId, &quot;jobId is required if '%s' is not set&quot;, TEMP_GCS_PATH_KEY);</span>
-<span class="fc" id="L330">      logger.atInfo().log(</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">    if (Strings.isNullOrEmpty(pathRoot)) {</span>
+<span class="fc" id="L342">      checkNotNull(jobId, &quot;jobId is required if '%s' is not set&quot;, TEMP_GCS_PATH_KEY);</span>
+<span class="fc" id="L343">      logger.atInfo().log(</span>
           &quot;Fetching key '%s' since '%s' isn't set explicitly.&quot;, GCS_BUCKET_KEY, TEMP_GCS_PATH_KEY);
 
-<span class="fc" id="L333">      String gcsBucket = conf.get(GCS_BUCKET_KEY);</span>
-<span class="pc bpc" id="L334" title="1 of 2 branches missed.">      if (Strings.isNullOrEmpty(gcsBucket)) {</span>
-<span class="nc" id="L335">        throw new IOException(&quot;Must supply a value for configuration setting: &quot; + GCS_BUCKET_KEY);</span>
+<span class="fc" id="L346">      String gcsBucket = conf.get(GCS_BUCKET_KEY);</span>
+<span class="pc bpc" id="L347" title="1 of 2 branches missed.">      if (Strings.isNullOrEmpty(gcsBucket)) {</span>
+<span class="nc" id="L348">        throw new IOException(&quot;Must supply a value for configuration setting: &quot; + GCS_BUCKET_KEY);</span>
       }
 
-<span class="fc" id="L338">      pathRoot = String.format(&quot;gs://%s/hadoop/tmp/bigquery/%s&quot;, gcsBucket, jobId);</span>
+<span class="fc" id="L351">      pathRoot = String.format(&quot;gs://%s/hadoop/tmp/bigquery/%s&quot;, gcsBucket, jobId);</span>
     }
 
-<span class="fc" id="L341">    logger.atInfo().log(&quot;Using working path: '%s'&quot;, pathRoot);</span>
-<span class="fc" id="L342">    Path workingPath = new Path(pathRoot);</span>
+<span class="fc" id="L354">    logger.atInfo().log(&quot;Using working path: '%s'&quot;, pathRoot);</span>
+<span class="fc" id="L355">    Path workingPath = new Path(pathRoot);</span>
 
-<span class="fc" id="L344">    FileSystem fs = workingPath.getFileSystem(conf);</span>
-<span class="fc" id="L345">    Preconditions.checkState(&quot;gs&quot;.equals(fs.getScheme()), &quot;Export FS must be GCS ('gs' scheme).&quot;);</span>
-<span class="fc" id="L346">    return pathRoot;</span>
+<span class="fc" id="L357">    FileSystem fs = workingPath.getFileSystem(conf);</span>
+<span class="fc" id="L358">    Preconditions.checkState(&quot;gs&quot;.equals(fs.getScheme()), &quot;Export FS must be GCS ('gs' scheme).&quot;);</span>
+<span class="fc" id="L359">    return pathRoot;</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>

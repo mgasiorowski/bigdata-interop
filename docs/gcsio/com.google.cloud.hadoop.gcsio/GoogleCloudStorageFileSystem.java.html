@@ -970,7 +970,7 @@ public class GoogleCloudStorageFileSystem {
           // that is what we want for a recursive list. On the other hand,
           // when a delimiter is specified, only items with relative depth
           // of 1 are returned.
-<span class="pc bpc" id="L973" title="1 of 2 branches missed.">          String delimiter = recursive ? null : PATH_DELIMITER;</span>
+<span class="fc bfc" id="L973" title="All 2 branches covered.">          String delimiter = recursive ? null : PATH_DELIMITER;</span>
 
 <span class="fc" id="L975">          GoogleCloudStorageItemInfo itemInfo = fileInfo.getItemInfo();</span>
           // Obtain paths of children.
@@ -1228,11 +1228,11 @@ public class GoogleCloudStorageFileSystem {
 <span class="fc bfc" id="L1228" title="All 2 branches covered.">        return inferImplicitDirectories</span>
 <span class="fc" id="L1229">            ? GoogleCloudStorageItemInfo.createInferredDirectory(dirId)</span>
 <span class="fc" id="L1230">            : GoogleCloudStorageItemInfo.createNotFound(dirId);</span>
-<span class="fc" id="L1231">      } catch (ExecutionException | InterruptedException e) {</span>
-<span class="pc bpc" id="L1232" title="1 of 2 branches missed.">        if (e instanceof InterruptedException) {</span>
-<span class="fc" id="L1233">          Thread.currentThread().interrupt();</span>
+<span class="nc" id="L1231">      } catch (ExecutionException | InterruptedException e) {</span>
+<span class="nc bnc" id="L1232" title="All 2 branches missed.">        if (e instanceof InterruptedException) {</span>
+<span class="nc" id="L1233">          Thread.currentThread().interrupt();</span>
         }
-<span class="fc" id="L1235">        throw new IOException(String.format(&quot;Filed to get file info for '%s'&quot;, resourceId), e);</span>
+<span class="nc" id="L1235">        throw new IOException(String.format(&quot;Filed to get file info for '%s'&quot;, resourceId), e);</span>
       }
     } finally {
 <span class="fc" id="L1238">      dirExecutor.shutdownNow();</span>

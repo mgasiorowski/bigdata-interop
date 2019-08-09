@@ -223,12 +223,12 @@ public class CoopLockRecordsDao {
 <span class="fc" id="L223">          logger.atInfo().atMostEvery(5, SECONDS).log(</span>
               &quot;Failed to update entries (condition not met) in %s file for operation %s, retrying.&quot;,
               lockId, operationId);
-<span class="pc bpc" id="L226" title="1 of 2 branches missed.">        } else if (ApiErrorExtractor.INSTANCE.itemNotFound(e)) {</span>
+<span class="fc bfc" id="L226" title="All 2 branches covered.">        } else if (ApiErrorExtractor.INSTANCE.itemNotFound(e)) {</span>
 <span class="fc" id="L227">          logger.atInfo().atMostEvery(5, SECONDS).log(</span>
               &quot;Failed to update entries (file not found) in %s file for operation %s, retrying.&quot;,
               lockId, operationId);
         } else {
-<span class="nc" id="L231">          logger.atWarning().withCause(e).log(</span>
+<span class="fc" id="L231">          logger.atWarning().withCause(e).log(</span>
               &quot;Failed to modify lock for %s operation, retrying.&quot;, operationId);
         }
 <span class="fc" id="L234">        sleepUninterruptibly(Duration.ofMillis(backOff.nextBackOffMillis()));</span>
