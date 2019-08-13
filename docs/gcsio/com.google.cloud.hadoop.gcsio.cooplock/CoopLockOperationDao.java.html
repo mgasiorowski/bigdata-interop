@@ -246,13 +246,13 @@ public class CoopLockOperationDao {
 <span class="fc" id="L246">              timeoutFuture.cancel(/* mayInterruptIfRunning= */ true),</span>
               &quot;timeoutFuture should be successfully canceled&quot;);
 <span class="fc" id="L248">          return;</span>
-<span class="nc" id="L249">        } catch (IOException e) {</span>
-<span class="nc" id="L250">          logger.atWarning().withCause(e).log(</span>
+<span class="fc" id="L249">        } catch (IOException e) {</span>
+<span class="fc" id="L250">          logger.atWarning().withCause(e).log(</span>
               &quot;Failed to renew '%s' lock for %s operation, attempt #%d&quot;,
-<span class="nc" id="L252">              operationLockPath, operationId, attempt++);</span>
+<span class="fc" id="L252">              operationLockPath, operationId, attempt++);</span>
         }
-<span class="nc" id="L254">        sleepUninterruptibly(LOCK_RENEW_RETRY_BACK_OFF);</span>
-<span class="nc bnc" id="L255" title="All 2 branches missed.">      } while (timeout.compareTo(stopwatch.elapsed()) &gt; 0);</span>
+<span class="fc" id="L254">        sleepUninterruptibly(LOCK_RENEW_RETRY_BACK_OFF);</span>
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">      } while (timeout.compareTo(stopwatch.elapsed()) &gt; 0);</span>
 <span class="nc" id="L256">      logger.atSevere().log(</span>
           &quot;Renewal of '%s' lock for %s operation timed out (timeout %s), exiting&quot;,
           operationLockPath, operationId, timeout);

@@ -106,24 +106,26 @@ import org.apache.hadoop.util.Progressable;
 <span class="fc bfc" id="L106" title="All 2 branches covered.">        if (pollJob.getStatus().getErrorResult() != null) {</span>
 <span class="fc" id="L107">          throw new IOException(</span>
 <span class="fc" id="L108">              String.format(</span>
-                  &quot;Job %s failed: %s&quot;,
-<span class="fc" id="L110">                  jobReference.getJobId(), pollJob.getStatus().getErrorResult()));</span>
+                  &quot;Job %s failed: %s. Errors: %s&quot;,
+<span class="fc" id="L110">                  jobReference.getJobId(),</span>
+<span class="fc" id="L111">                  pollJob.getStatus().getErrorResult(),</span>
+<span class="fc" id="L112">                  pollJob.getStatus().getErrors()));</span>
         }
       } else {
-<span class="fc" id="L113">        long millisToWait = pollBackOff.nextBackOffMillis();</span>
-<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        if (millisToWait == BackOff.STOP) {</span>
-<span class="nc" id="L115">          throw new IOException(</span>
-<span class="nc" id="L116">              String.format(</span>
+<span class="fc" id="L115">        long millisToWait = pollBackOff.nextBackOffMillis();</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (millisToWait == BackOff.STOP) {</span>
+<span class="nc" id="L117">          throw new IOException(</span>
+<span class="nc" id="L118">              String.format(</span>
                   &quot;Job %s failed to complete after %s millis.&quot;,
-<span class="nc" id="L118">                  jobReference.getJobId(), elapsedTime));</span>
+<span class="nc" id="L120">                  jobReference.getJobId(), elapsedTime));</span>
         }
         // Pause execution for the configured duration before polling job status again.
-<span class="fc" id="L121">        Thread.sleep(millisToWait);</span>
+<span class="fc" id="L123">        Thread.sleep(millisToWait);</span>
         // Call progress to ensure task doesn't time out.
-<span class="fc" id="L123">        progressable.progress();</span>
+<span class="fc" id="L125">        progressable.progress();</span>
       }
-<span class="fc" id="L125">    }</span>
-<span class="fc" id="L126">  }</span>
+<span class="fc" id="L127">    }</span>
+<span class="fc" id="L128">  }</span>
 
   /**
    * Parses the given JSON string and returns the extracted schema.
@@ -132,48 +134,48 @@ import org.apache.hadoop.util.Progressable;
    * @return the List of TableFieldSchema described by the string fields.
    */
   public static List&lt;TableFieldSchema&gt; getSchemaFromString(String fields) {
-<span class="fc" id="L135">    logger.atFine().log(&quot;getSchemaFromString('%s')&quot;, fields);</span>
+<span class="fc" id="L137">    logger.atFine().log(&quot;getSchemaFromString('%s')&quot;, fields);</span>
 
     // Parse the output schema for Json from fields.
-<span class="fc" id="L138">    JsonParser jsonParser = new JsonParser();</span>
-<span class="fc" id="L139">    JsonArray json = jsonParser.parse(fields).getAsJsonArray();</span>
-<span class="fc" id="L140">    List&lt;TableFieldSchema&gt; fieldsList = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L140">    JsonParser jsonParser = new JsonParser();</span>
+<span class="fc" id="L141">    JsonArray json = jsonParser.parse(fields).getAsJsonArray();</span>
+<span class="fc" id="L142">    List&lt;TableFieldSchema&gt; fieldsList = new ArrayList&lt;&gt;();</span>
 
     // For each item in the list of fields.
-<span class="fc bfc" id="L143" title="All 2 branches covered.">    for (JsonElement jsonElement : json) {</span>
-<span class="fc" id="L144">      checkArgument(</span>
-<span class="fc" id="L145">          jsonElement.isJsonObject(), &quot;Expected JsonObject for element, got '%s'.&quot;, jsonElement);</span>
-<span class="fc" id="L146">      JsonObject jsonObject = jsonElement.getAsJsonObject();</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">    for (JsonElement jsonElement : json) {</span>
+<span class="fc" id="L146">      checkArgument(</span>
+<span class="fc" id="L147">          jsonElement.isJsonObject(), &quot;Expected JsonObject for element, got '%s'.&quot;, jsonElement);</span>
+<span class="fc" id="L148">      JsonObject jsonObject = jsonElement.getAsJsonObject();</span>
 
       // Set the name and type.
-<span class="fc" id="L149">      checkArgument(</span>
-<span class="fc bfc" id="L150" title="All 2 branches covered.">          jsonObject.get(&quot;name&quot;) != null,</span>
+<span class="fc" id="L151">      checkArgument(</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">          jsonObject.get(&quot;name&quot;) != null,</span>
           &quot;Expected non-null entry for key 'name' in JsonObject '%s'&quot;, jsonObject);
-<span class="fc" id="L152">      checkArgument(</span>
-<span class="fc bfc" id="L153" title="All 2 branches covered.">          jsonObject.get(&quot;type&quot;) != null,</span>
+<span class="fc" id="L154">      checkArgument(</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">          jsonObject.get(&quot;type&quot;) != null,</span>
           &quot;Expected non-null entry for key 'type' in JsonObject '%s'&quot;, jsonObject);
-<span class="fc" id="L155">      TableFieldSchema fieldDef = new TableFieldSchema();</span>
-<span class="fc" id="L156">      fieldDef.setName(jsonObject.get(&quot;name&quot;).getAsString());</span>
-<span class="fc" id="L157">      fieldDef.setType(jsonObject.get(&quot;type&quot;).getAsString());</span>
+<span class="fc" id="L157">      TableFieldSchema fieldDef = new TableFieldSchema();</span>
+<span class="fc" id="L158">      fieldDef.setName(jsonObject.get(&quot;name&quot;).getAsString());</span>
+<span class="fc" id="L159">      fieldDef.setType(jsonObject.get(&quot;type&quot;).getAsString());</span>
 
       // If mode is not null, set mode.
-<span class="fc bfc" id="L160" title="All 2 branches covered.">      if (jsonObject.get(&quot;mode&quot;) != null) {</span>
-<span class="fc" id="L161">        fieldDef.setMode(jsonObject.get(&quot;mode&quot;).getAsString());</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">      if (jsonObject.get(&quot;mode&quot;) != null) {</span>
+<span class="fc" id="L163">        fieldDef.setMode(jsonObject.get(&quot;mode&quot;).getAsString());</span>
       }
 
       // If the type is RECORD set the fields.
-<span class="fc bfc" id="L165" title="All 2 branches covered.">      if (jsonObject.get(&quot;type&quot;).getAsString().equals(&quot;RECORD&quot;)) {</span>
-<span class="fc" id="L166">        checkArgument(</span>
-<span class="fc bfc" id="L167" title="All 2 branches covered.">            jsonObject.get(&quot;fields&quot;) != null,</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">      if (jsonObject.get(&quot;type&quot;).getAsString().equals(&quot;RECORD&quot;)) {</span>
+<span class="fc" id="L168">        checkArgument(</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">            jsonObject.get(&quot;fields&quot;) != null,</span>
             &quot;Expected non-null entry for key 'fields' in JsonObject of type RECORD: '%s'&quot;,
             jsonObject);
-<span class="fc" id="L170">        fieldDef.setFields(getSchemaFromString(jsonObject.get(&quot;fields&quot;).toString()));</span>
+<span class="fc" id="L172">        fieldDef.setFields(getSchemaFromString(jsonObject.get(&quot;fields&quot;).toString()));</span>
       }
 
-<span class="fc" id="L173">      fieldsList.add(fieldDef);</span>
-<span class="fc" id="L174">    }</span>
+<span class="fc" id="L175">      fieldsList.add(fieldDef);</span>
+<span class="fc" id="L176">    }</span>
     // Return list of TableFieldSchema.
-<span class="fc" id="L176">    return fieldsList;</span>
+<span class="fc" id="L178">    return fieldsList;</span>
   }
 }
 </pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>
