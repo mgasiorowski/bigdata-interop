@@ -15,8 +15,6 @@
 package com.google.cloud.hadoop.gcsio;
 
 import com.google.auto.value.AutoValue;
-import java.net.URI;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 
@@ -35,7 +33,6 @@ public abstract class GoogleCloudStorageFileSystemOptions {
         .setPerformanceCacheEnabled(false)
         .setPerformanceCacheOptions(PerformanceCachingGoogleCloudStorageOptions.DEFAULT)
         .setCloudStorageOptions(GoogleCloudStorageOptions.DEFAULT)
-        .setShouldIncludeInTimestampUpdatesPredicate(i -> true)
         .setPathCodec(GoogleCloudStorageFileSystem.URI_ENCODED_PATH_CODEC)
         .setBucketDeleteEnabled(false)
         .setMarkerFilePattern((String) null)
@@ -48,8 +45,6 @@ public abstract class GoogleCloudStorageFileSystemOptions {
   public abstract PerformanceCachingGoogleCloudStorageOptions getPerformanceCacheOptions();
 
   public abstract GoogleCloudStorageOptions getCloudStorageOptions();
-
-  public abstract Predicate<URI> getShouldIncludeInTimestampUpdatesPredicate();
 
   public abstract PathCodec getPathCodec();
 
@@ -78,12 +73,6 @@ public abstract class GoogleCloudStorageFileSystemOptions {
         PerformanceCachingGoogleCloudStorageOptions options);
 
     public abstract Builder setCloudStorageOptions(GoogleCloudStorageOptions options);
-
-    /**
-     * Set a Predicate to be applied to item paths to determine if the item should have its
-     * timestamps updated
-     */
-    public abstract Builder setShouldIncludeInTimestampUpdatesPredicate(Predicate<URI> predicate);
 
     public abstract Builder setPathCodec(PathCodec pathCodec);
 

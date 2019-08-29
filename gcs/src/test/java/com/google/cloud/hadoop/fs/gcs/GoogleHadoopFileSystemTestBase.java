@@ -43,7 +43,6 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.permission.FsPermission;
@@ -122,8 +121,7 @@ public abstract class GoogleHadoopFileSystemTestBase extends HadoopFileSystemTes
       throws IOException, URISyntaxException;
 
   @Test
-  public abstract void testInitializeWithWorkingDirectory()
-      throws IOException, URISyntaxException;
+  public abstract void testInitializeWithWorkingDirectory() throws Exception;
 
   @Test
   public abstract void testConfigureBucketsSuccess()
@@ -554,121 +552,6 @@ public abstract class GoogleHadoopFileSystemTestBase extends HadoopFileSystemTes
         localTempFile.delete();
       }
     }
-  }
-
-  @Test
-  public void testIncludedParentPathPredicates() throws URISyntaxException {
-    Configuration configuration = new Configuration();
-    // 1 Disable all updates and then try to include all paths
-    configuration.setBoolean(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_ENABLE.getKey(), false);
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getKey(), "/");
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES.getKey(), "");
-
-    Predicate<URI> predicate =
-        GoogleHadoopFileSystemBase.ParentTimestampUpdateIncludePredicate.create(configuration);
-
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("/foobar"))).isFalse();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI(""))).isFalse();
-
-    // 2 Enable updates, set include to everything and exclude to everything
-    configuration.setBoolean(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_ENABLE.getKey(), true);
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getKey(), "/");
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES.getKey(), "/");
-
-    predicate = GoogleHadoopFileSystemBase.ParentTimestampUpdateIncludePredicate
-        .create(configuration);
-
-    assertWithMessage("Should be included").that(predicate.test(new URI("/foobar"))).isTrue();
-    assertWithMessage("Should be included").that(predicate.test(new URI(""))).isTrue();
-
-    // 3 Enable specific paths, exclude everything:
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getKey(),
-        "/foobar,/baz");
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES.getKey(), "/");
-
-    predicate = GoogleHadoopFileSystemBase.ParentTimestampUpdateIncludePredicate
-        .create(configuration);
-
-    assertWithMessage("Should be included").that(predicate.test(new URI("asdf/foobar"))).isTrue();
-    assertWithMessage("Should be included").that(predicate.test(new URI("asdf/baz"))).isTrue();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("/anythingElse"))).isFalse();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("/"))).isFalse();
-
-    // 4 set to defaults, set job history paths
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getKey(),
-        COMMA_JOINER.join(
-            GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getDefault()));
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES.getKey(),
-        COMMA_JOINER.join(
-            GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES.getDefault()));
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.MR_JOB_HISTORY_DONE_DIR_KEY, "/tmp/hadoop-yarn/done");
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.MR_JOB_HISTORY_INTERMEDIATE_DONE_DIR_KEY,
-        "/tmp/hadoop-yarn/staging/done");
-
-    predicate =
-        GoogleHadoopFileSystemBase.ParentTimestampUpdateIncludePredicate.create(configuration);
-
-    assertThat(
-            configuration.get(
-                GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getKey()))
-        .isEqualTo("/tmp/hadoop-yarn/staging/done,/tmp/hadoop-yarn/done");
-
-    assertWithMessage("Should be included")
-        .that(predicate.test(new URI("gs://bucket/tmp/hadoop-yarn/staging/done/")))
-        .isTrue();
-    assertWithMessage("Should be included")
-        .that(predicate.test(new URI("gs://bucket/tmp/hadoop-yarn/done/")))
-        .isTrue();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("asdf/baz"))).isFalse();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("/anythingElse"))).isFalse();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("/"))).isFalse();
-
-    // 5 set to defaults, set job history paths with gs:// scheme
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getKey(),
-        COMMA_JOINER.join(
-            GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getDefault()));
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES.getKey(),
-        COMMA_JOINER.join(
-            GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_EXCLUDES.getDefault()));
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.MR_JOB_HISTORY_DONE_DIR_KEY,
-        "gs://foo-bucket/tmp/hadoop-yarn/done");
-    configuration.set(
-        GoogleHadoopFileSystemConfiguration.MR_JOB_HISTORY_INTERMEDIATE_DONE_DIR_KEY,
-        "gs://foo-bucket/tmp/hadoop-yarn/staging/done");
-
-    predicate =
-        GoogleHadoopFileSystemBase.ParentTimestampUpdateIncludePredicate.create(configuration);
-
-    assertThat(
-            configuration.get(
-                GoogleHadoopFileSystemConfiguration.GCS_PARENT_TIMESTAMP_UPDATE_INCLUDES.getKey()))
-        .isEqualTo(
-            "gs://foo-bucket/tmp/hadoop-yarn/staging/done,gs://foo-bucket/tmp/hadoop-yarn/done");
-
-    assertWithMessage("Should be included")
-        .that(predicate.test(new URI("gs://foo-bucket/tmp/hadoop-yarn/staging/done/")))
-        .isTrue();
-    assertWithMessage("Should be included")
-        .that(predicate.test(new URI("gs://foo-bucket/tmp/hadoop-yarn/done/")))
-        .isTrue();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("asdf/baz"))).isFalse();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("/anythingElse"))).isFalse();
-    assertWithMessage("Should be ignored").that(predicate.test(new URI("/"))).isFalse();
   }
 
   @Test

@@ -31,31 +31,38 @@ import org.apache.hadoop.util.ToolRunner;
  * FSCK tool to recover failed directory mutations guarded by GCS Connector Cooperative Locking
  * feature.
  *
- * <p>Usage: <code>
- *   hadoop jar /usr/lib/hadoop/lib/gcs-connector.jar
- *       com.google.cloud.hadoop.fs.gcs.CoopLockFsck --rollForward gs://my-bucket
- * </code>
+ * <p>Usage:
+ *
+ * <pre>{@code
+ * hadoop jar /usr/lib/hadoop/lib/gcs-connector.jar com.google.cloud.hadoop.fs.gcs.CoopLockFsck \
+ *     --{check,rollBack,rollForward} gs://<bucket_name> [all|<operation-id>]
+ * }</pre>
  */
 public class CoopLockFsck extends Configured implements Tool {
 
   static final String COMMAND_CHECK = "--check";
-  static final String COMMAND_ROLL_FORWARD = "--rollForward";
   static final String COMMAND_ROLL_BACK = "--rollBack";
+  static final String COMMAND_ROLL_FORWARD = "--rollForward";
+
+  static final String ARGUMENT_ALL_OPERATIONS = "all";
 
   private static final ImmutableSet<String> FSCK_COMMANDS =
       ImmutableSet.of(COMMAND_CHECK, COMMAND_ROLL_FORWARD, COMMAND_ROLL_BACK);
 
   public static void main(String[] args) throws Exception {
+    checkArgument(args.length > 0, "No arguments are specified");
+
     if (args.length == 1 && "--help".equals(args[0])) {
       System.out.println(
           "FSCK tool to recover failed directory mutations guarded by"
               + " GCS Connector Cooperative Locking feature."
               + "\n\nUsage:"
               + String.format(
-                  "\n\thadoop jar /usr/lib/hadoop/lib/gcs-connector.jar %s <COMMAND> gs://<BUCKET>",
+                  "\n\thadoop jar /usr/lib/hadoop/lib/gcs-connector.jar %s"
+                      + " --{check,rollBack,rollForward} gs://<bucket_name> [all|<operation_id>]",
                   CoopLockFsck.class.getCanonicalName())
               + "\n\nSupported commands:"
-              + String.format("\n\t%s - prints out failed operation for the bucket", COMMAND_CHECK)
+              + String.format("\n\t%s - print out operations status in the bucket", COMMAND_CHECK)
               + String.format(
                   "\n\t%s - recover directory operations in the bucket by rolling them forward",
                   COMMAND_ROLL_FORWARD)
@@ -73,17 +80,24 @@ public class CoopLockFsck extends Configured implements Tool {
 
   @Override
   public int run(String[] args) throws Exception {
-    checkArgument(
-        args.length == 2, "2 arguments should be specified, but were: %s", Arrays.asList(args));
-
     String command = args[0];
     checkArgument(FSCK_COMMANDS.contains(command), "Unknown %s command, should be %s", command);
+
+    int expectedArgsNumber = COMMAND_CHECK.equals(command) ? 2 : 3;
+    checkArgument(
+        args.length == expectedArgsNumber,
+        "%s arguments should be specified for %s command, but were: %s",
+        expectedArgsNumber,
+        command,
+        Arrays.asList(args));
 
     String bucket = args[1];
     checkArgument(
         bucket.startsWith(GoogleCloudStorageFileSystem.SCHEME + "://"),
         "bucket parameter should have 'gs://' scheme");
 
-    return new CoopLockFsckRunner(getConf(), URI.create(bucket), command).run();
+    String operationId = COMMAND_CHECK.equals(command) ? null : args[2];
+
+    return new CoopLockFsckRunner(getConf(), URI.create(bucket), command, operationId).run();
   }
 }

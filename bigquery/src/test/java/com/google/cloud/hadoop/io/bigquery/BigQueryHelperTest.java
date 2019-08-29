@@ -161,7 +161,7 @@ public class BigQueryHelperTest {
 
   /** Tests importBigQueryFromGcs method of BigQueryHelper. */
   @Test
-  public void testImportBigQueryFromGcs() throws IOException, InterruptedException {
+  public void testImportBigQueryFromGcs() throws Exception {
     when(mockBigqueryTablesGet.execute()).thenReturn(fakeTable);
 
     final ArgumentCaptor<Job> jobCaptor = ArgumentCaptor.forClass(Job.class);
@@ -215,8 +215,7 @@ public class BigQueryHelperTest {
 
   /** Tests exportBigQueryToGCS method of BigQueryHelper. */
   @Test
-  public void testExportBigQueryToGcsSingleShardAwaitCompletion()
-      throws IOException, InterruptedException {
+  public void testExportBigQueryToGcsSingleShardAwaitCompletion() throws Exception {
     when(mockBigqueryTablesGet.execute()).thenReturn(fakeTable);
 
     final ArgumentCaptor<Job> jobCaptor = ArgumentCaptor.forClass(Job.class);
@@ -317,7 +316,7 @@ public class BigQueryHelperTest {
     when(mockErrorExtractor.itemNotFound(any(IOException.class))).thenReturn(false);
 
     IOException thrown = assertThrows(IOException.class, () -> helper.tableExists(tableRef));
-    assertThat(thrown).isEqualTo(fakeUnhandledException);
+    assertThat(thrown).hasCauseThat().isEqualTo(fakeUnhandledException);
 
     // Verify correct calls are made.
     verify(mockBigquery, times(1)).tables();

@@ -176,11 +176,11 @@ public class BatchHelper {
       T result = req.execute();
       callback.onSuccess(result, req.getLastResponseHeaders());
     } catch (IOException e) {
-      GoogleJsonResponseException je = ApiErrorExtractor.getJsonResponseExceptionOrNull(e);
-      if (je == null) {
+      GoogleJsonResponseException jsonException = ApiErrorExtractor.getJsonResponseException(e);
+      if (jsonException == null) {
         throw e;
       }
-      callback.onFailure(je.getDetails(), je.getHeaders());
+      callback.onFailure(jsonException.getDetails(), jsonException.getHeaders());
     }
   }
 
@@ -244,6 +244,7 @@ public class BatchHelper {
           requestsExecutor.shutdownNow();
         }
       } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
         logger.atFine().withCause(e).log(
             "Failed to await termination: forcibly shutting down batch helper thread pool.");
         requestsExecutor.shutdownNow();
@@ -263,10 +264,10 @@ public class BatchHelper {
       try {
         responseFutures.remove().get();
       } catch (InterruptedException | ExecutionException e) {
-        if (e.getCause() instanceof IOException) {
-          throw (IOException) e.getCause();
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
         }
-        throw new RuntimeException("Failed to execute batch", e);
+        throw new IOException("Failed to execute batch", e);
       }
     }
   }

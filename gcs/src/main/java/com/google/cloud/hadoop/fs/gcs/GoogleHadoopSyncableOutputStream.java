@@ -168,7 +168,9 @@ public class GoogleHadoopSyncableOutputStream extends OutputStream implements Sy
       ExecutorService cleanupThreadpool,
       boolean appendMode)
       throws IOException {
-    logger.atFine().log("GoogleHadoopSyncableOutputStream(%s)", gcsPath);
+    logger.atFine().log(
+        "GoogleHadoopSyncableOutputStream(gcsPath: %s, createFileOptions:  %s)",
+        gcsPath, createFileOptions);
     this.ghfs = ghfs;
     this.finalGcsPath = gcsPath;
     this.statistics = statistics;
@@ -209,7 +211,7 @@ public class GoogleHadoopSyncableOutputStream extends OutputStream implements Sy
     logger.atFine().log(
         "close(): Current tail file: %s final destination: %s", curGcsPath, finalGcsPath);
     if (!isOpen()) {
-      logger.atFine().log("close(): Ignoring; stream already closed.");
+      logger.atFinest().log("close(): Ignoring; stream already closed.");
       return;
     }
     commitCurrentFile();
@@ -224,15 +226,13 @@ public class GoogleHadoopSyncableOutputStream extends OutputStream implements Sy
     for (Future<?> deletion : deletionFutures) {
       try {
         deletion.get();
-      } catch (ExecutionException | InterruptedException ee) {
-        if (ee.getCause() instanceof IOException) {
-          throw (IOException) ee.getCause();
-        } else {
-          throw new IOException(ee);
+      } catch (ExecutionException | InterruptedException e) {
+        if (e instanceof InterruptedException) {
+          Thread.currentThread().interrupt();
         }
+        throw new IOException("Failed to delete files while closing stream", e);
       }
     }
-    logger.atFine().log("close(): done");
   }
 
   public void sync() throws IOException {

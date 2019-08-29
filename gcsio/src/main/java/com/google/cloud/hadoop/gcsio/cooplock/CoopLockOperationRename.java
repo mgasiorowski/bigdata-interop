@@ -106,7 +106,7 @@ public class CoopLockOperationRename {
   public void checkpoint() {
     try {
       coopLockOperationDao.checkpointRenameOperation(
-          srcResourceId, dstResourceId, operationId, operationInstant, /* copySucceeded= */ true);
+          srcResourceId.getBucketName(), operationId, operationInstant, /* copySucceeded= */ true);
     } catch (IOException e) {
       throw new RuntimeException(String.format("Failed to checkpoint %s operation", this), e);
     }
@@ -122,7 +122,7 @@ public class CoopLockOperationRename {
   }
 
   public void cancelRenewal() {
-    lockUpdateFuture.cancel(/* mayInterruptIfRunning= */ true);
+    lockUpdateFuture.cancel(/* mayInterruptIfRunning= */ false);
   }
 
   @Override

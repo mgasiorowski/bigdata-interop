@@ -1,4 +1,6 @@
-### 2.0.0-RC3 - 2019-XX-XX
+### 2.1.0 - 2019-XX-XX
+
+### 2.0.0 - 2019-08-23
 
 1.  Remove Hadoop 1.x support.
 
@@ -60,7 +62,7 @@
 
         hadoop jar /usr/lib/hadoop/lib/gcs-connector.jar \
             com.google.cloud.hadoop.fs.gcs.CoopLockFsck \
-            --rollForward gs://my-bucket
+            --{check,rollBack,rollForward} gs://<bucket_name> [all|<operation_id>]
 
 1.  Implement Hadoop File System `append` method using GCS compose API.
 
@@ -72,6 +74,16 @@
     This feature is configurable with the property:
 
         fs.gs.inputstream.support.gzip.encoding.enable (default: false)
+
+1.  Remove parent directory timestamp update feature and related properties:
+
+        fs.gs.parent.timestamp.update.enable
+        fs.gs.parent.timestamp.update.substrings.excludes
+        fs.gs.parent.timestamp.update.substrings.includes
+
+    This feature was enabled by default only for job history files, but it's not
+    necessary anymore for Job History Server to work properly after
+    [MAPREDUCE-7101](https://issues.apache.org/jira/browse/MAPREDUCE-7101).
 
 ### 1.9.14 - 2019-02-13
 
